@@ -1,0 +1,14 @@
+/bin
+/ipch
+
+*.opensdf
+
+*.sdf
+
+*.manifest
+*.suo
+
+/src/apps/mplayerc/MPCBEShellExt/MPCBEShellExt_i.c
+/src/apps/mplayerc/MPCBEShellExt/MPCBEShellExt_i.h
+/src/apps/mplayerc/MPCBEShellExt/MPCBEShellExt_p.c
+/src/apps/mplayerc/MPCBEShellExt/dlldata.c

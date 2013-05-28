@@ -27,6 +27,10 @@ IF /I "%~1"=="-help"  GOTO SHOWHELP
 IF /I "%~1"=="--help" GOTO SHOWHELP
 IF /I "%~1"=="/?"     GOTO SHOWHELP
 
+IF EXIST "..\..\..\build.user.bat" (
+  CALL ..\..\..\build.user.bat
+)
+
 IF DEFINED MINGW32 GOTO VarOk
 ECHO ERROR: Please define MINGW32 (and/or MSYS) environment variable(s)
 ENDLOCAL

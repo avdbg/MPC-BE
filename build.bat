@@ -21,6 +21,18 @@ REM along with this program.  If not, see <http://www.gnu.org/licenses/>.
 SETLOCAL
 CD /D %~dp0
 
+IF EXIST "..\..\..\build.user.bat" (
+  CALL ..\..\..\build.user.bat
+)
+
+REM pre-build checks
+
+  IF DEFINED MINGW32 (SET MPCBE_MINGW32=%MINGW32%) ELSE (GOTO MissingVar)
+  IF DEFINED MINGW64 (SET MPCBE_MINGW64=%MINGW64%) ELSE (GOTO MissingVar)
+  IF DEFINED MSYS    (SET MPCBE_MSYS=%MSYS%)       ELSE (GOTO MissingVar)
+
+IF NOT DEFINED VS100COMNTOOLS GOTO MissingVar
+
 SET ARG=%*
 SET ARG=%ARG:/=%
 SET ARG=%ARG:-=%
