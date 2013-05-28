@@ -929,6 +929,7 @@ BOOL SetHeapOptions()
 
 BOOL CMPlayerCApp::InitInstance()
 {
+	_tsetlocale(LC_ALL,_T("chs"));
 	// Remove the working directory from the search path to work around the DLL preloading vulnerability
 	SetDllDirectory(_T(""));
 

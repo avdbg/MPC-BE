@@ -12275,7 +12275,7 @@ HRESULT CMainFrame::PreviewWindowShow(REFERENCE_TIME rtCur2)
 		}
 
 		pDVDI2->GetCurrentLocation(&Loc2);
-		//LOG2FILE(_T("DVD - Текущее воспроизведение : Main [%d : %d], Preview [%d : %d]"), Loc.TitleNum, Loc.ChapterNum, Loc2.TitleNum, Loc2.ChapterNum);
+		//LOG2FILE(_T("DVD - Текуще? воспроизведени? : Main [%d : %d], Preview [%d : %d]"), Loc.TitleNum, Loc.ChapterNum, Loc2.TitleNum, Loc2.ChapterNum);
 
 		pDVDC2->Pause(FALSE);
 		pMC2->Run();
@@ -12374,6 +12374,13 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 	if (pOFD->fns.IsEmpty()) {
 		return ResStr(IDS_MAINFRM_81);
 	}
+
+	TCHAR	szExePath[MAX_PATH];
+	GetModuleFileName(NULL,szExePath,MAX_PATH);
+	*_tcsrchr(szExePath,_T('\\')) = _T('\0');
+	_tcscat(szExePath,_T("\\History.txt"));
+	FILE* fLog = _tfopen(szExePath,_T("a+"));
+
 
 	m_YoutubeFile			= _T("");
 	m_YoutubeThread			= NULL;
@@ -12539,6 +12546,7 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 						break;
 				}
 
+				fclose(fLog);
 				return err;
 			}
 		}
@@ -12591,6 +12599,15 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 
 		if (s.fKeepHistory) {
 			CRecentFileList* pMRU = fFirst ? &s.MRU : &s.MRUDub;
+
+			time_t tNow = time(0);
+			tm tmNow = *localtime(&tNow);
+
+			_ftprintf(fLog,_T("%04d-%02d-%02d %02d:%02d:%02d %s\n"),
+			tmNow.tm_year+1900,tmNow.tm_mon+1,tmNow.tm_mday,
+			tmNow.tm_hour,tmNow.tm_min,tmNow.tm_sec,fn.GetBuffer());
+			fflush(fLog);
+
 			pMRU->ReadList();
 			pMRU->Add(fn);
 			pMRU->WriteList();
@@ -12645,6 +12662,7 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 
 	SetPlaybackMode(PM_FILE);
 
+	fclose(fLog);
 	return _T("");
 }
 
