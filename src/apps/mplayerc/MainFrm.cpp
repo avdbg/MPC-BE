@@ -3597,7 +3597,7 @@ void CMainFrame::OnMouseMove(UINT nFlags, CPoint point)
 				KillTimer(TIMER_FULLSCREENMOUSEHIDER);
 				SetTimer(TIMER_FULLSCREENMOUSEHIDER, 2000, NULL);
 			}
-		} else if (m_fFullScreen && (abs(diff.cx)+abs(diff.cy)) >= 1) {
+		} else if (/*m_fFullScreen && */(abs(diff.cx)+abs(diff.cy)) >= 1) {
 			int nTimeOut = s.nShowBarsWhenFullScreenTimeOut;
 
 			if (nTimeOut < 0) {
@@ -11460,7 +11460,8 @@ void CMainFrame::MoveVideoWindow(bool fShowStats)
 		if (m_pFullscreenWnd->IsWindow()) {
 			m_pFullscreenWnd->GetClientRect(&wr);
 		} else if (!m_fFullScreen) {
-			m_wndView.GetClientRect(&wr);
+			//m_wndView.GetClientRect(&wr);
+			this->GetClientRect(&wr);
 		} else {
 			GetWindowRect(&wr);
 			// it's code need for work in fullscreen on secondary monitor;
@@ -16471,11 +16472,11 @@ void CMainFrame::ShowControls(int nCS, bool fSave)
 	wp.length = sizeof(wp);
 	GetWindowPlacement(&wp);
 
-	if (wp.showCmd != SW_SHOWMAXIMIZED && !m_fFullScreen) {
-		CRect r;
-		GetWindowRect(r);
-		MoveWindow(r.left, r.top, r.Width(), r.Height()+(hafter-hbefore));
-	}
+// 	if (wp.showCmd != SW_SHOWMAXIMIZED && !m_fFullScreen) {
+// 		CRect r;
+// 		GetWindowRect(r);
+// 		MoveWindow(r.left, r.top, r.Width(), r.Height()+(hafter-hbefore));
+// 	}
 
 	if (fSave) {
 		AfxGetAppSettings().nCS = nCS;
