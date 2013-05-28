@@ -3669,6 +3669,9 @@ void CMainFrame::OnMouseMove(UINT nFlags, CPoint point)
 				}
 
 				SetTimer(TIMER_FULLSCREENMOUSEHIDER, 2000, NULL);
+				SetTimer(TIMER_FULLSCREENCONTROLBARHIDER, 500, NULL);
+				SetTimer(TIMER_FULLSCREENMOUSEHIDER, 500, NULL);
+
 			} else {
 				m_fHideCursor = false;
 				if (s.fShowBarsWhenFullScreen) {
