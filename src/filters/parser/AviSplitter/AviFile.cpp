@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -690,5 +688,5 @@ DWORD CAviFile::strm_t::GetChunkSize(DWORD size)
 
 bool CAviFile::strm_t::IsRawSubtitleStream()
 {
-	return strn.Find("Subtitle") == 0 || strh.fccType == FCC('txts') && cs.GetCount() == 1;
+	return (strn.Find("Subtitle") == 0 || (strh.fccType == FCC('txts') && cs.GetCount() == 1));
 }

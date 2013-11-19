@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -148,11 +146,12 @@ public:
 
 COggSplitterFilter::COggSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr)
 	: CBaseSplitterFilter(NAME("COggSplitterFilter"), pUnk, phr, __uuidof(this))
-	, m_rtMin(0)
-	, m_rtMax(0)
 	, m_bitstream_serial_number_start(0)
 	, m_bitstream_serial_number_last(0)
+	, bIsTheoraPresent(FALSE)
 {
+	m_nFlag |= PACKET_PTS_DISCONTINUITY;
+	m_nFlag |= PACKET_PTS_VALIDATE_POSITIVE;
 }
 
 COggSplitterFilter::~COggSplitterFilter()
@@ -181,17 +180,17 @@ HRESULT COggSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 {
 	CheckPointer(pAsyncReader, E_POINTER);
 
-	HRESULT hr = E_FAIL;
+	HRESULT hres = E_FAIL;
 
 	m_pFile.Free();
 
-	m_pFile.Attach(DNew COggFile(pAsyncReader, hr));
+	m_pFile.Attach(DNew COggFile(pAsyncReader, hres));
 	if (!m_pFile) {
 		return E_OUTOFMEMORY;
 	}
-	if (FAILED(hr)) {
+	if (FAILED(hres)) {
 		m_pFile.Free();
-		return hr;
+		return hres;
 	}
 
 	m_rtNewStart = m_rtCurrent = 0;
@@ -301,25 +300,26 @@ start:
 			}
 		}
 
-		if (COggDiracOutputPin* p = dynamic_cast<COggDiracOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
-			if (!p->IsInitialized()) {
-				p->UnpackInitPage(page);
-				if (p->IsInitialized()) {
+		if (COggDiracOutputPin* pPin = dynamic_cast<COggDiracOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
+			if (!pPin->IsInitialized()) {
+				pPin->UnpackInitPage(page);
+				if (pPin->IsInitialized()) {
 					nWaitForMore--;
 				}
 			}
 		}
 
-		if (COggTheoraOutputPin* p = dynamic_cast<COggTheoraOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
-			p->UnpackInitPage(page);
-			if (p->IsInitialized()) {
+		if (COggTheoraOutputPin* pPin = dynamic_cast<COggTheoraOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
+			pPin->UnpackInitPage(page);
+			if (pPin->IsInitialized()) {
+				bIsTheoraPresent = TRUE;
 				nWaitForMore--;
 			}
 		}
 
-		if (COggVorbisOutputPin* p = dynamic_cast<COggVorbisOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
-			p->UnpackInitPage(page);
-			if (p->IsInitialized()) {
+		if (COggVorbisOutputPin* pPin = dynamic_cast<COggVorbisOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number))) {
+			pPin->UnpackInitPage(page);
+			if (pPin->IsInitialized()) {
 				nWaitForMore--;
 			}
 		}
@@ -355,42 +355,44 @@ start:
 
 	// get max pts to calculate duration
 	if (m_pFile->IsRandomAccess()) {
-		m_pFile->Seek(max(m_pFile->GetLength()-MAX_PAGE_SIZE, 0));
+		m_pFile->Seek(max(m_pFile->GetLength() - MAX_PAGE_SIZE, 0));
 
-		OggPage page;
-		while (m_pFile->Read(page)) {
-			COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number));
-			if (!pOggPin || page.m_hdr.granule_position == -1) {
+		OggPage page2;
+		while (m_pFile->Read(page2)) {
+			COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page2.m_hdr.bitstream_serial_number));
+			if (!pOggPin || page2.m_hdr.granule_position == -1) {
 				continue;
 			}
-			REFERENCE_TIME rt = pOggPin->GetRefTime(page.m_hdr.granule_position);
+			REFERENCE_TIME rt = pOggPin->GetRefTime(page2.m_hdr.granule_position);
 			m_rtDuration = max(rt, m_rtDuration);
 		}
-	}
 
-	// get min pts to calculate duration
-	m_pFile->Seek(start_pos);
-	for (int i = 0; m_pFile->Read(page), i<10; i++) {
-		COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number));
-		if (!pOggPin || page.m_hdr.granule_position == -1 || page.m_hdr.header_type_flag & OggPageHeader::first) {
-			continue;
-		}
-		REFERENCE_TIME rt = pOggPin->GetRefTime(page.m_hdr.granule_position);
-		if (rt > 0) {
-			if ((rt - m_rtMin) > MAX_PTS_SHIFT) {
-				m_rtMin = rt;
-			} else {
-				break;
+		// get min pts to calculate duration
+		REFERENCE_TIME rtMin = 0;
+		m_pFile->Seek(start_pos);
+		for (int i = 0; m_pFile->Read(page2), i<10; i++) {
+			COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page2.m_hdr.bitstream_serial_number));
+			if (!pOggPin || page2.m_hdr.granule_position == -1 || page2.m_hdr.header_type_flag & OggPageHeader::first) {
+				continue;
+			}
+			REFERENCE_TIME rt = pOggPin->GetRefTime(page2.m_hdr.granule_position);
+			if (rt > 0) {
+				if ((rt - rtMin) > MAX_PTS_SHIFT) {
+					rtMin = rt;
+				} else {
+					break;
+				}
 			}
 		}
+
+		m_rtDuration	-= rtMin;
+		m_rtDuration	= max(0, m_rtDuration);
+
 	}
 
 	m_pFile->Seek(start_pos);
 
-	m_rtDuration	-= m_rtMin;
-	m_rtDuration	= max(0, m_rtDuration);
-
-	m_rtMax = m_rtNewStop = m_rtStop = m_rtDuration;
+	m_rtNewStop = m_rtStop = m_rtDuration;
 
 	// comments
 	{
@@ -468,79 +470,71 @@ bool COggSplitterFilter::DemuxInit()
 
 void COggSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 {
-	if (rt > m_rtDuration) {
-		rt -= m_rtMin;
-	}
-
-	if (rt <= 0 ) {
+	if (rt <= 0) {
 		m_pFile->Seek(0);
 	} else if (m_rtDuration > 0) {
 
-		__int64 len = m_pFile->GetLength();
-		__int64 startpos = len * rt/m_rtDuration;
+		__int64 len			= m_pFile->GetLength();
+		__int64 seekpos		= (__int64)(1.0*rt/m_rtDuration*len);
+		__int64 minseekpos	= _I64_MIN;
 
-		REFERENCE_TIME rtMinDiff = _I64_MAX;
+		REFERENCE_TIME rtmax = rt - UNITS * (bIsTheoraPresent ? 2 : 0);
+		REFERENCE_TIME rtmin = rtmax - UNITS / 2;
 
+		__int64 curpos = seekpos;
+		double div = 1.0;
 		for (;;) {
-			__int64 endpos = startpos;
-			REFERENCE_TIME rtPos = -1;
+			REFERENCE_TIME rt2 = INVALID_TIME;
 
-			OggPage page;
-			m_pFile->Seek(startpos);
-			while (m_pFile->Read(page, false)) {
-				if (page.m_hdr.granule_position == -1) {
-					continue;
-				}
+			{
+				OggPage page;
+				m_pFile->Seek(curpos);
+				while (m_pFile->Read(page, false)) {
+					if (page.m_hdr.granule_position == -1) {
+						continue;
+					}
 
-				COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number));
-				if (!pOggPin) {
-					continue;
-				}
+					COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number));
+					if (!pOggPin) {
+						continue;
+					}
 
-				rtPos = pOggPin->GetRefTime(page.m_hdr.granule_position) - m_rtMin;
-				endpos = m_pFile->GetPos();
+					COggTheoraOutputPin* pOggPinTh = dynamic_cast<COggTheoraOutputPin*>(pOggPin);
+					if (bIsTheoraPresent && !pOggPinTh) {
+						continue;
+					}
 
-				break;
-			}
-
-			__int64 rtDiff = rtPos - rt;
-
-			if (rtDiff < 0) {
-				rtDiff = -rtDiff;
-
-				if (rtDiff < 500000 || rtDiff >= rtMinDiff) {
-					m_pFile->Seek(startpos);
+					rt2 = pOggPin->GetRefTime(page.m_hdr.granule_position) + pOggPin->GetOffset();
 					break;
 				}
-
-				rtMinDiff = rtDiff;
+			
 			}
 
-			__int64 newpos = startpos;
-
-			if (rtPos < rt && rtPos < m_rtDuration) {
-				newpos = startpos + (__int64)((1.0*(rt - rtPos)/(m_rtDuration - rtPos)) * (len - startpos)) + 1024;
-				if (newpos < endpos) {
-					newpos = endpos + 1024;
-				}
-			} else if (rtPos > rt && rtPos > 0) {
-				newpos = startpos - (__int64)((1.0*(rtPos - rt)/(rtPos - 0)) * (startpos - 0)) - 1024;
-				if (newpos >= startpos) {
-					newpos = startpos - 1024;
-				}
-			} else if (rtPos == rt) {
-				m_pFile->Seek(startpos);
-				break;
-			} else {
-				ASSERT(0);
-				m_pFile->Seek(0);
+			if (rt2 == INVALID_TIME) {
 				break;
 			}
 
-			startpos = max(min(newpos, len), 0);
+			if (rtmin <= rt2 && rt2 <= rtmax) {
+				m_pFile->Seek(curpos);
+				return;
+			}
+
+			REFERENCE_TIME dt = rt2 - rtmax;
+			if (rt2 < 0) {
+				dt = UNITS / div;
+			}
+			dt /= div;
+			div += 0.05;
+
+			if (div >= 5.0) {
+				break;
+			}
+
+			curpos -= (__int64)(1.0*dt/m_rtDuration*len);
+			m_pFile->Seek(curpos);
 		}
 
-		m_pFile->Seek(startpos);
+		m_pFile->Seek(0);
 	}
 }
 
@@ -553,35 +547,6 @@ bool COggSplitterFilter::DemuxLoop()
 
 		if(!m_pFile->Read(page, true, GetRequestHandle())) {
 			break;
-		}
-
-		if (page.m_hdr.header_type_flag & OggPageHeader::first) {
-			if (m_pOutputs.GetCount() == 1 && m_bitstream_serial_number_last && m_bitstream_serial_number_last != page.m_hdr.bitstream_serial_number) {
-
-				TRACE(_T("COggSplitterFilter::DemuxLoop() : Page change [%d => %d]\n"), m_bitstream_serial_number_last, page.m_hdr.bitstream_serial_number);
-
-				DWORD bitstream_serial_number = page.m_hdr.bitstream_serial_number;
-				__int64 start_pos = m_pFile->GetPos();
-				m_rtMin = 0;
-
-				for (int i = 0; m_pFile->Read(page), bitstream_serial_number == page.m_hdr.bitstream_serial_number, i<10; i++) {
-					COggSplitterOutputPin* pOggPin = dynamic_cast<COggSplitterOutputPin*>(GetOutputPin(page.m_hdr.bitstream_serial_number));
-					page.m_hdr.bitstream_serial_number = m_bitstream_serial_number_start;
-					if (!pOggPin || page.m_hdr.granule_position == -1 || page.m_hdr.header_type_flag & OggPageHeader::first) {
-						continue;
-					}
-					REFERENCE_TIME rt = pOggPin->GetRefTime(page.m_hdr.granule_position);
-					if (rt > 0) {
-						if ((rt - m_rtMin) > MAX_PTS_SHIFT) {
-							m_rtMin = rt;
-						} else {
-							break;
-						}
-					}
-				}
-				m_pFile->Seek(start_pos);
-				continue;
-			}
 		}
 
 		if (m_pOutputs.GetCount() == 1 && m_bitstream_serial_number_start && m_bitstream_serial_number_start != page.m_hdr.bitstream_serial_number) {
@@ -639,7 +604,7 @@ void COggSplitterOutputPin::AddComment(BYTE* p, int len)
 	bs.getbits(bs.getbits(32)*8);
 	for (int n = bs.getbits(32); n-- > 0; ) {
 		CStringA str;
-		for (int len = bs.getbits(32); len-- > 0; ) {
+		for (int cnt = bs.getbits(32); cnt-- > 0; ) {
 			str += (CHAR)bs.getbits(8);
 		}
 
@@ -651,24 +616,24 @@ void COggSplitterOutputPin::AddComment(BYTE* p, int len)
 		CStringA TagKey		= str.Left(sepPos);
 		CStringA TagValue	= str.Mid(sepPos + 1);
 
-		CAutoPtr<CComment> p(DNew CComment(UTF8To16(TagKey), UTF8To16(TagValue)));
+		CAutoPtr<CComment> pComment(DNew CComment(UTF8ToString(TagKey), UTF8ToString(TagValue)));
 
-		if (p->m_key == L"LANGUAGE") {
-			CString lang = ISO6392ToLanguage(TagValue), iso6392 = LanguageToISO6392(CString(p->m_value));
+		if (pComment->m_key == L"LANGUAGE") {
+			CString lang = ISO6392ToLanguage(TagValue), iso6392 = LanguageToISO6392(CString(pComment->m_value));
 
-			if (p->m_value.GetLength() == 3 && !lang.IsEmpty()) {
+			if (pComment->m_value.GetLength() == 3 && !lang.IsEmpty()) {
 				SetName(CStringW(lang));
-				SetProperty(L"LANG", p->m_value);
+				SetProperty(L"LANG", pComment->m_value);
 			} else if (!iso6392.IsEmpty()) {
-				SetName(p->m_value);
+				SetName(pComment->m_value);
 				SetProperty(L"LANG", CStringW(iso6392));
 			} else {
-				SetName(p->m_value);
-				SetProperty(L"NAME", p->m_value);
+				SetName(pComment->m_value);
+				SetProperty(L"NAME", pComment->m_value);
 			}
 		}
 
-		m_pComments.AddTail(p);
+		m_pComments.AddTail(pComment);
 	}
 }
 
@@ -746,7 +711,7 @@ HRESULT COggSplitterOutputPin::UnpackPage(OggPage& page)
 
 				if (last == pos && page.m_hdr.granule_position != -1) {
 					REFERENCE_TIME rtLast = m_rtLast;
-					m_rtLast = GetRefTime(page.m_hdr.granule_position) - (dynamic_cast<COggSplitterFilter*>(m_pFilter))->m_rtMin;
+					m_rtLast = GetRefTime(page.m_hdr.granule_position);
 
 					// some bad encodings have a +/-1 frame difference from the normal timeline,
 					// but these seem to cancel eachother out nicely so we can just ignore them
@@ -1404,10 +1369,8 @@ HRESULT COggTheoraOutputPin::UnpackPacket(CAutoPtr<Packet>& p, BYTE* pData, int 
 COggDiracOutputPin::COggDiracOutputPin(BYTE* p, int nCount, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr)
 	: COggSplitterOutputPin(pName, pFilter, pLock, phr)
 {
-	m_bOldDirac		= false;
 	m_IsInitialized	= false;
-
-	m_bOldDirac = !memcmp(p, "KW-DIRAC\x00", 9);
+	m_bOldDirac		= !memcmp(p, "KW-DIRAC\x00", 9);
 }
 
 HRESULT COggDiracOutputPin::UnpackInitPage(OggPage& page)

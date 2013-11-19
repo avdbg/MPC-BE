@@ -1,5 +1,6 @@
 /*
- * (C) 2013 see Authors.txt
+ * 
+ * (C) 2013 see Authors.txt.
  *
  * This file is part of MPC-BE.
  *
@@ -27,35 +28,41 @@
 #define INT32_PEAK      2147483648
 
 #define F16MAX ( float(INT16_MAX) / INT16_PEAK)
-#define F24MAX ( float(INT24_MAX) / INT24_PEAK)
+#define D24MAX (double(INT24_MAX) / INT24_PEAK)
 #define D32MAX (double(INT32_MAX) / INT32_PEAK)
 
 #define round_f(x) ((x) > 0 ? (x) + 0.5f : (x) - 0.5f)
 #define round_d(x) ((x) > 0 ? (x) + 0.5  : (x) - 0.5)
 
-#define limit(a, x, b) if (x < a) { x = a; } else if (x > b) { x = b;}
+#define limit(a, x, b) if (x < a) { x = a; } else if (x > b) { x = b; }
 
-HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, int16_t* pOut)
+HRESULT convert_to_int16(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, int16_t* pOut)
 {
 	size_t allsamples = nSamples * nChannels;
 
-	switch (avsf) {
-		case AV_SAMPLE_FMT_U8:
+	switch (sfmt) {
+		case SAMPLE_FMT_U8:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (int16_t)(*(int8_t*)pIn ^ 0x80) << 8;
 				pIn += sizeof(uint8_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S16:
+		case SAMPLE_FMT_S16:
 			memcpy(pOut, pIn, allsamples * sizeof(int16_t));
 			break;
-		case AV_SAMPLE_FMT_S32:
+		case SAMPLE_FMT_S24:
 			for (size_t i = 0; i < allsamples; ++i) {
-				*pOut++ = *(int16_t*)(pIn + sizeof(int16_t)); // read the high bits only
+				*pOut++ = *(int16_t*)(pIn + 1); // read the high bits only
+				pIn += 3;
+			}
+			break;
+		case SAMPLE_FMT_S32:
+			for (size_t i = 0; i < allsamples; ++i) {
+				*pOut++ = *(int16_t*)(pIn + 2); // read the high bits only
 				pIn += sizeof(int32_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_FLT:
+		case SAMPLE_FMT_FLT:
 			for (size_t i = 0; i < allsamples; ++i) {
 				float f = *(float*)pIn;
 				limit(-1, f, F16MAX);
@@ -63,7 +70,7 @@ HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				pIn += sizeof(float);
 			}
 			break;
-		case AV_SAMPLE_FMT_DBL:
+		case SAMPLE_FMT_DBL:
 			for (size_t i = 0; i < allsamples; ++i) {
 				float f = (float)*(double*)pIn;
 				limit(-1, f, F16MAX);
@@ -72,7 +79,7 @@ HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 			}
 			break;
 		// planar
-		case AV_SAMPLE_FMT_U8P:
+		case SAMPLE_FMT_U8P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					int8_t b = ((int8_t*)pIn)[nSamples * ch + i];
@@ -80,21 +87,21 @@ HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S16P:
+		case SAMPLE_FMT_S16P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = ((int16_t*)pIn)[nSamples * ch + i];
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S32P:
+		case SAMPLE_FMT_S32P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = *(int16_t*)(pIn + (nSamples * ch + i) * sizeof(int32_t) + sizeof(int16_t)); // read the high bits only
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_FLTP:
+		case SAMPLE_FMT_FLTP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					float f = ((float*)pIn)[nSamples * ch + i];
@@ -103,7 +110,7 @@ HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_DBLP:
+		case SAMPLE_FMT_DBLP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					float f = (float)((double*)pIn)[nSamples * ch + i];
@@ -118,36 +125,37 @@ HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 	return S_OK;
 }
 
-HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, BYTE* pOut)
+HRESULT convert_to_int24(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, BYTE* pOut)
 {
 	size_t allsamples = nSamples * nChannels;
 
-	switch (avsf) {
-		case AV_SAMPLE_FMT_U8:
+	switch (sfmt) {
+		case SAMPLE_FMT_U8:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = 0;
 				*pOut++ = 0;
-				*pOut++ = *(pIn) ^ 0x80;
-				pIn += sizeof(uint8_t);
+				*pOut++ = (*pIn++) ^ 0x80;
 			}
 			break;
-		case AV_SAMPLE_FMT_S16:
+		case SAMPLE_FMT_S16:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = 0;
-				*pOut++ = *(pIn);
-				*pOut++ = *(pIn + 1);
-				pIn += sizeof(int16_t);
+				*pOut++ = *pIn++;
+				*pOut++ = *pIn++;
 			}
 			break;
-		case AV_SAMPLE_FMT_S32:
+		case SAMPLE_FMT_S24:
+			memcpy(pOut, pIn, allsamples * 3);
+			break;
+		case SAMPLE_FMT_S32:
 			for (size_t i = 0; i < allsamples; ++i) {
-				*pOut++ = *(pIn + 1);
-				*pOut++ = *(pIn + 2);
-				*pOut++ = *(pIn + 3);
-				pIn += sizeof(int32_t);
+				pIn++;
+				*pOut++ = *pIn++;
+				*pOut++ = *pIn++;
+				*pOut++ = *pIn++;
 			}
 			break;
-		case AV_SAMPLE_FMT_FLT:
+		case SAMPLE_FMT_FLT:
 			for (size_t i = 0; i < allsamples; ++i) {
 				double d = (double)(*(float*)pIn);
 				limit(-1, d, D32MAX);
@@ -158,7 +166,7 @@ HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				pIn += sizeof(float);
 			}
 			break;
-		case AV_SAMPLE_FMT_DBL:
+		case SAMPLE_FMT_DBL:
 			for (size_t i = 0; i < allsamples; ++i) {
 				double d = *(double*)pIn;
 				limit(-1, d, D32MAX);
@@ -170,7 +178,7 @@ HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 			}
 			break;
 		// planar
-		case AV_SAMPLE_FMT_U8P:
+		case SAMPLE_FMT_U8P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = 0;
@@ -179,25 +187,27 @@ HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S16P:
+		case SAMPLE_FMT_S16P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
+					uint16_t u16 = ((uint16_t*)pIn)[nSamples * ch + i];
 					*pOut++ = 0;
-					*pOut++ = pIn[nSamples * ch + i];
-					*pOut++ = pIn[nSamples * ch + i + 1];
+					*pOut++ = (BYTE)(u16);
+					*pOut++ = (BYTE)(u16 >> 8);
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S32P:
+		case SAMPLE_FMT_S32P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
-					*pOut++ = pIn[nSamples * ch + i + 1];
-					*pOut++ = pIn[nSamples * ch + i + 2];
-					*pOut++ = pIn[nSamples * ch + i + 3];
+					uint32_t u32 = ((uint32_t*)pIn)[nSamples * ch + i];
+					*pOut++ = (BYTE)(u32 >> 8);
+					*pOut++ = (BYTE)(u32 >> 16);
+					*pOut++ = (BYTE)(u32 >> 24);
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_FLTP:
+		case SAMPLE_FMT_FLTP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					double d = (double)((float*)pIn)[nSamples * ch + i];
@@ -209,7 +219,7 @@ HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_DBLP:
+		case SAMPLE_FMT_DBLP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					double d = ((double*)pIn)[nSamples * ch + i];
@@ -227,27 +237,34 @@ HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 	return S_OK;
 }
 
-HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, int32_t* pOut)
+HRESULT convert_to_int32(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, int32_t* pOut)
 {
 	size_t allsamples = nSamples * nChannels;
 
-	switch (avsf) {
-		case AV_SAMPLE_FMT_U8:
+	switch (sfmt) {
+		case SAMPLE_FMT_U8:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (int32_t)(*(int8_t*)pIn ^ 0x80) << 24;
 				pIn += sizeof(uint8_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S16:
+		case SAMPLE_FMT_S16:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (int32_t)(*(int16_t*)pIn) << 16;
 				pIn += sizeof(int16_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S32:
+		case SAMPLE_FMT_S24:
+			for (size_t i = 0; i < allsamples; ++i) {
+				pOut[i] = (uint32_t)pIn[3 * i]     << 8  |
+				          (uint32_t)pIn[3 * i + 1] << 16 |
+				          (uint32_t)pIn[3 * i + 2] << 24;
+			}
+			break;
+		case SAMPLE_FMT_S32:
 			memcpy(pOut, pIn, nSamples * nChannels * sizeof(int32_t));
 			break;
-		case AV_SAMPLE_FMT_FLT:
+		case SAMPLE_FMT_FLT:
 			for (size_t i = 0; i < allsamples; ++i) {
 				double d = (double)(*(float*)pIn);
 				limit(-1, d, D32MAX);
@@ -255,7 +272,7 @@ HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				pIn += sizeof(float);
 			}
 			break;
-		case AV_SAMPLE_FMT_DBL:
+		case SAMPLE_FMT_DBL:
 			for (size_t i = 0; i < allsamples; ++i) {
 				double d = *(double*)pIn;
 				limit(-1, d, D32MAX);
@@ -264,7 +281,7 @@ HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 			}
 			break;
 		// planar
-		case AV_SAMPLE_FMT_U8P:
+		case SAMPLE_FMT_U8P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					int8_t b = ((int8_t*)pIn)[nSamples * ch + i];
@@ -272,21 +289,21 @@ HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S16P:
+		case SAMPLE_FMT_S16P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = (int32_t)((int16_t*)pIn)[nSamples * ch + i] << 16;
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S32P:
+		case SAMPLE_FMT_S32P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = ((int32_t*)pIn)[nSamples * ch + i];
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_FLTP:
+		case SAMPLE_FMT_FLTP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					double d = (double)((float*)pIn)[nSamples * ch + i];
@@ -295,7 +312,7 @@ HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_DBLP:
+		case SAMPLE_FMT_DBLP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					double d = ((double*)pIn)[nSamples * ch + i];
@@ -310,68 +327,77 @@ HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 	return S_OK;
 }
 
-HRESULT convert_to_float(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut)
+HRESULT convert_to_float(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut)
 {
 	size_t allsamples = nSamples * nChannels;
 
-	switch (avsf) {
-		case AV_SAMPLE_FMT_U8:
+	switch (sfmt) {
+		case SAMPLE_FMT_U8:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)(*(int8_t*)pIn ^ 0x80) / INT8_PEAK;
 				pIn += sizeof(uint8_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S16:
+		case SAMPLE_FMT_S16:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)(*(int16_t*)pIn) / INT16_PEAK;
 				pIn += sizeof(int16_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S32:
+		case SAMPLE_FMT_S24:
+			for (size_t i = 0; i < allsamples; ++i) {
+				int32_t i32 = (uint32_t)pIn[3 * i]     << 8  |
+				              (uint32_t)pIn[3 * i + 1] << 16 |
+				              (uint32_t)pIn[3 * i + 2] << 24;
+				*pOut++ = (float)((double)i32 / INT32_PEAK);
+				pIn += sizeof(int32_t);
+			}
+			break;
+		case SAMPLE_FMT_S32:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)((double)(*(int32_t*)pIn) / INT32_PEAK);
 				pIn += sizeof(int32_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_FLT:
+		case SAMPLE_FMT_FLT:
 			memcpy(pOut, pIn, allsamples * sizeof(float));
 			break;
-		case AV_SAMPLE_FMT_DBL:
+		case SAMPLE_FMT_DBL:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)*(double*)pIn;
 				pIn += sizeof(double);
 			}
 			break;
 		// planar
-		case AV_SAMPLE_FMT_U8P:
+		case SAMPLE_FMT_U8P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = (float)(((int8_t*)pIn)[nSamples * ch + i] ^ 0x80)/ INT8_PEAK;
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S16P:
+		case SAMPLE_FMT_S16P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = (float)((int16_t*)pIn)[nSamples * ch + i] / INT16_PEAK;
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S32P:
+		case SAMPLE_FMT_S32P:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = (float)((double)((int32_t*)pIn)[nSamples * ch + i] / INT32_PEAK);
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_FLTP:
+		case SAMPLE_FMT_FLTP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = ((float*)pIn)[nSamples * ch + i];
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_DBLP:
+		case SAMPLE_FMT_DBLP:
 			for (size_t i = 0; i < nSamples; ++i) {
 				for (int ch = 0; ch < nChannels; ++ch) {
 					*pOut++ = (float)((double*)pIn)[nSamples * ch + i];
@@ -384,40 +410,40 @@ HRESULT convert_to_float(enum AVSampleFormat avsf, WORD nChannels, DWORD nSample
 	return S_OK;
 }
 
-HRESULT convert_to_planar_float(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut)
+HRESULT convert_to_planar_float(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut)
 {
 	size_t allsamples = nSamples * nChannels;
 
-	switch (avsf) {
-		case AV_SAMPLE_FMT_U8:
+	switch (sfmt) {
+		case SAMPLE_FMT_U8:
 			for (int ch = 0; ch < nChannels; ++ch) {
 				for (size_t i = 0; i < nSamples; ++i) {
 					*pOut++ = (float)(((int8_t*)pIn)[nChannels * i + ch] ^ 0x80)/ INT8_PEAK;
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S16:
+		case SAMPLE_FMT_S16:
 			for (int ch = 0; ch < nChannels; ++ch) {
 				for (size_t i = 0; i < nSamples; ++i) {
 					*pOut++ = (float)((int16_t*)pIn)[nChannels * i + ch] / INT16_PEAK;
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_S32:
+		case SAMPLE_FMT_S32:
 			for (int ch = 0; ch < nChannels; ++ch) {
 				for (size_t i = 0; i < nSamples; ++i) {
 					*pOut++ = (float)((double)((int32_t*)pIn)[nChannels * i + ch] / INT32_PEAK);
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_FLT:
+		case SAMPLE_FMT_FLT:
 			for (int ch = 0; ch < nChannels; ++ch) {
 				for (size_t i = 0; i < nSamples; ++i) {
 					*pOut++ = ((float*)pIn)[nChannels * i + ch];
 				}
 			}
 			break;
-		case AV_SAMPLE_FMT_DBL:
+		case SAMPLE_FMT_DBL:
 			for (int ch = 0; ch < nChannels; ++ch) {
 				for (size_t i = 0; i < nSamples; ++i) {
 					*pOut++ = (float)((double*)pIn)[nChannels * i + ch];
@@ -425,28 +451,28 @@ HRESULT convert_to_planar_float(enum AVSampleFormat avsf, WORD nChannels, DWORD 
 			}
 			break;
 		// planar
-		case AV_SAMPLE_FMT_U8P:
+		case SAMPLE_FMT_U8P:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)(*(int8_t*)pIn ^ 0x80) / INT8_PEAK;
 				pIn += sizeof(uint8_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S16P:
+		case SAMPLE_FMT_S16P:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)(*(int16_t*)pIn) / INT16_PEAK;
 				pIn += sizeof(int16_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_S32P:
+		case SAMPLE_FMT_S32P:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)((double)(*(int32_t*)pIn) / INT32_PEAK);
 				pIn += sizeof(int32_t);
 			}
 			break;
-		case AV_SAMPLE_FMT_FLTP:
+		case SAMPLE_FMT_FLTP:
 			memcpy(pOut, pIn, allsamples * sizeof(float));
 			break;
-		case AV_SAMPLE_FMT_DBLP:
+		case SAMPLE_FMT_DBLP:
 			for (size_t i = 0; i < allsamples; ++i) {
 				*pOut++ = (float)*(double*)pIn;
 				pIn += sizeof(double);

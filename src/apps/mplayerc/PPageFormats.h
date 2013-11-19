@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -46,7 +44,8 @@ private:
 		AP_VIDEO = 0,
 		AP_MUSIC,
 		AP_AUDIOCD,
-		AP_DVDMOVIE
+		AP_DVDMOVIE,
+		AP_BDMOVIE
 	} autoplay_t;
 
 	void AddAutoPlayToRegistry(autoplay_t ap, bool fRegister);

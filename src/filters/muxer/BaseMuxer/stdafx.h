@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -34,7 +32,6 @@
 
 #include <afx.h>
 #include <afxwin.h>			// MFC core and standard components
-
 #include <atlbase.h>
 #include <atlcoll.h>
 

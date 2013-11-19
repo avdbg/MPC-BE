@@ -2792,19 +2792,26 @@ png_handle_unknown(png_structrp png_ptr, png_inforp info_ptr,
             if (ret < 0)
                png_chunk_error(png_ptr, "error in user chunk");
 
-            else if (ret > 0) /* chunk was handled */
+            else if (ret == 0)
+            {
+               /* Use the default handling, note that if there is per-chunk
+                * handling specified it has already been set into 'keep'.
+                *
+                * NOTE: this is an API change in 1.7.0, prior to 1.7.0 libpng
+                * would force keep to PNG_HANDLE_CHUNK_IF_SAFE at this point,
+                * and 1.6.0 would issue a warning if this caused a default of
+                * discarding the chunk to be changed.
+                */
+               if (keep == PNG_HANDLE_CHUNK_AS_DEFAULT)
+                  keep = png_ptr->unknown_default;
+            }
+
+            else /* chunk was handled */
             {
                handled = 1;
                /* Critical chunks can be safely discarded at this point. */
                keep = PNG_HANDLE_CHUNK_NEVER;
             }
-
-            /* else: use the default handling.
-             * NOTE: this is an API change in 1.7.0, prior to 1.7.0 libpng would
-             * force keep to PNG_HANDLE_CHUNK_IF_SAFE at this point, and 1.6.0
-             * would issue a warning if this caused a default of discarding the
-             * chunk to be changed.
-             */
          }
 
          else
@@ -2892,9 +2899,8 @@ png_handle_unknown(png_structrp png_ptr, png_inforp info_ptr,
          }
 #     endif
       }
-#  else /* no store support! */
+#  else /* no store support: the chunk must be handled by the user callback */
       PNG_UNUSED(info_ptr)
-#     error untested code (reading unknown chunks with no store support)
 #  endif
 
    /* Regardless of the error handling below the cached data (if any) can be
@@ -3654,7 +3660,7 @@ png_do_read_interlace(png_row_infop row_info, png_bytep row, int pass,
 
             for (i = 0; i < row_info->width; i++)
             {
-               png_byte v[8];
+               png_byte v[8]; /* SAFE; pixel_depth does not exceed 64 */
                int j;
 
                memcpy(v, sp, pixel_bytes);
@@ -3840,7 +3846,8 @@ png_read_filter_row_paeth_multibyte_pixel(png_row_infop row_info, png_bytep row,
 
 static void
 png_init_filter_functions(png_structrp pp)
-   /* This function is called once for every PNG image to set the
+   /* This function is called once for every PNG image (except for PNG images
+    * that only use PNG_FILTER_VALUE_NONE for all rows) to set the
     * implementations required to reverse the filtering of PNG rows.  Reversing
     * the filter is the first transformation performed on the row data.  It is
     * performed in place, therefore an implementation can be selected based on
@@ -3882,10 +3889,13 @@ png_read_filter_row(png_structrp pp, png_row_infop row_info, png_bytep row,
     * PNG_FILTER_OPTIMIZATIONS to a function that overrides the generic
     * implementations.  See png_init_filter_functions above.
     */
-   if (pp->read_filter[0] == NULL)
-      png_init_filter_functions(pp);
    if (filter > PNG_FILTER_VALUE_NONE && filter < PNG_FILTER_VALUE_LAST)
+   {
+      if (pp->read_filter[0] == NULL)
+         png_init_filter_functions(pp);
+
       pp->read_filter[filter-1](row_info, row, prev_row);
+   }
 }
 
 #ifdef PNG_SEQUENTIAL_READ_SUPPORTED

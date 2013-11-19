@@ -622,6 +622,22 @@ cmsBool  IsProperColorSpace(cmsColorSpaceSignature Check, cmsUInt32Number dwForm
 
 // ----------------------------------------------------------------------------------------------------------------
 
+static
+void SetWhitePoint(cmsCIEXYZ* wtPt, const cmsCIEXYZ* src)
+{
+    if (src == NULL) {
+        wtPt ->X = cmsD50X;
+        wtPt ->Y = cmsD50Y;
+        wtPt ->Z = cmsD50Z;
+    }
+    else {
+        wtPt ->X = src->X;
+        wtPt ->Y = src->Y;
+        wtPt ->Z = src->Z;
+    }
+
+}
+
 // New to lcms 2.0 -- have all parameters available.
 cmsHTRANSFORM CMSEXPORT cmsCreateExtendedTransform(cmsContext ContextID,
                                                    cmsUInt32Number nProfiles, cmsHPROFILE hProfiles[],
@@ -682,6 +698,7 @@ cmsHTRANSFORM CMSEXPORT cmsCreateExtendedTransform(cmsContext ContextID,
     // Check channel count
     if ((cmsChannelsOf(EntryColorSpace) != cmsPipelineInputChannels(Lut)) ||
         (cmsChannelsOf(ExitColorSpace)  != cmsPipelineOutputChannels(Lut))) {
+        cmsPipelineFree(Lut);
         cmsSignalError(ContextID, cmsERROR_NOT_SUITABLE, "Channel count doesn't match. Profile is corrupted");
         return NULL;
     }
@@ -698,6 +715,10 @@ cmsHTRANSFORM CMSEXPORT cmsCreateExtendedTransform(cmsContext ContextID,
     xform ->ExitColorSpace  = ExitColorSpace;
     xform ->RenderingIntent = Intents[nProfiles-1];
 
+    // Take white points
+    SetWhitePoint(&xform->EntryWhitePoint, (cmsCIEXYZ*) cmsReadTag(hProfiles[0], cmsSigMediaWhitePointTag));
+    SetWhitePoint(&xform->ExitWhitePoint,  (cmsCIEXYZ*) cmsReadTag(hProfiles[nProfiles-1], cmsSigMediaWhitePointTag));
+   
 
     // Create a gamut check LUT if requested
     if (hGamutProfile != NULL && (dwFlags & cmsFLAGS_GAMUTCHECK))

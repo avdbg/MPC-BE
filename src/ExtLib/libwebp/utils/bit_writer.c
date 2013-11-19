@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 // Bit writing and boolean coder
@@ -41,7 +43,10 @@ static int BitWriterResize(VP8BitWriter* const bw, size_t extra_size) {
     bw->error_ = 1;
     return 0;
   }
-  memcpy(new_buf, bw->buf_, bw->pos_);
+  if (bw->pos_ > 0) {
+    assert(bw->buf_ != NULL);
+    memcpy(new_buf, bw->buf_, bw->pos_);
+  }
   free(bw->buf_);
   bw->buf_ = new_buf;
   bw->max_pos_ = new_size;

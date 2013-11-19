@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -24,6 +22,7 @@
 
 #include <atlcoll.h>
 #include "../../../DSUtil/DSUtil.h"
+#include "../../../DSUtil/HdmvClipInfo.h"
 
 class CMultiFiles : public CObject
 {
@@ -76,7 +75,7 @@ public:
 	virtual ULONGLONG Seek(LONGLONG lOff, UINT nFrom);
 	virtual ULONGLONG GetLength() const;
 
-	virtual UINT Read(void* lpBuf, UINT nCount);
+	virtual UINT Read(BYTE* lpBuf, UINT nCount);
 	virtual void Close();
 
 	// Implementation

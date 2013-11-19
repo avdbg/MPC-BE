@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -84,21 +82,11 @@ public:
 
 class CMediaFormats : public CAtlArray<CMediaFormatCategory>
 {
-protected:
-	engine_t m_iRtspHandler;
-	bool m_fRtspFileExtFirst;
-
 public:
 	CMediaFormats();
 	virtual ~CMediaFormats();
 
 	void UpdateData(bool fSave);
-
-	engine_t GetRtspHandler(bool& fRtspFileExtFirst);
-	void SetRtspHandler(engine_t e, bool fRtspFileExtFirst);
-
-	bool IsUsingEngine(CString path, engine_t e);
-	engine_t GetEngine(CString path);
 
 	bool FindExt(CString ext, bool fAudioOnly = false);
 	CMediaFormatCategory* FindMediaByExt(CString ext, bool fAudioOnly = false);

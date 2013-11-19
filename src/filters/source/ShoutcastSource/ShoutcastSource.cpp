@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -32,11 +30,11 @@
 #include <moreuuids.h>
 #include "../apps/mplayerc/SettingsDefines.h"
 
-#define MAXFRAMESIZE ((144 * 320000 / 8000) + 1)
-#define BUFFERS 2
-#define MINBUFFERLENGTH 1000000i64
-#define AVGBUFFERLENGTH 30000000i64
-#define MAXBUFFERLENGTH 100000000i64
+#define MAXFRAMESIZE	((144 * 320000 / 8000) + 1)
+#define BUFFERS			2
+#define MINBUFFERLENGTH	1000000i64
+#define AVGBUFFERLENGTH	30000000i64
+#define MAXBUFFERLENGTH	100000000i64
 
 #define ADTS_FRAME_SIZE	9
 
@@ -135,7 +133,7 @@ typedef struct {
 
 const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_MP3},
-	{&MEDIATYPE_Audio, &MEDIASUBTYPE_AAC},
+	{&MEDIATYPE_Audio, &MEDIASUBTYPE_RAW_AAC1},
 };
 
 const AMOVIESETUP_PIN sudOpPin[] = {
@@ -327,7 +325,7 @@ STDMETHODIMP CShoutcastSource::QueryFilterInfo(FILTER_INFO* pInfo)
 CShoutcastStream::CShoutcastStream(const WCHAR* wfn, CShoutcastSource* pParent, HRESULT* phr)
 	: CSourceStream(NAME("ShoutcastStream"), phr, pParent, L"Output")
 	, m_fBuffering(false)
-	, m_hSocket(-1)
+	, m_hSocket(INVALID_SOCKET)
 {
 	ASSERT(phr);
 
@@ -346,60 +344,41 @@ redirect:
 		return;
 	}
 
-	if (m_url.GetUrlPathLength() == 0) {
-		m_url.SetUrlPath(_T("/"));
-	}
-
-	if (m_url.GetPortNumber() == ATL_URL_INVALID_PORT_NUMBER) {
-		m_url.SetPortNumber(ATL_URL_DEFAULT_HTTP_PORT);
-	}
-
-	if (m_url.GetScheme() != ATL_URL_SCHEME_HTTP) {
-		*phr = E_FAIL;
-		return;
-	}
-
 	if (!m_socket.Create()) {
 		*phr = E_FAIL;
 		return;
 	}
 
-	// set 5 sec. timeout for connect
-	if (!m_socket.SetTimeOut(5000)) {
-		TRACE(_T("CShoutcastStream(): Unable to set Timeout\n"));
-	}
+	m_socket.SetUserAgent("MPC ShoutCast Source");
 
 	CString redirectUrl;
 	if (!m_socket.Connect(m_url, redirectUrl)) {
 		int nError = GetLastError();
 		if (nError == WSAEINTR) {
-			TRACE(_T("CShoutcastStream(): failed connect for 3 secs!\n"));
+			DbgLog((LOG_TRACE, 3, L"CShoutcastStream(): failed connect for TimeOut!"));
 		}
 
-		m_socket.KillTimeOut();
 		m_socket.Close();
 
-		if (!redirectUrl.IsEmpty() && redirectTry < 2) {
+		if (!redirectUrl.IsEmpty() && redirectTry < 5) {
 			redirectTry++;
 			if (redirectUrl[1] == '/') {
 				fn += redirectUrl;
 			}
 			fn = redirectUrl;
-			TRACE(_T("CShoutcastStream(): redirect to \"%ws\"\n"), fn);
+			DbgLog((LOG_TRACE, 3, L"CShoutcastStream(): redirect to \"%s\"", fn));
 			goto redirect;
 		}
 		*phr = E_FAIL;
 		return;
 	}
 
-	m_socket.KillTimeOut();
-
 	m_hSocket = m_socket.Detach();
 }
 
 CShoutcastStream::~CShoutcastStream()
 {
-	if (m_hSocket != -1) {
+	if (m_hSocket != INVALID_SOCKET) {
 		m_socket.Attach(m_hSocket);
 	}
 	m_socket.Close();
@@ -548,12 +527,12 @@ HRESULT CShoutcastStream::GetMediaType(int iPosition, CMediaType* pmt)
 		wfe->wBitsPerSample		= 0;
 	} else if (m_socket.m_Format == AUDIO_AAC) {
 		pmt->SetType(&MEDIATYPE_Audio);
-		pmt->SetSubtype(&MEDIASUBTYPE_AAC);
+		pmt->SetSubtype(&MEDIASUBTYPE_RAW_AAC1);
 		pmt->SetFormatType(&FORMAT_WaveFormatEx);
 
 		WAVEFORMATEX* wfe		= (WAVEFORMATEX*)DNew BYTE[sizeof(WAVEFORMATEX)+5];
 		memset(wfe, 0, sizeof(WAVEFORMATEX)+5);
-		wfe->wFormatTag			= WAVE_FORMAT_AAC;
+		wfe->wFormatTag			= WAVE_FORMAT_RAW_AAC1;
 		wfe->nChannels			= m_socket.m_aachdr.channels <= 6 ? m_socket.m_aachdr.channels : 2;
 		wfe->nSamplesPerSec		= aacfreq[m_socket.m_aachdr.freq];
 		wfe->nBlockAlign		= m_socket.m_aachdr.aac_frame_length;
@@ -574,7 +553,7 @@ HRESULT CShoutcastStream::CheckMediaType(const CMediaType* pmt)
 {
 	if (pmt->majortype == MEDIATYPE_Audio
 			&& ((pmt->subtype == MEDIASUBTYPE_MP3 && m_socket.m_Format == AUDIO_MPEG) ||
-				(pmt->subtype == MEDIASUBTYPE_AAC && m_socket.m_Format == AUDIO_AAC))
+				(pmt->subtype == MEDIASUBTYPE_RAW_AAC1 && m_socket.m_Format == AUDIO_AAC))
 			&& pmt->formattype == FORMAT_WaveFormatEx) {
 		return S_OK;
 	}
@@ -685,7 +664,7 @@ UINT CShoutcastStream::SocketThreadProc()
 					break;
 				}
 
-				if (len <= 0 || e - s >= len + 2 && (s[len] != 0xff || (s[len+1]&0xf6) != 0xf0)) {
+				if (len <= 0 || (e - s >= len + 2 && (s[len] != 0xff || (s[len+1]&0xf6) != 0xf0))) {
 					m_p.Free();
 					break;
 				}
@@ -771,7 +750,7 @@ int CShoutcastStream::CShoutcastSocket::Receive(void* lpBuf, int nBufLen, int nF
 		if (1 == __super::Receive(&b, 1) && b && b*16 == __super::Receive(buff, b*16)) {
 			CStringA str = (LPCSTR)buff;
 
-			TRACE(_T("CShoutcastStream(): Metainfo: %ws\n"), CString(str));
+			DbgLog((LOG_TRACE, 3, L"CShoutcastStream(): Metainfo: %s", CString(str)));
 
 			CStringA title("StreamTitle='"), url("StreamUrl='");
 
@@ -851,25 +830,14 @@ int CShoutcastStream::CShoutcastSocket::Receive(void* lpBuf, int nBufLen, int nF
 
 bool CShoutcastStream::CShoutcastSocket::Connect(CUrl& url, CString& redirectUrl)
 {
-	if (!__super::Connect(url.GetHostName(), url.GetPortNumber())) {
+	redirectUrl.Empty();
+
+	ClearHeaderParams();
+	AddHeaderParams("Icy-MetaData:1");
+
+	if (!__super::Connect(url)) {
 		return false;
 	}
-	KillTimeOut();
-
-	redirectUrl = _T("");
-
-	// set 15 sec. timeout for data receive
-	SetTimeOut(15000);
-
-	CStringA str;
-	str.Format(
-		"GET %s HTTP/1.0\r\n"
-		"Icy-MetaData:1\r\n"
-		"User-Agent: shoutcastsource\r\n"
-		"Host: %s\r\n"
-		"Accept: */*\r\n"
-		"Connection: Keep-Alive\r\n"
-		"\r\n", CStringA(url.GetUrlPath()), CStringA(url.GetHostName()));
 
 	bool fOK = false;
 	bool fTryAgain = false;
@@ -878,89 +846,64 @@ bool CShoutcastStream::CShoutcastSocket::Connect(CUrl& url, CString& redirectUrl
 	int ContentLength = 0;
 
 	do {
-		int len = Send((BYTE*)(LPCSTR)str, str.GetLength());
-		UNREFERENCED_PARAMETER(len);
-
 		m_nBytesRead = 0;
 		m_metaint = metaint = 0;
 		m_bitrate = 0;
 
-		str.Empty();
 		BYTE cur = 0, prev = 0;
-#if DEBUG & 1
-		TRACE(_T("\nCShoutcastStream(): began to receive data:\n"));
-#endif
-		while (Receive(&cur, 1) == 1 && cur && !(cur == '\n' && prev == '\n')) {
-			if (cur == '\r') {
-				continue;
-			}
 
-			if (cur == '\n') {
-#if DEBUG & 1
-				TRACE(_T("	%ws\n"), CString(str));
-#endif
-				CStringA dup(str);
-				str.MakeLower();
-				if (str.Find("200 ok") > 0 && (str.Find("icy") == 0 || str.Find("http/") == 0)) {
-					fOK = true;
-				} else if (str.Left(13) == "content-type:") {
-					str = str.Mid(13).Trim();
-					if (str.Find("audio/mpeg") == 0) {
-						m_Format = AUDIO_MPEG;
-						TRACE(_T("		detected MPEG Audio format\n"));
-					} else if (str.Find("audio/aacp") == 0) {
-						m_Format = AUDIO_AAC;
-						TRACE(_T("		detected AAC Audio format\n"));
-					} else if (str.Find("audio/x-scpls") == 0) {
-						m_Format = AUDIO_PLAYLIST;
-						TRACE(_T("		detected Playlist format\n"));
-					}
-				} else if (1 == sscanf_s(str, "icy-br:%d", &m_bitrate)) {
-					m_bitrate *= 1000;
-				} else if (1 == sscanf_s(str, "icy-metaint:%d", &metaint)) {
-					metaint = metaint;
-				} else if (str.Left(9) == "icy-name:") {
-					m_title = dup.Mid(9).Trim();
-				} else if (str.Left(8) == "icy-url:") {
-					m_url = dup.Mid(8).Trim();
-				} else if (1 == sscanf_s(str, "content-length:%d", &ContentLength)) {
-					ContentLength = ContentLength;
-				} else if (str.Left(9) == "location:") {
-					redirectUrl = str.Mid(9).Trim();
-				} else if (str.Find("content-disposition:") >= 0 && str.Find("filename=") > 0) {
-					int pos = str.Find("filename=");
-					redirectUrl = _T("/") + CString(str.Mid(pos + 9).Trim());
-				} else if (str.Left(16) == "icy-description:") {
-					m_Description = dup.Mid(16).Trim();
+		CStringA hdr = GetHeader();
+		DbgLog((LOG_TRACE, 3, "\nCShoutcastSocket::Connect() - HTTP hdr:\n%s", hdr));
+
+		CAtlList<CStringA> sl;
+		Explode(hdr, sl, '\n');
+		POSITION pos = sl.GetHeadPosition();
+		while (pos) {
+			CStringA& hdrline = sl.GetNext(pos);
+
+			CStringA dup(hdrline);
+			hdrline.MakeLower();
+			if (hdrline.Find("200 ok") > 0 && (hdrline.Find("icy") == 0 || hdrline.Find("http/") == 0)) {
+				fOK = true;
+			} else if (hdrline.Left(13) == "content-type:") {
+				hdrline = hdrline.Mid(13).Trim();
+				if (hdrline.Find("audio/mpeg") == 0) {
+					m_Format = AUDIO_MPEG;
+					DbgLog((LOG_TRACE, 3, L"CShoutcastSocket::Connect() - detected MPEG Audio format"));
+				} else if (hdrline.Find("audio/aacp") == 0) {
+					m_Format = AUDIO_AAC;
+					DbgLog((LOG_TRACE, 3, L"CShoutcastSocket::Connect() - detected AAC Audio format"));
+				} else if (hdrline.Find("audio/x-scpls") == 0) {
+					m_Format = AUDIO_PLAYLIST;
+					DbgLog((LOG_TRACE, 3, L"CShoutcastSocket::Connect() - detected Playlist format"));
 				}
-				str.Empty();
-			} else {
-				str += cur;
+			} else if (1 == sscanf_s(hdrline, "icy-br:%d", &m_bitrate)) {
+				m_bitrate *= 1000;
+			} else if (1 == sscanf_s(hdrline, "icy-metaint:%d", &metaint)) {
+				metaint = metaint;
+			} else if (hdrline.Left(9) == "icy-name:") {
+				m_title = dup.Mid(9).Trim();
+			} else if (hdrline.Left(8) == "icy-url:") {
+				m_url = dup.Mid(8).Trim();
+			} else if (1 == sscanf_s(hdrline, "content-length:%d", &ContentLength)) {
+				ContentLength = ContentLength;
+			} else if (hdrline.Left(9) == "location:") {
+				redirectUrl = hdrline.Mid(9).Trim();
+			} else if (hdrline.Find("content-disposition:") >= 0 && hdrline.Find("filename=") > 0) {
+				int pos = hdrline.Find("filename=");
+				redirectUrl = _T("/") + CString(hdrline.Mid(pos + 9).Trim());
+			} else if (hdrline.Left(16) == "icy-description:") {
+				m_Description = dup.Mid(16).Trim();
 			}
-
-			prev = cur;
-			cur = 0;
 		}
-#if DEBUG & 1
-		TRACE(_T("CShoutcastStream(): finished receiving data\n"));
-#endif
 
 		if (!fOK && GetLastError() == WSAECONNRESET && !fTryAgain) {
-			str.Format(
-				"GET %s HTTP/1.0\r\n"
-				"Icy-MetaData:1\r\n"
-				"Host: %s\r\n"
-				"Accept: */*\r\n"
-				"Connection: Keep-Alive\r\n"
-				"\r\n", CStringA(url.GetUrlPath()), CStringA(url.GetHostName()));
-
+			SendRequest();
 			fTryAgain = true;
 		} else {
 			fTryAgain = false;
 		}
 	} while (fTryAgain);
-
-	KillTimeOut();
 
 	if (!fOK || (m_bitrate == 0 && metaint == 0 && m_title.IsEmpty())) {
 		if (m_Format == AUDIO_PLAYLIST && ContentLength) {

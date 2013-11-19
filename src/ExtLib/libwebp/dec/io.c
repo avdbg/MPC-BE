@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 // functions for sample output.
@@ -117,7 +119,7 @@ static int EmitFancyRGB(const VP8Io* const io, WebPDecParams* const p) {
 
   if (y == 0) {
     // First line is special cased. We mirror the u/v samples at boundary.
-    upsample(NULL, cur_y, cur_u, cur_v, cur_u, cur_v, NULL, dst, mb_w);
+    upsample(cur_y, NULL, cur_u, cur_v, cur_u, cur_v, dst, NULL, mb_w);
   } else {
     // We can finish the left-over line from previous call.
     upsample(p->tmp_y, cur_y, top_u, top_v, cur_u, cur_v,

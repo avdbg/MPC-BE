@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 //   Speed-critical functions.
@@ -21,7 +23,8 @@ extern "C" {
 //------------------------------------------------------------------------------
 // CPU detection
 
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#if defined(_MSC_VER) && _MSC_VER > 1310 && \
+    (defined(_M_X64) || defined(_M_IX86))
 #define WEBP_MSC_SSE2  // Visual C++ SSE2 targets
 #endif
 
@@ -100,6 +103,7 @@ typedef void (*VP8DecIdct)(const int16_t* coeffs, uint8_t* dst);
 // when doing two transforms, coeffs is actually int16_t[2][16].
 typedef void (*VP8DecIdct2)(const int16_t* coeffs, uint8_t* dst, int do_two);
 extern VP8DecIdct2 VP8Transform;
+extern VP8DecIdct VP8TransformAC3;
 extern VP8DecIdct VP8TransformUV;
 extern VP8DecIdct VP8TransformDC;
 extern VP8DecIdct VP8TransformDCUV;
@@ -144,6 +148,8 @@ void VP8DspInit(void);
 
 #define FANCY_UPSAMPLING   // undefined to remove fancy upsampling support
 
+// Convert a pair of y/u/v lines together to the output rgb/a colorspace.
+// bottom_y can be NULL if only one line of output is needed (at top/bottom).
 typedef void (*WebPUpsampleLinePairFunc)(
     const uint8_t* top_y, const uint8_t* bottom_y,
     const uint8_t* top_u, const uint8_t* top_v,

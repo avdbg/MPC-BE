@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -33,6 +31,11 @@
 #include <moreuuids.h>
 #include <basestruct.h>
 #include <vector>
+
+// option names
+#define OPT_REGKEY_MATROSKASplit	_T("Software\\MPC-BE Filters\\Matroska Splitter")
+#define OPT_SECTION_MATROSKASplit	_T("Filters\\Matroska Splitter")
+#define OPT_LoadEmbeddedFonts		_T("LoadEmbeddedFonts")
 
 using namespace MatroskaReader;
 
@@ -90,7 +93,21 @@ CFilterApp theApp;
 
 CMatroskaSplitterFilter::CMatroskaSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr)
 	: CBaseSplitterFilter(NAME("CMatroskaSplitterFilter"), pUnk, phr, __uuidof(this))
+	, m_bLoadEmbeddedFonts(true)
 {
+#ifdef REGISTER_FILTER
+	CRegKey key;
+
+	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, OPT_REGKEY_MATROSKASplit, KEY_READ)) {
+		DWORD dw;
+
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_LoadEmbeddedFonts, dw)) {
+			m_bLoadEmbeddedFonts = !!dw;
+		}
+	}
+#else
+	m_bLoadEmbeddedFonts = !!AfxGetApp()->GetProfileInt(OPT_SECTION_MATROSKASplit, OPT_LoadEmbeddedFonts, m_bLoadEmbeddedFonts);
+#endif
 }
 
 CMatroskaSplitterFilter::~CMatroskaSplitterFilter()
@@ -103,6 +120,9 @@ STDMETHODIMP CMatroskaSplitterFilter::NonDelegatingQueryInterface(REFIID riid, v
 
 	return
 		QI(ITrackInfo)
+		QI(IMatroskaSplitterFilter)
+		QI(ISpecifyPropertyPages)
+		QI(ISpecifyPropertyPages2)
 		__super::NonDelegatingQueryInterface(riid, ppv);
 }
 
@@ -235,6 +255,64 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							mt.subtype = MEDIASUBTYPE_WVC1_CYBERLINK;
 							mts.InsertAt(0, mt);
 						}
+
+						if (mt.subtype == MEDIASUBTYPE_HM10) {
+							__int64 pos = m_pFile->GetPos();
+
+							CMatroskaNode Root(m_pFile);
+							m_pSegment = Root.Child(MATROSKA_ID_SEGMENT);
+							m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
+							
+							Cluster c;
+							c.ParseTimeCode(m_pCluster);
+
+							if (!m_pBlock) {
+								m_pBlock = m_pCluster->GetFirstBlock();
+							}
+
+							BOOL bIsParse = FALSE;
+							do {
+								CBlockGroupNode bgn;
+
+								__int64 startpos = m_pFile->GetPos();
+
+								if (m_pBlock->m_id == MATROSKA_ID_BLOCKGROUP) {
+									bgn.Parse(m_pBlock, true);
+								} else if (m_pBlock->m_id == MATROSKA_ID_SIMPLEBLOCK) {
+									CAutoPtr<BlockGroup> bg(DNew BlockGroup());
+									bg->Block.Parse(m_pBlock, true);
+									if (!(bg->Block.Lacing & 0x80)) {
+										bg->ReferenceBlock.Set(0);    // not a kf
+									}
+									
+									bgn.AddTail(bg);
+								}
+								__int64 endpos = m_pFile->GetPos();
+
+								while (bgn.GetCount() && SUCCEEDED(hr)) {
+									CAutoPtr<MatroskaPacket> p(DNew MatroskaPacket());
+									p->bg = bgn.RemoveHead();
+									if ((DWORD)p->bg->Block.TrackNumber != pTE->TrackNumber) {
+										continue;
+									}
+
+									m_pFile->Seek(startpos);
+									CBaseSplitterFileEx::hevchdr h;
+									CMediaType mt2;
+									if (m_pFile->CBaseSplitterFileEx::Read(h, endpos - startpos, &mt2)) {
+										mts.InsertAt(0, mt2);
+									}
+
+									bIsParse = TRUE;
+									break;
+								}
+							} while (m_pBlock->NextBlock() && SUCCEEDED(hr) && !CheckRequest(NULL) && !bIsParse);
+
+							m_pBlock.Free();
+							m_pCluster.Free();
+
+							m_pFile->Seek(pos);
+						}
 					}
 					bHasVideo = true;
 				} else if (CodecID == "V_UNCOMPRESSED") {
@@ -264,19 +342,18 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						mts.Add(mt);
 					bHasVideo = true;
 				} else if (CodecID.Find("V_MPEG4/") == 0) {
-					mt.subtype = FOURCCMap('V4PM');
-					mt.formattype = FORMAT_MPEG2Video;
-					MPEG2VIDEOINFO* pm2vi = (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + pTE->CodecPrivate.GetCount());
-					memset(mt.Format(), 0, mt.FormatLength());
-					pm2vi->hdr.bmiHeader.biSize = sizeof(pm2vi->hdr.bmiHeader);
-					pm2vi->hdr.bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
-					pm2vi->hdr.bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
-					pm2vi->hdr.bmiHeader.biCompression = 'V4PM';
-					pm2vi->hdr.bmiHeader.biPlanes = 1;
-					pm2vi->hdr.bmiHeader.biBitCount = 24;
-					BYTE* pSequenceHeader = (BYTE*)pm2vi->dwSequenceHeader;
-					memcpy(pSequenceHeader, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
-					pm2vi->cbSequenceHeader = (DWORD)pTE->CodecPrivate.GetCount();
+					BITMAPINFOHEADER pbmi;
+					memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
+					pbmi.biSize			= sizeof(pbmi);
+					pbmi.biWidth		= (LONG)pTE->v.PixelWidth;
+					pbmi.biHeight		= (LONG)pTE->v.PixelHeight;
+					pbmi.biCompression	= FCC('MP4V');
+					pbmi.biPlanes		= 1;
+					pbmi.biBitCount		= 24;
+
+					CSize aspect(pbmi.biWidth, pbmi.biHeight);
+					ReduceDim(aspect);
+					CreateMPEG2VISimple(&mt, &pbmi, 0, aspect, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount()); 
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
@@ -351,8 +428,12 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
-				} else if (CodecID.Find("V_VP8") == 0) {
-					mt.subtype = FOURCCMap('08PV');
+				} else if (CodecID == "V_VP8" || CodecID == "V_VP9") {
+					if (CodecID[4] == '8') {
+						mt.subtype = MEDIASUBTYPE_VP80;
+					} else if (CodecID[4] == '9') {
+						mt.subtype = MEDIASUBTYPE_VP90;
+					}
 					mt.formattype = FORMAT_VideoInfo;
 					VIDEOINFOHEADER* pvih = (VIDEOINFOHEADER*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER) + pTE->CodecPrivate.GetCount());
 					memset(mt.Format(), 0, mt.FormatLength());
@@ -401,6 +482,22 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					pm1vi->hdr.bmiHeader.biSizeImage	= DIBSIZE(pm1vi->hdr.bmiHeader);
 
 					mt.SetSampleSize(pm1vi->hdr.bmiHeader.biWidth*pm1vi->hdr.bmiHeader.biHeight*4);
+					if (!bHasVideo)
+						mts.Add(mt);
+					bHasVideo = true;
+				} else if (CodecID == "V_MPEGH/ISO/HEVC") {
+					BITMAPINFOHEADER pbmi;
+					memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
+					pbmi.biSize			= sizeof(pbmi);
+					pbmi.biWidth		= (LONG)pTE->v.PixelWidth;
+					pbmi.biHeight		= (LONG)pTE->v.PixelHeight;
+					pbmi.biCompression	= FCC('HVC1');
+					pbmi.biPlanes		= 1;
+					pbmi.biBitCount		= 24;
+
+					CSize aspect(pbmi.biWidth, pbmi.biHeight);
+					ReduceDim(aspect);
+					CreateMPEG2VISimple(&mt, &pbmi, 0, aspect, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount()); 
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
@@ -579,8 +676,6 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							}
 						}
 					}
-
-					m_pCluster.Free();
 				}
 
 				for (size_t i = 0; i < mts.GetCount(); i++) {
@@ -666,7 +761,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					mt.subtype = MEDIASUBTYPE_DOLBY_TRUEHD;
 					mts.Add(mt);
 				} else if (CodecID == "A_DTS") {
-					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_DVD_DTS);
+					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_DTS2);
 					mts.Add(mt);
 				} else if (CodecID == "A_TTA1") {
 					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_TTA1);
@@ -680,7 +775,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					memset(p + 14, 0, 30 - 14);
 					mts.Add(mt);
 				} else if (CodecID == "A_AAC") {
-					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_AAC);
+					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_RAW_AAC1);
 					wfe->cbSize = (WORD)pTE->CodecPrivate.GetCount();
 					wfe = (WAVEFORMATEX*)mt.ReallocFormatBuffer(sizeof(WAVEFORMATEX) + pTE->CodecPrivate.GetCount());
 					memcpy(wfe + 1, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
@@ -783,7 +878,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					vf->nMinBitsPerSec = vf->nMaxBitsPerSec = vf->nAvgBitsPerSec = (DWORD)-1;
 					mts.Add(mt);
 				} else if (CodecID.Find("A_AAC/") == 0) {
-					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_AAC);
+					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_RAW_AAC1);
 					wfe = (WAVEFORMATEX*)mt.ReallocFormatBuffer(sizeof(WAVEFORMATEX) + 5);
 					wfe->cbSize = 2;
 
@@ -831,7 +926,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						memcpy(wfe + 1, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
 						mts.Add(mt);
 					}
-				} else if (CodecID == "A_OPUS/EXPERIMENTAL") {
+				} else if (CodecID == "A_OPUS" || CodecID == "A_OPUS/EXPERIMENTAL") {
 					wfe->wFormatTag = (WORD)WAVE_FORMAT_OPUS;
 					mt.subtype = MEDIASUBTYPE_OPUS;
 					wfe->cbSize = (WORD)pTE->CodecPrivate.GetCount();
@@ -852,7 +947,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					mts.Add(mt);
 				}
 			} else if (pTE->TrackType == TrackEntry::TypeSubtitle) {
-				if (iSubtitle == 1) {
+				if (iSubtitle == 1 && m_bLoadEmbeddedFonts) {
 					InstallFonts();
 				}
 
@@ -1246,6 +1341,8 @@ void CMatroskaSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 
 		UINT64 TrackNumber = s.GetMasterTrack();
 
+		REFERENCE_TIME seek_rt = 0;
+
 		POSITION pos1 = s.Cues.GetHeadPosition();
 		while (pos1) {
 			Cue* pCue = s.Cues.GetNext(pos1);
@@ -1280,7 +1377,7 @@ void CMatroskaSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 					{
 						Cluster c;
 						c.ParseTimeCode(m_pCluster);
-						REFERENCE_TIME seek_rt = s.GetRefTime(c.TimeCode);
+						seek_rt = s.GetRefTime(c.TimeCode);
 
 						bool fPassedCueTime = false;
 						if (CAutoPtr<CMatroskaNode> pBlock = m_pCluster->GetFirstBlock()) {
@@ -1317,32 +1414,59 @@ void CMatroskaSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 						}
 					}
 				}
+
 				Cluster c;
 				c.ParseTimeCode(m_pCluster);
-				REFERENCE_TIME seek_rt = s.GetRefTime(c.TimeCode);
+				REFERENCE_TIME seek_rt2 = s.GetRefTime(c.TimeCode);
 
-				if (seek_rt > 0) {
-					TRACE(_T("CMatroskaSplitterFilter::DemuxSeek() : Seek Two - %ws => %ws, [%10I64d - %10I64d]\n"), ReftimeToString(rt), ReftimeToString(seek_rt), rt, seek_rt);
+				if (seek_rt2 > 0) {
+					TRACE(_T("CMatroskaSplitterFilter::DemuxSeek() : Seek Two - %ws => %ws, [%10I64d - %10I64d]\n"), ReftimeToString(rt), ReftimeToString(seek_rt2), rt, seek_rt2);
 					return;
 				}
 			}
-		}
 
-		// Plan B ))
-		m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
-
-		do {
-			Cluster c;
-			if (FAILED(c.ParseTimeCode(m_pCluster))) {
-				continue;
-			}
-			REFERENCE_TIME seek_rt = s.GetRefTime(c.TimeCode);
-
-			if (seek_rt >= rt && seek_rt <= m_rtDuration) {
-				TRACE(_T("CMatroskaSplitterFilter::DemuxSeek(), plan B : %ws => %ws, [%10I64d - %10I64d]\n"), ReftimeToString(rt), ReftimeToString(seek_rt), rt, seek_rt);
+			if (seek_rt > 0 && seek_rt < rt) {
+				TRACE(_T("CMatroskaSplitterFilter::DemuxSeek() : Seek Three - %ws => %ws, [%10I64d - %10I64d]\n"), ReftimeToString(rt), ReftimeToString(seek_rt), rt, seek_rt);
 				return;
 			}
-		} while (m_pCluster->Next());
+		}
+
+		{
+			// Plan B
+			m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
+			seek_rt = 0;
+
+			do {
+				Cluster c;
+				if (FAILED(c.ParseTimeCode(m_pCluster))) {
+					continue;
+				}
+				REFERENCE_TIME seek_rt2 = s.GetRefTime(c.TimeCode);
+
+				if (seek_rt2 > rt) {
+					break;
+				}
+
+				seek_rt = seek_rt2;
+			} while (m_pCluster->Next());
+
+			if (seek_rt > 0 && seek_rt < m_rtDuration) {
+				m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
+
+				do {
+					Cluster c;
+					if (FAILED(c.ParseTimeCode(m_pCluster))) {
+						continue;
+					}
+					REFERENCE_TIME seek_rt2 = s.GetRefTime(c.TimeCode);
+
+					if (s.GetRefTime(c.TimeCode) == seek_rt) {
+						TRACE(_T("CMatroskaSplitterFilter::DemuxSeek(), plan B : %ws => %ws, [%10I64d - %10I64d]\n"), ReftimeToString(rt), ReftimeToString(seek_rt), rt, seek_rt);
+						return;
+					}
+				} while (m_pCluster->Next());
+			}
+		}
 
 		// epic fail ...
 		m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
@@ -1608,6 +1732,89 @@ HRESULT CMatroskaSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 	return S_OK;
 }
 
+static WORD RL16(BYTE* p)
+{
+	return ((WORD)p[0] | (WORD)p[1] << 8);
+}
+
+static void WL16(BYTE* p, WORD d)
+{
+	p[0] = (d);
+	p[1] = (d) >> 8;
+}
+
+static void WL32(BYTE* p, DWORD d)
+{
+	p[0] = (d);
+	p[1] = (d) >> 8;
+	p[2] = (d) >> 16;
+	p[3] = (d) >> 24;
+}
+
+// reconstruct full wavpack blocks from mangled matroska ones.
+// From LAV's ffmpeg
+static bool ParseWavpack(CMediaType* mt, CGolombBuffer gb, CAutoPtr<Packet>& p)
+{
+	if (gb.GetSize() < 12) {
+		return false;
+	}
+
+	DWORD samples	= gb.ReadDwordLE();
+	WORD ver		= 0;
+	int dstlen		= 0;
+	int offset		= 0;
+
+	if (mt->formattype == FORMAT_WaveFormatEx) {
+		WAVEFORMATEX* wfe = (WAVEFORMATEX*)mt->Format();
+		if (wfe->cbSize >= 2) {
+			ver = RL16(mt->pbFormat);
+		}
+	}
+
+	CAutoPtr<CBinary> ptr(DNew CBinary());
+
+	while (gb.RemainingSize() >= 8) {
+		DWORD flags		= gb.ReadDwordLE();
+		DWORD crc		= gb.ReadDwordLE();
+		DWORD blocksize	= gb.RemainingSize();
+
+		int multiblock	= (flags & 0x1800) != 0x1800;
+		if (multiblock) {
+			if (gb.RemainingSize() < 4) {
+				return false;
+			}
+			blocksize = gb.ReadDwordLE();
+		}
+
+		if (blocksize > (DWORD)gb.RemainingSize()) {
+			return false;
+		}
+
+		ptr->SetCount(dstlen + blocksize + 32);
+		BYTE *dst = ptr->GetData();
+
+		dstlen += blocksize + 32;
+
+		WL32(dst + offset, MAKEFOURCC('w', 'v', 'p', 'k'));			// tag
+		WL32(dst + offset + 4,  blocksize + 24);					// blocksize - 8
+		WL16(dst + offset + 8,  ver);								// version
+		WL16(dst + offset + 10, 0);									// track/index_no
+		WL32(dst + offset + 12, 0);									// total samples
+		WL32(dst + offset + 16, 0);									// block index
+		WL32(dst + offset + 20, samples);							// number of samples
+		WL32(dst + offset + 24, flags);								// flags
+		WL32(dst + offset + 28, crc);								// crc
+		memcpy(dst + offset + 32, gb.GetBufferPos(), blocksize);	// block data
+				
+		gb.SkipBytes(blocksize);
+		offset += blocksize + 32;
+	}
+
+	p->Copy(*ptr);
+
+	return true;
+}
+
 HRESULT CMatroskaSplitterOutputPin::DeliverBlock(MatroskaPacket* p)
 {
 	HRESULT hr = S_FALSE;
@@ -1621,24 +1828,27 @@ HRESULT CMatroskaSplitterOutputPin::DeliverBlock(MatroskaPacket* p)
 			  QueueCount());
 #endif
 
-		p->rtStart = to.rtStart;
-		p->rtStop = to.rtStop;
+		p->rtStart	= to.rtStart;
+		p->rtStop	= to.rtStop;
 	}
 
 	REFERENCE_TIME
-	rtStart = p->rtStart,
-	rtDelta = (p->rtStop - p->rtStart) / p->bg->Block.BlockData.GetCount(),
-	rtStop = p->rtStart + rtDelta;
+	rtStart	= p->rtStart,
+	rtDelta	= (p->rtStop - p->rtStart) / p->bg->Block.BlockData.GetCount(),
+	rtStop	= p->rtStart + rtDelta;
 
 	POSITION pos = p->bg->Block.BlockData.GetHeadPosition();
 	while (pos) {
 		CAutoPtr<Packet> tmp(DNew Packet());
-		tmp->TrackNumber = p->TrackNumber;
-		tmp->bDiscontinuity = p->bDiscontinuity;
-		tmp->bSyncPoint = p->bSyncPoint;
-		tmp->rtStart = rtStart;
-		tmp->rtStop = rtStop;
-		if (m_mt.subtype == MEDIASUBTYPE_DVB_SUBTITLES) { // Add DBV subtitle missing start code - 0x20 0x00 (in Matroska DVB packets start with 0x0F ...)
+
+		tmp->TrackNumber	= p->TrackNumber;
+		tmp->bDiscontinuity	= p->bDiscontinuity;
+		tmp->bSyncPoint		= p->bSyncPoint;
+		tmp->rtStart		= rtStart;
+		tmp->rtStop			= rtStop;
+
+		if (m_mt.subtype == MEDIASUBTYPE_DVB_SUBTITLES) {
+			// Add DBV subtitle missing start code - 0x20 0x00 (in Matroska DVB packets start with 0x0F ...)
 			CAutoPtr<CBinary> ptr(DNew CBinary());
 			ptr->SetCount(2);
 			BYTE *pData = ptr->GetData();
@@ -1646,6 +1856,13 @@ HRESULT CMatroskaSplitterOutputPin::DeliverBlock(MatroskaPacket* p)
 			pData[1] = 0x00;
 			tmp->Copy(*ptr);
 			tmp->Append(*p->bg->Block.BlockData.GetNext(pos));
+		} else if (m_mt.subtype == MEDIASUBTYPE_WAVPACK4) {
+			CAutoPtr <MatroskaReader::CBinary> mr = p->bg->Block.BlockData.GetNext(pos);
+			CGolombBuffer gb(mr->GetData(), mr->GetCount());
+
+			if (!ParseWavpack(&m_mt, gb, tmp)) {
+				continue;
+			}
 		} else {
 			tmp->Copy(*p->bg->Block.BlockData.GetNext(pos));
 		}
@@ -1657,21 +1874,27 @@ HRESULT CMatroskaSplitterOutputPin::DeliverBlock(MatroskaPacket* p)
 		rtStart += rtDelta;
 		rtStop += rtDelta;
 
-		p->bSyncPoint = false;
-		p->bDiscontinuity = false;
+		p->bSyncPoint		= false;
+		p->bDiscontinuity	= false;
 	}
 
-	if (m_mt.subtype == FOURCCMap(WAVE_FORMAT_WAVPACK4)) {
+	if (m_mt.subtype == MEDIASUBTYPE_WAVPACK4) {
 		POSITION pos = p->bg->ba.bm.GetHeadPosition();
 		while (pos) {
 			const BlockMore* bm = p->bg->ba.bm.GetNext(pos);
 			CAutoPtr<Packet> tmp(DNew Packet());
-			tmp->TrackNumber = p->TrackNumber;
-			tmp->bDiscontinuity = false;
-			tmp->bSyncPoint = false;
-			tmp->rtStart = p->rtStart;
-			tmp->rtStop = p->rtStop;
-			tmp->Copy(bm->BlockAdditional);
+
+			tmp->TrackNumber	= p->TrackNumber;
+			tmp->bDiscontinuity	= false;
+			tmp->bSyncPoint		= false;
+			tmp->rtStart		= p->rtStart;
+			tmp->rtStop			= p->rtStop;
+
+			CGolombBuffer gb((BYTE*)bm->BlockAdditional.GetData(), bm->BlockAdditional.GetCount());
+			if (!ParseWavpack(&m_mt, gb, tmp)) {
+				continue;
+			}
+
 			if (S_OK != (hr = DeliverPacket(tmp))) {
 				break;
 			}
@@ -1789,4 +2012,62 @@ STDMETHODIMP_(BSTR) CMatroskaSplitterFilter::GetTrackCodecDownloadURL(UINT aTrac
 		return NULL;
 	}
 	return pTE->CodecDownloadURL.AllocSysString();
+}
+
+// ISpecifyPropertyPages2
+
+STDMETHODIMP CMatroskaSplitterFilter::GetPages(CAUUID* pPages)
+{
+	CheckPointer(pPages, E_POINTER);
+
+	pPages->cElems = 1;
+	pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID) * pPages->cElems);
+	pPages->pElems[0] = __uuidof(CMatroskaSplitterSettingsWnd);
+
+	return S_OK;
+}
+
+STDMETHODIMP CMatroskaSplitterFilter::CreatePage(const GUID& guid, IPropertyPage** ppPage)
+{
+	CheckPointer(ppPage, E_POINTER);
+
+	if (*ppPage != NULL) {
+		return E_INVALIDARG;
+	}
+
+	HRESULT hr;
+
+	if (guid == __uuidof(CMatroskaSplitterSettingsWnd)) {
+		(*ppPage = DNew CInternalPropertyPageTempl<CMatroskaSplitterSettingsWnd>(NULL, &hr))->AddRef();
+	}
+
+	return *ppPage ? S_OK : E_FAIL;
+}
+
+// IMpegSplitterFilter
+STDMETHODIMP CMatroskaSplitterFilter::Apply()
+{
+#ifdef REGISTER_FILTER
+	CRegKey key;
+	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, OPT_REGKEY_MATROSKASplit)) {
+		key.SetDWORDValue(OPT_LoadEmbeddedFonts, m_bLoadEmbeddedFonts);
+	}
+#else
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MATROSKASplit, OPT_LoadEmbeddedFonts, m_bLoadEmbeddedFonts);
+#endif
+
+	return S_OK;
+}
+
+STDMETHODIMP CMatroskaSplitterFilter::SetLoadEmbeddedFonts(BOOL nValue)
+{
+	CAutoLock cAutoLock(&m_csProps);
+	m_bLoadEmbeddedFonts = !!nValue;
+	return S_OK;
+}
+
+STDMETHODIMP_(BOOL) CMatroskaSplitterFilter::GetLoadEmbeddedFonts()
+{
+	CAutoLock cAutoLock(&m_csProps);
+	return m_bLoadEmbeddedFonts;
 }

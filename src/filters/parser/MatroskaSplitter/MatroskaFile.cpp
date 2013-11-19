@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -26,9 +24,9 @@
 #include "../../../DSUtil/DSUtil.h"
 #include <zlib/zlib.h>
 
-#define DOCTYPE _T("matroska")
-#define DOCTYPE_WEBM _T("webm")
-#define DOCTYPEVERSION 2
+#define DOCTYPE			L"matroska"
+#define DOCTYPE_WEBM	L"webm"
+#define DOCTYPEVERSION	2
 
 using namespace MatroskaReader;
 
@@ -62,7 +60,7 @@ static void bswap(BYTE* s, int len)
 //
 
 CMatroskaFile::CMatroskaFile(IAsyncReader* pAsyncReader, HRESULT& hr)
-	: CBaseSplitterFile(pAsyncReader, hr, false, true, true)
+	: CBaseSplitterFileEx(pAsyncReader, hr, false, true, true)
 	, m_rtOffset(0)
 {
 	if (FAILED(hr)) {
@@ -229,14 +227,14 @@ HRESULT Segment::ParseMinimal(CMatroskaNode* pMN0)
 
 	while (MatroskaReader::QWORD pos = pMN->FindPos(MATROSKA_ID_SEEKHEAD, pMN->GetPos())) {
 		pMN->SeekTo(pos);
-		if (FAILED(pMN->Parse()) || (pMN->m_filepos + pMN->m_len) >= (pMN0->m_filepos + pMN0->m_len)) {
+		if (FAILED(pMN->Parse()) || (pMN->m_filepos + pMN->m_len) > pMN->GetLength()) {
 			break; // a broken file
 		}
 		MetaSeekInfo.Parse(pMN);
 	}
 
 	if (k != 31) {
-		if (Cues.IsEmpty() && (pMN = pMN0->Child(MATROSKA_ID_CUES, true))) {
+		if (Cues.IsEmpty() && (pMN = pMN0->Child(MATROSKA_ID_CUES, false))) {
 			do {
 				Cues.Parse(pMN);
 			} while (pMN->Next(true));
@@ -1198,7 +1196,7 @@ HRESULT CUTF8::Parse(CMatroskaNode* pMN)
 		return E_FAIL;
 	}
 	buff[pMN->m_len] = 0;
-	CStringW::operator = (UTF8To16((LPCSTR)(BYTE*)buff));
+	CString::operator = (UTF8ToString((LPCSTR)(BYTE*)buff));
 	return S_OK;
 }
 
@@ -1629,12 +1627,14 @@ bool CMatroskaNode::NextBlock()
 	return false;
 }
 
+#define MAXFAILEDCOUNT (1024*1024*10)
 bool CMatroskaNode::Resync()
 {
 	if (m_pParent->m_id == MATROSKA_ID_SEGMENT) {
 		SeekTo(m_filepos);
 
-		for (BYTE b = 0; S_OK == Read(b); b = 0) {
+		int failedCount = 0;
+		for (BYTE b = 0; S_OK == Read(b) && failedCount < MAXFAILEDCOUNT; b = 0, failedCount++) {
 			if ((b&0xf0) != 0x10) {
 				continue;
 			}

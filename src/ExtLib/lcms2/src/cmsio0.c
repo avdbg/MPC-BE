@@ -200,15 +200,14 @@ cmsBool MemoryWrite(struct _cms_io_handler* iohandler, cmsUInt32Number size, con
     if (ResData == NULL) return FALSE; // Housekeeping
 
     // Check for available space. Clip.
-    if (iohandler ->UsedSpace + size > ResData->Size) {
-        size = ResData ->Size - iohandler ->UsedSpace;
+    if (ResData->Pointer + size > ResData->Size) {
+        size = ResData ->Size - ResData->Pointer;
     }
       
     if (size == 0) return TRUE;     // Write zero bytes is ok, but does nothing
 
     memmove(ResData ->Block + ResData ->Pointer, Ptr, size);
     ResData ->Pointer += size;
-    iohandler->UsedSpace += size;
 
     if (ResData ->Pointer > iohandler->UsedSpace)
         iohandler->UsedSpace = ResData ->Pointer;
@@ -342,7 +341,7 @@ cmsBool  FileSeek(cmsIOHANDLER* iohandler, cmsUInt32Number offset)
 static
 cmsUInt32Number FileTell(cmsIOHANDLER* iohandler)
 {
-    return ftell((FILE*)iohandler ->stream);
+    return (cmsUInt32Number) ftell((FILE*)iohandler ->stream);
 }
 
 // Writes data to stream, also keeps used space for further reference. Returns TRUE on success, FALSE on error
@@ -385,7 +384,7 @@ cmsIOHANDLER* CMSEXPORT cmsOpenIOhandlerFromFile(cmsContext ContextID, const cha
              cmsSignalError(ContextID, cmsERROR_FILE, "File '%s' not found", FileName);
             return NULL;
         }
-        iohandler -> ReportedSize = cmsfilelength(fm);
+        iohandler -> ReportedSize = (cmsUInt32Number) cmsfilelength(fm);
         break;
 
     case 'w':
@@ -432,7 +431,7 @@ cmsIOHANDLER* CMSEXPORT cmsOpenIOhandlerFromStream(cmsContext ContextID, FILE* S
     iohandler -> ContextID = ContextID;
     iohandler -> stream = (void*) Stream;
     iohandler -> UsedSpace = 0;
-    iohandler -> ReportedSize = cmsfilelength(Stream);
+    iohandler -> ReportedSize = (cmsUInt32Number) cmsfilelength(Stream);
     iohandler -> PhysicalFile[0] = 0;
 
     iohandler ->Read    = FileRead;
@@ -957,6 +956,32 @@ Error:
     return NULL;
 }
 
+// Create profile from IOhandler
+cmsHPROFILE CMSEXPORT cmsOpenProfileFromIOhandler2THR(cmsContext ContextID, cmsIOHANDLER* io, cmsBool write)
+{
+    _cmsICCPROFILE* NewIcc;
+    cmsHPROFILE hEmpty = cmsCreateProfilePlaceholder(ContextID);
+
+    if (hEmpty == NULL) return NULL;
+
+    NewIcc = (_cmsICCPROFILE*) hEmpty;
+
+    NewIcc ->IOhandler = io;
+    if (write) {
+
+        NewIcc -> IsWrite = TRUE;
+        return hEmpty;
+    }
+
+    if (!_cmsReadHeader(NewIcc)) goto Error;
+    return hEmpty;
+
+Error:
+    cmsCloseProfile(hEmpty);
+    return NULL;
+}
+
+
 // Create profile from disk file
 cmsHPROFILE CMSEXPORT cmsOpenProfileFromFileTHR(cmsContext ContextID, const char *lpFileName, const char *sAccess)
 {
@@ -1206,6 +1231,8 @@ cmsUInt32Number CMSEXPORT cmsSaveProfileToIOhandler(cmsHPROFILE hProfile, cmsIOH
     cmsUInt32Number UsedSpace;
     cmsContext ContextID;
 
+    _cmsAssert(hProfile != NULL);
+
     memmove(&Keep, Icc, sizeof(_cmsICCPROFILE));
 
     ContextID = cmsGetProfileContextID(hProfile);
@@ -1222,6 +1249,7 @@ cmsUInt32Number CMSEXPORT cmsSaveProfileToIOhandler(cmsHPROFILE hProfile, cmsIOH
     // Pass #2 does save to iohandler
 
     if (io != NULL) {
+
         Icc ->IOhandler = io;
         if (!SetLinks(Icc)) goto CleanUp;
         if (!_cmsWriteHeader(Icc, UsedSpace)) goto CleanUp;

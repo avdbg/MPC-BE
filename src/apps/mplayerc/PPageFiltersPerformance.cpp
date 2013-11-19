@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -131,7 +129,7 @@ void CPPageFiltersPerformance::OnBnClickedCheck1()
 
 	for (CWnd *pChild = GetWindow(GW_CHILD); pChild != NULL; pChild = pChild->GetWindow(GW_HWNDNEXT)) {
 		if (pChild != GetDlgItem(IDC_PERFOMANCE_DEFAULT) && pChild != GetDlgItem(IDC_STATIC)) {
-			pChild->EnableWindow(!m_DefaultCtrl.GetCheck()); 
+			pChild->EnableWindow(!m_DefaultCtrl.GetCheck());
 		}
 	}
 }

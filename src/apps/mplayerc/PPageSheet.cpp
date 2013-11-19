@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -53,8 +51,8 @@ CPPageSheet::CPPageSheet(LPCTSTR pszCaption, IFilterGraph* pFG, CWnd* pParentWnd
 	AddPage(&m_filtersperformance);
 	AddPage(&m_externalfilters);
 	AddPage(&m_subtitles);
-	AddPage(&m_substyle);
 	AddPage(&m_subMisc);
+	AddPage(&m_substyle);
 	AddPage(&m_interface);
 	AddPage(&m_tweaks);
 	AddPage(&m_misc);

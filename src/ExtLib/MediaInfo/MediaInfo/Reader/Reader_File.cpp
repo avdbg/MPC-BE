@@ -266,7 +266,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                     }
                     if (Pos>=MI->Config.File_Sizes.size())
                         break;
-                    if (Pos!=MI->Config.File_Names_Pos)
+                    if (Pos!=MI->Config.File_Names_Pos-1)
                     {
                         F.Close();
                         F.Open(MI->Config.File_Names[Pos]);
@@ -399,6 +399,10 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                 break; //Termination is requested
         }
     }
+
+    //Deleting buffer
+    delete[] MI->Config.File_Buffer; MI->Config.File_Buffer=NULL;
+    MI->Config.File_Buffer_Size_Max=0;
 
     #ifdef MEDIAINFO_DEBUG
         std::cout<<std::hex<<Reader_File_Offset<<" - "<<Reader_File_Offset+Reader_File_BytesRead<<" : "<<std::dec<<Reader_File_BytesRead<<" bytes"<<std::endl;

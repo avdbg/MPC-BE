@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -35,6 +33,7 @@ private:
 	int m_offset;
 
 	bool isUTF8Valid();
+	void SkipBOM(const BYTE bom[3], UINT sizeBOM);
 
 public:
 	CTextFile(enc e = ASCII);

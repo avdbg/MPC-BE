@@ -290,6 +290,9 @@
 #if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_CDXA_NO) && !defined(MEDIAINFO_CDXA_YES)
     #define MEDIAINFO_CDXA_YES
 #endif
+#if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_DASHMPD_NO) && !defined(MEDIAINFO_DASHMPD_YES)
+    #define MEDIAINFO_DASHMPD_YES
+#endif
 #if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_DCP_NO) && !defined(MEDIAINFO_DCP_YES)
     #define MEDIAINFO_DCP_YES
 #endif
@@ -310,6 +313,9 @@
 #endif
 #if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_GXF_NO) && !defined(MEDIAINFO_GXF_YES)
     #define MEDIAINFO_GXF_YES
+#endif
+#if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_HDSF4M_NO) && !defined(MEDIAINFO_HDSF4M_YES)
+    #define MEDIAINFO_HDSF4M_YES
 #endif
 #if !defined(MEDIAINFO_MULTI_NO) && !defined(MEDIAINFO_HLS_NO) && !defined(MEDIAINFO_HLS_YES)
     #define MEDIAINFO_HLS_YES
@@ -406,6 +412,9 @@
 #endif
 #if !defined(MEDIAINFO_VIDEO_NO) && !defined(MEDIAINFO_AVSV_NO) && !defined(MEDIAINFO_AVSV_YES)
     #define MEDIAINFO_AVSV_YES
+#endif
+#if !defined(MEDIAINFO_VIDEO_NO) && !defined(MEDIAINFO_CANOPUS_NO) && !defined(MEDIAINFO_CANOPUS_YES)
+    #define MEDIAINFO_CANOPUS_YES
 #endif
 #if !defined(MEDIAINFO_VIDEO_NO) && !defined(MEDIAINFO_DIRAC_NO) && !defined(MEDIAINFO_DIRAC_YES)
     #define MEDIAINFO_DIRAC_YES

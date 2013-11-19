@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -30,6 +28,8 @@
 #include "../../../SubPic/MemSubPic.h"
 #include "../../../SubPic/SubPicQueueImpl.h"
 #include "vfr.h"
+
+#pragma warning(disable: 4706)
 
 //
 // Generic interface

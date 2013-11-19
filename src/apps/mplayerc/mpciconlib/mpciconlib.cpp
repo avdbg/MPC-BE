@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2008-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -76,8 +74,6 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_BIK_ICON;
 	} else if (_tcsicmp(ext, _T(".cda")) == 0) {
 		iconindex = IDI_CDA_ICON;
-	} else if (_tcsicmp(ext, _T(".d2v")) == 0) {
-		iconindex = IDI_D2V_ICON;
 	} else if (_tcsicmp(ext, _T(".divx")) == 0) {
 		iconindex = IDI_DIVX_ICON;
 	} else if (_tcsicmp(ext, _T(".dsa")) == 0) {
@@ -89,6 +85,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 	} else if (_tcsicmp(ext, _T(".dsv")) == 0) {
 		iconindex = IDI_DSV_ICON;
 	} else if (_tcsicmp(ext, _T(".dts")) == 0) {
+		iconindex = IDI_DTS_ICON;
+	} else if (_tcsicmp(ext, _T(".dtshd")) == 0) {
 		iconindex = IDI_DTS_ICON;
 	} else if (_tcsicmp(ext, _T(".evo")) == 0) {
 		iconindex = IDI_EVO_ICON;
@@ -120,7 +118,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_M2A_ICON;
 	} else if (_tcsicmp(ext, _T(".m2p")) == 0) {
 		iconindex = IDI_M2P_ICON;
-	} else if (_tcsicmp(ext, _T(".m2t")) == 0 || _tcsicmp(ext, _T(".ssif")) == 0) {
+	} else if (_tcsicmp(ext, _T(".m2t")) == 0
+			|| _tcsicmp(ext, _T(".ssif")) == 0) {
 		iconindex = IDI_M2T_ICON;
 	} else if (_tcsicmp(ext, _T(".m2ts")) == 0) {
 		iconindex = IDI_M2TS_ICON;
@@ -277,7 +276,17 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_PLAYLIST_ICON;
 	} else if (_tcsicmp(ext, _T(".xspf")) == 0) {
 		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".wtv")) == 0 || _tcsicmp(ext, _T(".dvr-ms")) == 0) {
+// Other
+	} else if (_tcsicmp(ext, _T(".wtv")) == 0
+			|| _tcsicmp(ext, _T(".dvr-ms")) == 0) {
+		iconindex = IDI_DEFAULT_VIDEO_ICON;
+	} else if (_tcsicmp(ext, _T(".h264")) == 0
+			|| _tcsicmp(ext, _T(".264")) == 0
+			|| _tcsicmp(ext, _T(".vc1")) == 0
+			|| _tcsicmp(ext, _T(".h265")) == 0
+			|| _tcsicmp(ext, _T(".265")) == 0
+			|| _tcsicmp(ext, _T(".hm10")) == 0
+			|| _tcsicmp(ext, _T(".hevc")) == 0) {
 		iconindex = IDI_DEFAULT_VIDEO_ICON;
 	}
 

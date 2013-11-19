@@ -1,7 +1,5 @@
 #ifndef ISPP_INVOKED
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -34,7 +32,7 @@
 #define MAKE_STR(x)    DO_MAKE_STR(x)
 
 #define MPC_VERSION_MAJOR  1
-#define MPC_VERSION_MINOR  1
+#define MPC_VERSION_MINOR  3
 #define MPC_VERSION_PATCH  1
 #define MPC_VERSION_STATUS 0
 
@@ -69,5 +67,7 @@
 
 #define DIRECTX_SDK_DATE   "June 2010"
 #define DIRECTX_SDK_NUMBER "43"
+
+#define DBOXVersion 0
 
 #endif

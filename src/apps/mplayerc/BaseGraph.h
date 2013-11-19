@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -53,6 +51,13 @@ IGraphBuilderDeadEnd :
 public IUnknown {
 	STDMETHOD_(size_t, GetCount)() = 0;
 	STDMETHOD(GetDeadEnd) (int iIndex, CAtlList<CStringW>& path, CAtlList<CMediaType>& mts) = 0;
+};
+
+// private use only
+interface __declspec(uuid("F3698B5C-2561-46DB-813E-52D3853A2B5F"))
+IGraphBuilderSub :
+public IUnknown {
+	STDMETHOD(RenderSubFile) (LPCWSTR lpcwstrFileName) = 0;
 };
 
 // private use only

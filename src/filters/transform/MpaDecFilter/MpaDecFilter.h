@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,14 +21,17 @@
 
 #pragma once
 
+#include <atlcoll.h>
+#include "SampleFormat.h"
+
 #define ENABLE_AC3_ENCODER 1
 
-#include <atlcoll.h>
 // TODO: remove this when it's fixed in MSVC
 // Work around warning C4005: 'XXXX' : macro redefinition
+#pragma warning(push)
 #pragma warning(disable: 4005)
 #include <stdint.h>
-#pragma warning(default: 4005)
+#pragma warning(pop)
 
 #include "../DeCSSFilter/DeCSSFilter.h"
 #include "IMpaDecFilter.h"
@@ -64,6 +65,17 @@ struct ps2_state_t {
 	}
 };
 
+//struct DD_stats_t {
+//protected:
+//	int mode;
+//	unsigned int ac3_frames;
+//	unsigned int eac3_frames;
+//
+//public:
+//	void Reset();
+//	bool Desired(int type);
+//};
+
 class __declspec(uuid("3D446B6F-71DE-4437-BE15-8CE47174340F"))
 	CMpaDecFilter
 	: public CTransformFilter
@@ -89,6 +101,7 @@ protected:
 	CMixer          m_Mixer;
 
 	ps2_state_t     m_ps2_state;
+//	DD_stats_t      m_DDstats;
 
 	BYTE            m_hdmibuff[61440];
 	int             m_hdmicount;
@@ -98,16 +111,20 @@ protected:
 
 	CFFAudioDecoder m_FFAudioDec;
 
+	BOOL			m_bIsBitstreamOutputSupported;
+	BOOL			m_bHasVideo;
+
 #if ENABLE_AC3_ENCODER
 	CAC3Encoder m_AC3Enc;
 	CAtlArray<float> m_encbuff;
-	HRESULT AC3Encode(BYTE* pBuff, int size, AVSampleFormat avsf, DWORD nSamplesPerSec, WORD nChannels, DWORD dwChannelMask = 0);
+	HRESULT AC3Encode(BYTE* pBuff, int size, SampleFormat sfmt, DWORD nSamplesPerSec, WORD nChannels, DWORD dwChannelMask = 0);
 #endif
 
 	HRESULT ProcessFFmpeg(enum AVCodecID nCodecId);
 
 	HRESULT ProcessLPCM();
 	HRESULT ProcessHdmvLPCM(bool bAlignOldBuffer);
+//	HRESULT ProcessAC3();
 	HRESULT ProcessAC3_SPDIF();
 	HRESULT ProcessEAC3_SPDIF();
 	HRESULT ProcessTrueHD_SPDIF();
@@ -121,7 +138,7 @@ protected:
 	HRESULT ProcessPCMfloatLE();
 
 	HRESULT GetDeliveryBuffer(IMediaSample** pSample, BYTE** pData);
-	HRESULT Deliver(BYTE* pBuff, int size, AVSampleFormat avsf, DWORD nSamplesPerSec, WORD nChannels, DWORD dwChannelMask = 0);
+	HRESULT Deliver(BYTE* pBuff, int size, SampleFormat sfmt, DWORD nSamplesPerSec, WORD nChannels, DWORD dwChannelMask = 0);
 	HRESULT DeliverBitstream(BYTE* pBuff, int size, WORD type, int sample_rate, int frame_length);
 	HRESULT ReconnectOutput(int nSamples, CMediaType& mt);
 	CMediaType CreateMediaType(MPCSampleFormat sf, DWORD nSamplesPerSec, WORD nChannels, DWORD dwChannelMask = 0);

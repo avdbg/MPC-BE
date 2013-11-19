@@ -1,7 +1,5 @@
 /*
- *
- *
- * Copyright (C) 2013 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
+ * Copyright (C) 2013 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru).
  *
  * This file is part of MPC-BE.
  *
@@ -38,14 +36,29 @@ WORD GetSysVersion()
 	return ver;
 }
 
+BOOL IsWinXP()
+{
+	return (GetSysVersion() == 0x0501);
+}
+
 BOOL IsWinXPOrLater()
 {
 	return (GetSysVersion() >= 0x0501);
 }
 
+BOOL IsWinVista()
+{
+	return (GetSysVersion() == 0x0600);
+}
+
 BOOL IsWinVistaOrLater()
 {
 	return (GetSysVersion() >= 0x0600);
+}
+
+BOOL IsWinSeven()
+{
+	return (GetSysVersion() == 0x0601);
 }
 
 BOOL IsWinSevenOrLater()
@@ -56,6 +69,11 @@ BOOL IsWinSevenOrLater()
 BOOL IsWinEight()
 {
 	return (GetSysVersion() == 0x0602);
+}
+
+BOOL IsWinEightOrLater()
+{
+	return (GetSysVersion() >= 0x0602);
 }
 
 BOOL IsWow64()

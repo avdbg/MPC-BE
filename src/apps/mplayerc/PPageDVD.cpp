@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -181,10 +179,8 @@ CPPageDVD::CPPageDVD()
 	: CPPageBase(CPPageDVD::IDD, CPPageDVD::IDD)
 	, m_iDVDLocation(0)
 	, m_iDVDLangType(0)
-	, m_fAutoSpeakerConf(FALSE)
 	, m_fClosedCaptions(FALSE)
 	, m_fStartMainTitle(FALSE)
-	, m_fmadVRchange(FALSE)
 {
 }
 
@@ -202,10 +198,8 @@ void CPPageDVD::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_DVDPATH, m_dvdpath);
 	DDX_Control(pDX, IDC_DVDPATH, m_dvdpathctrl);
 	DDX_Control(pDX, IDC_BUTTON1, m_dvdpathselctrl);
-	DDX_Check(pDX, IDC_CHECK1, m_fAutoSpeakerConf);
 	DDX_Check(pDX, IDC_CHECK2, m_fClosedCaptions);
 	DDX_Check(pDX, IDC_CHECK3, m_fStartMainTitle);
-	DDX_Check(pDX, IDC_CHECK4, m_fmadVRchange);
 }
 
 void CPPageDVD::UpdateLCIDList()
@@ -248,10 +242,8 @@ BOOL CPPageDVD::OnInitDialog()
 	m_idMenuLang		= s.idMenuLang;
 	m_idAudioLang		= s.idAudioLang;
 	m_idSubtitlesLang	= s.idSubtitlesLang;
-	m_fAutoSpeakerConf	= s.fAutoSpeakerConf;
 	m_fClosedCaptions	= s.fClosedCaptions;
 	m_fStartMainTitle	= s.fStartMainTitle;
-	m_fmadVRchange		= s.fmadVRchange;
 
 	UpdateData(FALSE);
 
@@ -276,10 +268,8 @@ BOOL CPPageDVD::OnApply()
 	s.idMenuLang		= m_idMenuLang;
 	s.idAudioLang		= m_idAudioLang;
 	s.idSubtitlesLang	= m_idSubtitlesLang;
-	s.fAutoSpeakerConf	= !!m_fAutoSpeakerConf;
 	s.fClosedCaptions	= !!m_fClosedCaptions;
 	s.fStartMainTitle	= !!m_fStartMainTitle;
-	s.fmadVRchange		= !!m_fmadVRchange;
 
 	((CMainFrame*)AfxGetMyApp()->GetMainWnd())->SetClosedCaptions(s.fClosedCaptions);
 

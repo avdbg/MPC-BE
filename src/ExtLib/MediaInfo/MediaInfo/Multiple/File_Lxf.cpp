@@ -215,6 +215,11 @@ void File_Lxf::Streams_Fill_PerStream(File__Analyze* Parser, stream_t Container_
     else
     {
         Merge(*Parser);
+
+        Ztring LawRating=Parser->Retrieve(Stream_General, 0, General_LawRating);
+        if (!LawRating.empty())
+            Fill(Stream_General, 0, General_LawRating, LawRating, true);
+
         #if MEDIAINFO_DEMUX
             if (Config->Demux_ForceIds_Get())
                 for (size_t StreamKind=Stream_General+1; StreamKind<Stream_Max; StreamKind++)
@@ -249,6 +254,10 @@ void File_Lxf::Streams_Finish()
     {
         Finish(Videos[2].Parsers[0]);
         Merge(*Videos[2].Parsers[0], Stream_Video, 0, 0);
+
+        Ztring LawRating=Videos[2].Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+        if (!LawRating.empty())
+            Fill(Stream_General, 0, General_LawRating, LawRating, true);
     }
 
     if (Audios_Header.TimeStamp_End!=(int64u)-1 && Audios_Header.TimeStamp_Begin!=(int64u)-1 && Audios_Header.Duration_First!=(int64u)-1)
@@ -436,7 +445,7 @@ void File_Lxf::Read_Buffer_Continue()
     #if MEDIAINFO_DEMUX
         if (DemuxParser)
         {
-            Open_Buffer_Continue(DemuxParser, Buffer+Buffer_Offset, 0);
+            Open_Buffer_Continue(DemuxParser, Buffer+Buffer_Offset, 0, false);
             if (!Config->Demux_EventWasSent)
                 DemuxParser=NULL; //No more need of it
         }
@@ -1356,6 +1365,7 @@ void File_Lxf::Audio_Stream(size_t Pos)
             File_SmpteSt0337* Parser=new File_SmpteSt0337;
             Parser->Container_Bits=SampleSize;
             Parser->Endianness='L';
+            Parser->Aligned=true;
 
             Audios[Pos].Parsers.push_back(Parser);
         }
@@ -1471,6 +1481,18 @@ void File_Lxf::Audio_Stream(size_t Pos)
     #endif //MEDIAINFO_DEMUX
     */
 
+    #if MEDIAINFO_DEMUX
+        #if MEDIAINFO_SEEK
+            if (SeekRequest==(int64u)-1)
+        #endif //MEDIAINFO_SEEK
+        {
+            Element_Code=0x200+Pos;
+            Frame_Count_NotParsedIncluded=float64_int64s(((float64)(Audios_Header.TimeStamp_End-Audios_Header.Duration))/TimeStamp_Rate*FrameRate);
+            Demux_Level=4; //Intermediate
+            Demux(Buffer+Buffer_Offset+(size_t)Element_Offset, (size_t)Audio_Sizes[Pos], ContentType_MainStream);
+        }
+    #endif //MEDIAINFO_DEMUX
+
     //Parsing
     Frame_Count_NotParsedIncluded=float64_int64s(((float64)(Audios_Header.TimeStamp_End-Audios_Header.Duration))/TimeStamp_Rate*FrameRate);
     for (size_t Pos2=0; Pos2<Audios[Pos].Parsers.size(); Pos2++)
@@ -1545,6 +1567,7 @@ void File_Lxf::Video_Stream(size_t Pos)
         {
             Element_Code=0x100+Pos;
             Frame_Count_NotParsedIncluded=float64_int64s(((float64)(Videos_Header.TimeStamp_End-Videos_Header.Duration))/TimeStamp_Rate*FrameRate);
+            Demux_Level=2; //Container
             Demux(Buffer+Buffer_Offset+(size_t)Element_Offset, (size_t)Video_Sizes[Pos], ContentType_MainStream);
         }
     #endif //MEDIAINFO_DEMUX
@@ -1631,6 +1654,9 @@ void File_Lxf::Video_Stream_1()
         #endif
     }
     Skip_XX((Lines_Allocated-Lines_Used)*BytesPerLine,          "Unused lines");
+
+    if (Element_Offset<Element_Size)
+        Skip_XX(Element_Size-Element_Offset,                    "Unknown");
 }
 
 //---------------------------------------------------------------------------

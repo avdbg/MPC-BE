@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -82,10 +80,8 @@ CMpaSplitterFile::CMpaSplitterFile(IAsyncReader* pAsyncReader, HRESULT& hr)
 	, m_mode(none)
 	, m_rtDuration(0)
 	, m_startpos(0)
-	, m_endpos(0)
 	, m_totalbps(0)
 	, m_bIsVBR(false)
-	, m_CoverMime(_T(""))
 {
 	if (SUCCEEDED(hr)) {
 		hr = Init();
@@ -120,7 +116,7 @@ CString CMpaSplitterFile::ReadText(DWORD &size, BYTE encoding)
 		return wstr.Trim();
 	} else {
 		ByteRead((BYTE*)str.GetBufferSetLength(size), size);
-		return (encoding > 0 ? UTF8To16(str) : CStringW(str)).Trim();
+		return (encoding > 0 ? UTF8ToString(str) : CStringW(str)).Trim();
 	}
 }
 
@@ -161,7 +157,7 @@ CString CMpaSplitterFile::ReadField(DWORD &size, BYTE encoding)
 HRESULT CMpaSplitterFile::Init()
 {
 	m_startpos = 0;
-	m_endpos = GetLength();
+	__int64 endpos = GetLength();
 
 	Seek(0);
 
@@ -172,11 +168,11 @@ HRESULT CMpaSplitterFile::Init()
 		return E_FAIL;
 	}
 
-	if (m_endpos > 128 && IsRandomAccess()) {
-		Seek(m_endpos - 128);
+	if (endpos > 128 && IsRandomAccess()) {
+		Seek(endpos - 128);
 
 		if (BitRead(24) == 'TAG') {
-			m_endpos -= 128;
+			endpos -= 128;
 
 			CStringA str;
 
@@ -369,30 +365,64 @@ HRESULT CMpaSplitterFile::Init()
 
 		Seek(m_startpos);
 
-		for (int i = 0; i < (1<<20) && m_startpos < m_endpos && BitRead(8, true) == 0; i++) {
+		for (int i = 0; i < (1<<20) && m_startpos < endpos && BitRead(8, true) == 0; i++) {
 			BitRead(8), m_startpos++;
 		}
 	}
 
-	int searchlen    = 0;
-	__int64 startpos = 0;
+	int searchlen		= 0;
+	__int64 startpos	= 0;
+	__int64 syncpos		= 0;
 
-	searchlen = (int)min(m_endpos - m_startpos, MP3_find ? (m_endpos - m_startpos) : 2048);
-	Seek(m_startpos);
+	__int64 startpos_mp3 = m_startpos;
 
-	if (m_mode == none && Read(m_mpahdr, searchlen, true, &m_mt)) {
-		m_mode = mpa;
+	__int64 len = min(GetLength(), 5 * MEGABYTE);
+	while (m_mode == none) {
+		if (!MP3_find && GetPos() >= 2048) {
+			break;
+		}
 
-		startpos = GetPos() - 4;
+		if ((len - GetPos()) < 512) {
+			break;
+		}
 
-		// make sure the first frame is followed by another of the same kind (validates m_mpahdr basically)
-		Seek(startpos + m_mpahdr.FrameSize);
-		if (!Sync(4)) {
-			m_mode = none;
+		searchlen = (int)min(endpos - startpos_mp3, 512);
+		Seek(startpos_mp3);
+
+		// If we fail to see sync bytes, we reposition here and search again
+		syncpos = startpos_mp3 + searchlen;
+
+		// Check for a valid MPA header
+		if (Read(m_mpahdr, searchlen, &m_mt, true)) {
+			m_mode = mpa;
+
+			// check multiple frame to ensure that the data is correct
+			__int64 savepos = GetPos() - 4;
+			for (int i = 0; i < 5; i++) {
+				syncpos = GetPos();
+				startpos = i ? syncpos : (syncpos - 4);
+				Seek(startpos + m_mpahdr.FrameSize);
+				if (!Sync(4)) {
+					m_mode = none;
+					break;
+				}
+			}
+
+			if (m_mode == mpa) {
+				startpos = savepos;
+				break;
+			}
+		}
+
+		// If we have enough room to search for a valid header, then skip ahead and try again
+		if (endpos - syncpos >= 8) {
+			startpos_mp3 = syncpos;
+		} else {
+			break;
 		}
 	}
 
-	searchlen = (int)min(m_endpos - m_startpos, 512);
+	searchlen = (int)min(endpos - m_startpos, 512);
 	Seek(m_startpos);
 
 	if (m_mode == none && Read(m_aachdr, searchlen, &m_mt)) {
@@ -411,11 +441,7 @@ HRESULT CMpaSplitterFile::Init()
 		return E_FAIL;
 	}
 
-	if (IsStreaming()) {
-		for (int i = 0; i < 20 || i < 50 && S_OK != HasMoreData(1024*100, 100); i++) {
-			;
-		}
-	}
+	WaitAvailable(1500, 64 * KILOBYTE);
 
 	m_startpos = startpos;
 
@@ -476,25 +502,21 @@ bool CMpaSplitterFile::Sync(int limit)
 
 bool CMpaSplitterFile::Sync(int& FrameSize, REFERENCE_TIME& rtDuration, int limit)
 {
-	m_endpos = GetLength();
-
-	__int64 endpos = min(m_endpos, GetPos() + limit);
+	__int64 endpos = min(GetLength(), GetPos() + limit);
 
 	if (m_mode == mpa) {
 		while (GetPos() <= endpos - 4) {
 			mpahdr h;
 
-			if (Read(h, (int)(endpos - GetPos()), true)) {
-				if (m_mpahdr.version == h.version
-						&& m_mpahdr.layer == h.layer
-						&& m_mpahdr.channels == h.channels
-						&& m_mpahdr.nSamplesPerSec == h.nSamplesPerSec
-						&& m_mpahdr.sync == h.sync) {
+			if (Read(h, (int)(endpos - GetPos()), NULL, true)) {
+				if (m_mpahdr == h) {
 					Seek(GetPos() - 4);
 					AdjustDuration(h.nBytesPerSec);
 
-					FrameSize = h.FrameSize;
-					rtDuration = h.rtDuration;
+					FrameSize	= h.FrameSize;
+					rtDuration	= h.rtDuration;
+
+					memcpy(&m_mpahdr, &h, sizeof(mpahdr));
 
 					return true;
 				}
@@ -507,15 +529,13 @@ bool CMpaSplitterFile::Sync(int& FrameSize, REFERENCE_TIME& rtDuration, int limi
 			aachdr h;
 
 			if (Read(h, (int)(endpos - GetPos()))) {
-				if (m_aachdr.version == h.version
-						&& m_aachdr.layer == h.layer
-						&& m_aachdr.channels == h.channels) {
+				if (m_aachdr == h) {
 					Seek(GetPos() - (h.fcrc?7:9));
 					AdjustDuration(h.nBytesPerSec);
 					Seek(GetPos() + (h.fcrc?7:9));
 
-					FrameSize = h.FrameSize;
-					rtDuration = h.rtDuration;
+					FrameSize	= h.FrameSize;
+					rtDuration	= h.rtDuration;
 
 					return true;
 				}
@@ -532,7 +552,7 @@ void CMpaSplitterFile::AdjustDuration(int nBytesPerSec)
 {
 	ASSERT(nBytesPerSec);
 
-	if (!m_bIsVBR && !IsStreaming()) {
+	if (!m_bIsVBR) {
 		int rValue;
 		if (!m_pos2bps.Lookup(GetPos(), rValue)) {
 			m_totalbps += nBytesPerSec;
@@ -541,7 +561,7 @@ void CMpaSplitterFile::AdjustDuration(int nBytesPerSec)
 			}
 			m_pos2bps.SetAt(GetPos(), nBytesPerSec);
 			__int64 avgbps = m_totalbps / m_pos2bps.GetCount();
-			m_rtDuration = 10000000i64 * (m_endpos - m_startpos) / avgbps;
+			m_rtDuration = 10000000i64 * (GetTotal() - m_startpos) / avgbps;
 		}
 	}
 }

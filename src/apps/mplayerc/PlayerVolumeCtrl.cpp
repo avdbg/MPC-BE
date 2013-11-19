@@ -1,6 +1,4 @@
 /*
- * $Id: VolumeCtrl.cpp 527 2012-06-10 13:47:31Z exodus8 $
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *

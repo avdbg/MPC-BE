@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -29,8 +27,27 @@
 #define SLIDER_BAR_HEIGHT		10
 #define SLIDER_CURSOR_HEIGHT	30
 #define SLIDER_CURSOR_WIDTH		15
+#define SLIDER_CHAP_WIDTH		4
+#define SLIDER_CHAP_HEIGHT		10
 
-CVMROSD::CVMROSD(void)
+
+CVMROSD::CVMROSD()
+	: m_nMessagePos(OSD_NOMESSAGE)
+	, m_bSeekBarVisible(false)
+	, m_bFlyBarVisible(false)
+	, m_bCursorMoving(false)
+	, m_pMFVMB(NULL)
+	, m_pVMB(NULL)
+	, m_pMVTO(NULL)
+	, m_pWnd(NULL)
+	, m_FontSize(0)
+	, m_OSD_Transparent(0)
+	, bMouseOverExitButton(false)
+	, bMouseOverCloseButton(false)
+	, m_bShowMessage(true)
+	, m_bVisibleMessage(false)
+	, m_OSDType(OSD_TYPE_NONE)
+	, m_pChapterBag(NULL)
 {
 	m_Color[OSD_TRANSPARENT]	= RGB(  0,   0,   0);
 	m_Color[OSD_BACKGROUND]		= RGB( 32,  40,  48);
@@ -44,28 +61,12 @@ CVMROSD::CVMROSD(void)
 	m_penCursor.CreatePen(PS_SOLID, 4, m_Color[OSD_CURSOR]);
 	m_brushBack.CreateSolidBrush(m_Color[OSD_BACKGROUND]);
 	m_brushBar.CreateSolidBrush (m_Color[OSD_BAR]);
+	m_brushChapter.CreateSolidBrush(m_Color[OSD_CURSOR]);
 	m_debugBrushBack.CreateSolidBrush(m_Color[OSD_DEBUGCLR]);
 	m_debugPenBorder.CreatePen(PS_SOLID, 1, m_Color[OSD_BORDER]);
 
-	m_nMessagePos		= OSD_NOMESSAGE;
-	m_bSeekBarVisible	= false;
-	m_bFlyBarVisible	= false;
-	m_bCursorMoving		= false;
-	m_pMFVMB			= NULL;
-	m_pVMB				= NULL;
-	m_pMVTO				= NULL;
-	m_pWnd				= NULL;
 	memset(&m_BitmapInfo, 0, sizeof(m_BitmapInfo));
-
-	m_FontSize				= 0;
-	m_OSD_Transparent		= 0;
-	bMouseOverExitButton	= false;
-	bMouseOverCloseButton	= false;
-	m_bShowMessage			= true;
-	m_bVisibleMessage		= false;
-
-	m_OSDType				= OSD_TYPE_NONE;
-
+	
 	m_MainWndRect = m_MainWndRectCashed = CRect(0,0,0,0);
 
 	int fp = m_bm.FileExists(CString(_T("flybar")));
@@ -379,6 +380,31 @@ void CVMROSD::DrawSlider(CRect* rect, __int64 llMin, __int64 llMax, __int64 llPo
 
 	DrawRect (rect, &m_brushBack, &m_penBorder);
 	DrawRect (&m_rectBar, &m_brushBar);
+
+	if (AfxGetAppSettings().fChapterMarker) {
+		CAutoLock lock(&m_CBLock);
+
+		if (m_pChapterBag && m_pChapterBag->ChapGetCount() > 1 && llMax != llMin) {
+			REFERENCE_TIME rt;
+			for (DWORD i = 0; i < m_pChapterBag->ChapGetCount(); ++i) {
+				if (SUCCEEDED(m_pChapterBag->ChapGet(i, &rt, nullptr))) {
+					__int64 pos = m_rectBar.Width() * rt / (llMax - llMin);
+					if (pos < 0) {
+						continue;
+					}
+
+					CRect r;
+					r.left		= m_rectBar.left + (LONG)pos - SLIDER_CHAP_WIDTH / 2;
+					r.top		= rect->top + (rect->Height() - SLIDER_CHAP_HEIGHT) / 2;
+					r.right		= r.left + SLIDER_CHAP_WIDTH;
+					r.bottom	= r.top + SLIDER_CHAP_HEIGHT;
+
+					DrawRect(&r, &m_brushChapter);
+				}
+			}
+		}
+	}
+
 	DrawRect (&m_rectCursor, NULL, &m_penCursor);
 }
 
@@ -489,7 +515,7 @@ void CVMROSD::DrawMessage()
 		if (rectText.right +10 >= (rectMessages.right)) {
 			uFormat = uFormat|DT_END_ELLIPSIS;
 		}
-	
+
 		CRect r;
 		if (AfxGetAppSettings().fFontShadow) {
 			r = rectMessages;
@@ -498,12 +524,12 @@ void CVMROSD::DrawMessage()
 			m_MemDC.SetTextColor(RGB(16,24,32));
 			m_MemDC.DrawText (m_strMessage, &r, uFormat);
 		}
-		
+
 		r = rectMessages;
 		r.left += 10;
 		r.top += 5;
 		m_MemDC.SetTextColor(AfxGetAppSettings().clrFontABGR);
-		m_MemDC.DrawText (m_strMessage, &r, uFormat);	
+		m_MemDC.DrawText (m_strMessage, &r, uFormat);
 	}
 }
 
@@ -675,7 +701,7 @@ bool CVMROSD::OnLButtonUp(UINT nFlags, CPoint point)
 
 		bRet = (m_rectCursor.PtInRect (point) || m_rectSeekBar.PtInRect(point));
 	}
-	
+
 	return bRet;
 }
 
@@ -716,9 +742,11 @@ void CVMROSD::ClearMessage(bool hide)
 {
 	CAutoLock Lock(&m_Lock);
 
-	if (m_bSeekBarVisible || m_bFlyBarVisible) { 
+	if (m_bSeekBarVisible || m_bFlyBarVisible) {
 		return;
 	}
+
+	m_strMessageCashed.Empty();
 
 	if (!hide) {
 		m_nMessagePos = OSD_NOMESSAGE;
@@ -819,16 +847,14 @@ void CVMROSD::DisplayMessage(OSD_MESSAGEPOS nPos, LPCTSTR strMsg, int nDuration,
 		}
 
 		m_OSD_Font = OSD_Font.IsEmpty() ? AfxGetAppSettings().strOSDFont : OSD_Font;
-		
+
 		if (m_pWnd) {
 			::KillTimer(m_pWnd->m_hWnd, (UINT_PTR)this);
 			if (nDuration != -1) {
 				m_bVisibleMessage = true;
 				::SetTimer(m_pWnd->m_hWnd, (UINT_PTR)this, nDuration, (TIMERPROC)TimerFunc);
 			}
-		}
 
-		if (m_pWnd) {
 			SetWindowPos(NULL, 0, 0, 0, 0, DEFFLAGS | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
 			PostMessage(WM_OSD_DRAW);
 		}
@@ -869,7 +895,7 @@ void CVMROSD::HideMessage(bool hide)
 void CVMROSD::HideExclusiveBars()
 {
 	if (m_pVMB || m_pMFVMB) {
-			
+
 		if (m_bFlyBarVisible || m_bSeekBarVisible) {
 			m_bFlyBarVisible	= false;
 			m_bSeekBarVisible	= false;
@@ -1033,7 +1059,7 @@ void CVMROSD::DrawWnd()
 		G1_	= (G1+32 >= 255 ? 255 : G1+32);
 		B_	= (B+32  >= 255 ? 255 : B+32);
 		B1_	= (B1+32 >= 255 ? 255 : B1+32);
-		
+
 		m_OSD_Transparent	= 255;//AfxGetAppSettings().nOSDTransparent;
 		int iBorder			= AfxGetAppSettings().nOSDBorder;
 
@@ -1075,7 +1101,7 @@ void CVMROSD::DrawWnd()
 		}
 
 		DWORD uFormat = DT_LEFT|DT_TOP|DT_END_ELLIPSIS|DT_NOPREFIX;
-	
+
 		CRect r;
 
 		if (AfxGetAppSettings().fFontShadow) {
@@ -1087,7 +1113,7 @@ void CVMROSD::DrawWnd()
 			mdc.SetTextColor(RGB(16,24,32));
 			mdc.DrawText(m_strMessage, &r, uFormat);
 		}
-		
+
 		r			= rcBar;
 		r.left		= 10;
 		r.top		= 5;
@@ -1095,7 +1121,7 @@ void CVMROSD::DrawWnd()
 
 		mdc.SetTextColor(AfxGetAppSettings().clrFontABGR);
 		mdc.DrawText(m_strMessage, m_strMessage.GetLength(), &r, uFormat);
-		
+
 		/*
 		// GDI+ handling
 
@@ -1107,23 +1133,23 @@ void CVMROSD::DrawWnd()
 		CString ss(message);
 		CString f(m_OSD_Font);
 		Font font(mdc);
-	
+
 		FontFamily fontFamily;
 		font.GetFamily(&fontFamily);
-	
+
 		StringFormat strformat;
 		//strformat.SetAlignment((StringAlignment) 0);
 		//strformat.SetLineAlignment(StringAlignmentCenter);
 		strformat.SetFormatFlags(StringFormatFlagsNoWrap);
 		strformat.SetTrimming(StringTrimmingEllipsisCharacter);//SetFormatFlags(StringFormatFlagsLineLimit );
 		RectF p(r.left+10, r.top, r.Width(), r.Height());
-	
+
 		REAL enSize = font.GetSize();
 
 		GraphicsPath path;
-		path.AddString(ss.AllocSysString(), ss.GetLength(), &fontFamily, 
+		path.AddString(ss.AllocSysString(), ss.GetLength(), &fontFamily,
 		FontStyleRegular, enSize, p, &strformat );
-   
+
 		Pen pen(Color(76,80,86), 5);
 		pen.SetLineJoin(LineJoinRound);
 		graphics.DrawPath(&pen, &path);
@@ -1136,15 +1162,25 @@ void CVMROSD::DrawWnd()
 		//}
 
 
-		LinearGradientBrush brush(Gdiplus::Rect(r.left, r.top, r.Width(), r.Height()), 
+		LinearGradientBrush brush(Gdiplus::Rect(r.left, r.top, r.Width(), r.Height()),
 			Color(255,255,255), Color(217,229,247), LinearGradientModeVertical);
 		graphics.FillPath(&brush, &path);
-		*/		
+		*/
 	}
-		
+
 	dc.BitBlt(0, 0, rcBar.Width(), rcBar.Height(), &mdc, 0, 0, SRCCOPY);
 
 	mdc.SelectObject(pOldBm);
 	bm.DeleteObject();
 	mdc.DeleteDC();
+}
+
+void CVMROSD::SetChapterBag(CComPtr<IDSMChapterBag>& pCB)
+{
+	CAutoLock lock(&m_CBLock);
+
+	if (pCB) {
+		m_pChapterBag.Release();
+		pCB.CopyTo(&m_pChapterBag);
+	}
 }

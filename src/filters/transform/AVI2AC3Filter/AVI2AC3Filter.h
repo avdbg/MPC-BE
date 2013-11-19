@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -35,15 +33,6 @@
     wBitsPerSample      Up to 24 bits - (in the original)
 
 */
-
-typedef struct tagDOLBYAC3WAVEFORMAT {
-	WAVEFORMATEX     wfx;
-	BYTE             bBigEndian;       // TRUE = Big Endian, FALSE little endian
-	BYTE             bsid;
-	BYTE             lfeon;
-	BYTE             copyrightb;
-	BYTE             nAuxBitsCode;  //  Aux bits per frame
-} DOLBYAC3WAVEFORMAT;
 
 //
 // CAVI2AC3Filter

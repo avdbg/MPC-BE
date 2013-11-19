@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -1552,7 +1550,7 @@ BOOL CPPageAccelTbl::OnApply()
 	s.fGlobalMedia = !!m_fGlobalMedia;
 
 	AfxGetMyApp()->RegisterHotkeys();
-	
+
 	s.AccelTblColWidth.bEnable = true;
 	s.AccelTblColWidth.cmd		= m_list.GetColumnWidth(COL_CMD);
 	s.AccelTblColWidth.key		= m_list.GetColumnWidth(COL_KEY);
@@ -1562,7 +1560,7 @@ BOOL CPPageAccelTbl::OnApply()
 	s.AccelTblColWidth.appcmd	= m_list.GetColumnWidth(COL_APPCMD);
 	s.AccelTblColWidth.remcmd	= m_list.GetColumnWidth(COL_RMCMD);
 	s.AccelTblColWidth.repcnt	= m_list.GetColumnWidth(COL_RMREPCNT);
-	
+
 	return __super::OnApply();
 }
 
@@ -1810,7 +1808,7 @@ HBRUSH CPPageAccelTbl::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 		status = AfxGetAppSettings().UIceClient.GetStatus();
 	}
 
-	if (status == 0 || status == 2 && (m_counter&1)) {
+	if (status == 0 || (status == 2 && (m_counter&1))) {
 		pDC->SetTextColor(0x0000ff);
 	} else if (status == 1) {
 		pDC->SetTextColor(0x008000);

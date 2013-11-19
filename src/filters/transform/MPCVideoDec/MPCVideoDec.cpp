@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -32,27 +30,90 @@
 #include "MPCVideoDec.h"
 #include "DXVAAllocator.h"
 #include "CpuId.h"
-#include "ffImgfmt.h"
 #include "FfmpegContext.h"
 
 #include "../../../DSUtil/DSUtil.h"
 #include "../../../DSUtil/SysVersion.h"
 #include "../../../DSUtil/MediaTypes.h"
 #include "../../parser/MpegSplitter/MpegSplitter.h"
-#include "../../parser/OggSplitter/OggSplitter.h"
-#include "../../parser/RealMediaSplitter/RealMediaSplitter.h"
 #include "DXVADecoderH264.h"
 #include <moreuuids.h>
 
 #include "../../../DSUtil/WinAPIUtils.h"
 #include "Version.h"
 
+#pragma warning(push)
 #pragma warning(disable: 4005)
 extern "C" {
 	#include <ffmpeg/libavcodec/avcodec.h>
-	#include <ffmpeg/libswscale/swscale.h>
+	#include <ffmpeg/libavutil/pixdesc.h>
 }
-#pragma warning(default: 4005)
+#pragma warning(pop)
+
+// option names
+#define OPT_REGKEY_VideoDec  _T("Software\\MPC-BE Filters\\MPC Video Decoder")
+#define OPT_SECTION_VideoDec _T("Filters\\MPC Video Decoder")
+#define OPT_ThreadNumber     _T("ThreadNumber")
+#define OPT_DiscardMode      _T("DiscardMode")
+#define OPT_Deinterlacing    _T("Deinterlacing")
+#define OPT_ARMode           _T("ARMode")
+#define OPT_DXVACheck        _T("DXVACheckCompatibility")
+#define OPT_DisableDXVA_SD   _T("DisableDXVA_SD")
+#define OPTION_SW_NV12       _T("Sw_NV12")
+#define OPTION_SW_YV12       _T("Sw_YV12")
+#define OPTION_SW_YUY2       _T("Sw_YUY2")
+#define OPTION_SW_RGB32      _T("Sw_RGB32")
+#define OPT_SwPreset         _T("SwPreset")
+#define OPT_SwStandard       _T("SwStandard")
+#define OPT_SwInputLevels    _T("SwInputLevels")
+#define OPT_SwOutputLevels   _T("SwOutputLevels")
+
+#pragma region any_constants
+
+#ifdef REGISTER_FILTER
+#define OPT_REGKEY_VCodecs   _T("Software\\MPC-BE Filters\\MPC Video Decoder\\Codecs")
+
+static const struct vcodec_t {
+	const LPCTSTR          opt_name;
+	const unsigned __int64 flag;
+}
+vcodecs[] = {
+	{_T("h264"),		CODEC_H264		},
+	{_T("mpeg1"),		CODEC_MPEG1		},
+	{_T("mpeg3"),		CODEC_MPEG2		},
+	{_T("vc1"),			CODEC_VC1		},
+	{_T("msmpeg4"),		CODEC_MSMPEG4	},
+	{_T("xvid"),		CODEC_XVID		},
+	{_T("divx"),		CODEC_DIVX		},
+	{_T("wmv"),			CODEC_WMV		},
+	{_T("hevc"),		CODEC_HEVC		},
+	{_T("vp356"),		CODEC_VP356		},
+	{_T("vp89"),		CODEC_VP89		},
+	{_T("theora"),		CODEC_THEORA	},
+	{_T("mjpeg"),		CODEC_MJPEG		},
+	{_T("dv"),			CODEC_DV		},
+	{_T("lagarith"),	CODEC_LAGARITH	},
+	{_T("prores"),		CODEC_PRORES	},
+	{_T("cllc"),		CODEC_CLLC		},
+	{_T("screc"),		CODEC_SCREC		},
+	{_T("indeo"),		CODEC_INDEO		},
+	{_T("h263"),		CODEC_H263		},
+	{_T("svq3"),		CODEC_SVQ3		},
+	{_T("realv"),		CODEC_REALV		},
+	{_T("dirac"),		CODEC_DIRAC		},
+	{_T("binkv"),		CODEC_BINKV		},
+	{_T("amvv"),		CODEC_AMVV		},
+	{_T("flash"),		CODEC_FLASH		},
+	{_T("utvd"),		CODEC_UTVD		},
+	{_T("png"),			CODEC_PNG		},
+	{_T("v210"),		CODEC_V210		},
+	// dxva codecs
+	{_T("h264_dxva"),	CODEC_H264_DXVA	},
+	{_T("mpeg2_dxva"),	CODEC_MPEG2_DXVA},
+	{_T("vc1_dxva"),	CODEC_VC1_DXVA	},
+	{_T("wmv3_dxva"),	CODEC_WMV3_DXVA	}
+};
+#endif
 
 #define MAX_SUPPORTED_MODE 5
 
@@ -91,7 +152,7 @@ DXVA_PARAMS		DXVA_Mpeg2 = {
 	24,		// PicEntryNumber - DXVA2
 	1,		// PreferedConfigBitstream
 	{ &DXVA2_ModeMPEG2_VLD, &GUID_NULL },
-	{ DXVA_RESTRICTED_MODE_UNRESTRICTED, 0 } // Restricted mode for DXVA1?
+	{ DXVA_RESTRICTED_MODE_MPEG2_D, 0 } // Restricted mode for DXVA1?
 };
 
 // DXVA modes supported for H264
@@ -141,6 +202,9 @@ FFMPEG_CODECS		ffCodecs[] = {
 
 	// VP8
 	{ &MEDIASUBTYPE_VP80, AV_CODEC_ID_VP8, NULL, FFM_VP8, -1 },
+
+	// VP9
+	{ &MEDIASUBTYPE_VP90, AV_CODEC_ID_VP9, NULL, FFM_VP8, -1 },
 
 	// Xvid
 	{ &MEDIASUBTYPE_XVID, AV_CODEC_ID_MPEG4, NULL, FFM_XVID, -1 },
@@ -210,6 +274,7 @@ FFMPEG_CODECS		ffCodecs[] = {
 	{ &MEDIASUBTYPE_MJPA,   AV_CODEC_ID_MJPEG,    NULL, FFM_MJPEG, -1 },
 	{ &MEDIASUBTYPE_MJPB,   AV_CODEC_ID_MJPEGB,	  NULL, FFM_MJPEG, -1 },
 	{ &MEDIASUBTYPE_MJP2,   AV_CODEC_ID_JPEG2000, NULL, FFM_MJPEG, -1 },
+	{ &MEDIASUBTYPE_MJ2C,   AV_CODEC_ID_JPEG2000, NULL, FFM_MJPEG, -1 },
 	
 	// DV VIDEO
 	{ &MEDIASUBTYPE_dvsl, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
@@ -219,6 +284,7 @@ FFMPEG_CODECS		ffCodecs[] = {
 	{ &MEDIASUBTYPE_dv50, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
 	{ &MEDIASUBTYPE_dvh1, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
 	{ &MEDIASUBTYPE_CDVH, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
+	{ &MEDIASUBTYPE_CDVC, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
 	// Quicktime DV sybtypes (used in LAV Splitter)
 	{ &MEDIASUBTYPE_DVCP, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
 	{ &MEDIASUBTYPE_DVPP, AV_CODEC_ID_DVVIDEO, NULL, FFM_DV, -1 },
@@ -251,6 +317,10 @@ FFMPEG_CODECS		ffCodecs[] = {
 	{ &MEDIASUBTYPE_MSA1, AV_CODEC_ID_MSA1,		   NULL, FFM_SCREC, -1 },
 	// MTS2
 	{ &MEDIASUBTYPE_MTS2, AV_CODEC_ID_MTS2,		   NULL, FFM_SCREC, -1 },
+	// G2M
+	{ &MEDIASUBTYPE_G2M, AV_CODEC_ID_G2M,		   NULL, FFM_SCREC, -1 },
+	// CRAM - Microsoft Video 1
+	{ &MEDIASUBTYPE_CRAM, AV_CODEC_ID_MSVIDEO1,	   NULL, FFM_SCREC, -1 },
 
 	// UtVideo
 	{ &MEDIASUBTYPE_UTVD_ULRG, AV_CODEC_ID_UTVIDEO, NULL, FFM_UTVD, -1 },
@@ -313,12 +383,16 @@ FFMPEG_CODECS		ffCodecs[] = {
 	{ &MEDIASUBTYPE_WVC1, AV_CODEC_ID_VC1, &DXVA_VC1, FFM_VC1, TRA_DXVA_VC1 },
 	{ &MEDIASUBTYPE_wvc1, AV_CODEC_ID_VC1, &DXVA_VC1, FFM_VC1, TRA_DXVA_VC1 },
 
+	// WMVA
+	{ &MEDIASUBTYPE_WMVA, AV_CODEC_ID_VC1, &DXVA_VC1, FFM_VC1, TRA_DXVA_VC1 },
+
 	// Apple ProRes
 	{ &MEDIASUBTYPE_apch, AV_CODEC_ID_PRORES, NULL, FFM_PRORES, -1 },
 	{ &MEDIASUBTYPE_apcn, AV_CODEC_ID_PRORES, NULL, FFM_PRORES, -1 },
 	{ &MEDIASUBTYPE_apcs, AV_CODEC_ID_PRORES, NULL, FFM_PRORES, -1 },
 	{ &MEDIASUBTYPE_apco, AV_CODEC_ID_PRORES, NULL, FFM_PRORES, -1 },
 	{ &MEDIASUBTYPE_ap4h, AV_CODEC_ID_PRORES, NULL, FFM_PRORES, -1 },
+	{ &MEDIASUBTYPE_icod, AV_CODEC_ID_AIC,    NULL, FFM_PRORES, -1 },
 
 	// Bink Video
 	{ &MEDIASUBTYPE_BINKVI, AV_CODEC_ID_BINKVIDEO, NULL, FFM_BINKV, -1 },
@@ -329,6 +403,13 @@ FFMPEG_CODECS		ffCodecs[] = {
 
 	// Canopus Lossless
 	{ &MEDIASUBTYPE_CLLC, AV_CODEC_ID_CLLC, NULL, FFM_CLLC, -1 },
+
+	// HEVC
+	{ &MEDIASUBTYPE_HEVC, AV_CODEC_ID_HEVC, NULL, FFM_HEVC, -1 },
+	{ &MEDIASUBTYPE_HVC1, AV_CODEC_ID_HEVC, NULL, FFM_HEVC, -1 },
+//	{ &MEDIASUBTYPE_HM91, AV_CODEC_ID_HEVC, NULL, FFM_HEVC, -1 },
+	{ &MEDIASUBTYPE_HM10, AV_CODEC_ID_HEVC, NULL, FFM_HEVC, -1 },
+//	{ &MEDIASUBTYPE_HM12, AV_CODEC_ID_HEVC, NULL, FFM_HEVC, -1 },
 
 	// Other MPEG-4
 	{ &MEDIASUBTYPE_MP4V, AV_CODEC_ID_MPEG4, NULL, FFM_XVID, -1 },
@@ -404,6 +485,9 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	// VP8
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_VP80 },
 
+	// VP9
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_VP90 },
+
 	// Xvid
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_XVID },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_xvid },
@@ -472,6 +556,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MJPA   },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MJPB   },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MJP2   },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MJ2C   },
 
 	// DV VIDEO
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_dvsl },
@@ -481,6 +566,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_dv50 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_dvh1 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_CDVH },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_CDVC },
 	// Quicktime DV sybtypes (used in LAV Splitter)
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_DVCP },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_DVPP },
@@ -525,6 +611,12 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 
 	// MTS2
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MTS2 },
+
+	// G2M
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_G2M },
+
+	// CRAM - Microsoft Video 1
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_CRAM },
 
 	// UtVideo
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_UTVD_ULRG },
@@ -588,6 +680,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	// VC1
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_WVC1 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_wvc1 },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_WMVA },
 
 	// Apple ProRes
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_apch },
@@ -595,6 +688,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_apcs },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_apco },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_ap4h },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_icod },
 
 	// Bink Video
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_BINKVI },
@@ -605,6 +699,13 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 
 	// Canopus Lossless
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_CLLC },
+
+	// HEVC
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_HEVC },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_HVC1 },
+//	{ &MEDIATYPE_Video, &MEDIASUBTYPE_HM91 },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_HM10 },
+//	{ &MEDIATYPE_Video, &MEDIASUBTYPE_HM12 },
 
 	// Other MPEG-4
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MP4V },
@@ -649,6 +750,8 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_wv1f }
 };
 
+#pragma endregion any_constants
+
 const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
 	{&MEDIATYPE_Video, &MEDIASUBTYPE_NV12},
 	{&MEDIATYPE_Video, &MEDIASUBTYPE_YV12},
@@ -656,7 +759,16 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
 	{&MEDIATYPE_Video, &MEDIASUBTYPE_RGB32},
 };
 
+VIDEO_OUTPUT_FORMATS DXVAFormats[] = { // DXVA2
+	{&MEDIASUBTYPE_NV12,  1, 12, 'avxd'},
+	{&MEDIASUBTYPE_NV12,  1, 12, 'AVXD'},
+	{&MEDIASUBTYPE_NV12,  1, 12, 'AVxD'},
+	{&MEDIASUBTYPE_NV12,  1, 12, 'AvXD'}
+};
+
 #ifdef REGISTER_FILTER
+
+#include "../../filters/ffmpeg_fix.cpp"
 
 const AMOVIESETUP_PIN sudpPins[] = {
 	{L"Input", FALSE, FALSE, FALSE, FALSE, &CLSID_NULL, NULL, _countof(sudPinTypesIn),  sudPinTypesIn},
@@ -706,11 +818,60 @@ BOOL CALLBACK EnumFindProcessWnd (HWND hwnd, LPARAM lParam)
 	return TRUE;
 }
 
+// CMPCVideoDecFilter
+
 CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	: CBaseVideoFilter(NAME("MPC - Video decoder"), lpunk, phr, __uuidof(this))
+	, m_pAVCodec(NULL)
+	, m_pAVCtx(NULL)
+	, m_pFrame(NULL)
+	, m_pParser(NULL)
+	, m_nCodecNb(-1)
+	, m_nCodecId(AV_CODEC_ID_NONE)
+	, m_bReorderBFrame(true)
+	, m_nPosB(1)
+	, m_DXVADecoderGUID(GUID_NULL)
+	, m_nActiveCodecs(CODECS_ALL)
+	, m_rtAvrTimePerFrame(0)
+	, m_rtLastStop(0)
+	, m_rtPrevStop(0)
+	, m_rtStartCache(INVALID_TIME)
+	, m_nWorkaroundBug(FF_BUG_AUTODETECT)
+	, m_nErrorConcealment(FF_EC_DEBLOCK | FF_EC_GUESS_MVS)
+	, m_nThreadNumber(0)
+	, m_nDiscardMode(AVDISCARD_DEFAULT)
+	, m_nDeinterlacing(AUTO)
+	, m_bDXVACompatible(true)
+	, m_pFFBuffer(NULL)
+	, m_nFFBufferSize(0)
+	, m_pFFBuffer2(NULL)
+	, m_nFFBufferSize2(0)
+	, m_nOutputWidth(0)
+	, m_nOutputHeight(0)
+	, m_nARX(0)
+	, m_nARY(0)
+	, m_bUseDXVA(true)
+	, m_bUseFFmpeg(true)
+	, m_pDXVADecoder(NULL)
+	, m_pVideoOutputFormat(NULL)
+	, m_nVideoOutputCount(0)
+	, m_hDevice(INVALID_HANDLE_VALUE)
+	, m_nARMode(2)
+	, m_nDXVACheckCompatibility(1)
+	, m_nDXVA_SD(0)
+	, m_bWaitingForKeyFrame(TRUE)
+	, m_bIsEVO(FALSE)
+	, m_nFrameType(PICT_FRAME)
+	// === New swscaler options
+	, m_nSwRefresh(0)
+	, m_nSwPreset(2)
+	, m_nSwStandard(2)
+	, m_nSwInputLevels(2)
+	, m_nSwOutputLevels(2)
+	//
+	, m_nDialogHWND(NULL)
+	, m_bIsVMR7_YUV(FALSE)
 {
-	HWND hWnd = NULL;
-
 	if (phr) {
 		*phr = S_OK;
 	}
@@ -726,143 +887,94 @@ CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	memset(&m_DXVAFilters, false, sizeof(m_DXVAFilters));
 	memset(&m_FFmpegFilters, false, sizeof(m_FFmpegFilters));
 	
-	m_pCpuId				= DNew CCpuId();
-	m_pAVCodec				= NULL;
-	m_pAVCtx				= NULL;
-	m_pFrame				= NULL;
-	m_pParser				= NULL;
-	m_nCodecNb				= -1;
-	m_nCodecId				= AV_CODEC_ID_NONE;
-	m_bReorderBFrame		= true;
-	m_DXVADecoderGUID		= GUID_NULL;
-	m_nActiveCodecs			= MPCVD_H264|MPCVD_VC1|MPCVD_XVID|MPCVD_DIVX|MPCVD_MSMPEG4|MPCVD_FLASH|MPCVD_WMV|MPCVD_H263|MPCVD_SVQ3|MPCVD_AMVV|MPCVD_THEORA|MPCVD_H264_DXVA|MPCVD_VC1_DXVA|MPCVD_VP356|MPCVD_VP8|MPCVD_MJPEG|MPCVD_INDEO|MPCVD_RV|MPCVD_WMV3_DXVA|MPCVD_MPEG2_DXVA|MPCVD_DIRAC|MPCVD_DV|MPCVD_UTVD|MPCVD_SCREC|MPCVD_LAGARITH|MPCVD_PRORES|MPCVD_BINKV|MPCVD_PNG|MPCVD_CLLC|MPCVD_V210|MPCVD_MPEG2|MPCVD_MPEG1;
+	m_pCpuId = DNew CCpuId();
 
-	m_rtAvrTimePerFrame		= 0;
-	m_rtLastStop			= 0;
-	m_rtPrevStop			= 0;
+	// default settings
+	m_fPixFmts[PixFmt_NV12]  = true;
+	m_fPixFmts[PixFmt_YV12]  = true;
+	m_fPixFmts[PixFmt_YUY2]  = true;
+	m_fPixFmts[PixFmt_RGB32] = true;
 
-	m_nWorkaroundBug		= FF_BUG_AUTODETECT;
-	m_nErrorConcealment		= FF_EC_DEBLOCK | FF_EC_GUESS_MVS;
+	m_FormatConverter.Init(this);
 
-	m_nThreadNumber			= 0;
-	m_nDiscardMode			= AVDISCARD_DEFAULT;
-	m_nDeinterlacing		= AUTO;
-	m_bDXVACompatible		= true;
-	m_pFFBuffer				= NULL;
-	m_nFFBufferSize			= 0;
-	m_pFFBuffer2			= NULL;
-	m_nFFBufferSize2		= 0;
-	m_pAlignedFFBuffer		= NULL;
-	m_nAlignedFFBufferSize	= 0;
-
-	m_nOutputWidth			= 0;
-	m_nOutputHeight			= 0;
-
-	m_nARX					= 0;
-	m_nARY					= 0;
-	m_pSwsContext			= NULL;
-
-	m_bUseDXVA				= true;
-	m_bUseFFmpeg			= true;
-
-	m_pDXVADecoder			= NULL;
-	m_pVideoOutputFormat	= NULL;
-	m_nVideoOutputCount		= 0;
-	m_hDevice				= INVALID_HANDLE_VALUE;
-
-	m_nARMode					= 2; // default state - 3rd
-	m_nDXVACheckCompatibility	= 1; // skip level check by default
-	m_nDXVA_SD					= 0;
-
-	m_bWaitingForKeyFrame	= TRUE;
-	m_nPosB					= 1;
-	m_bIsEVO				= false;
-
-	m_nFrameType			= PICT_FRAME;
-	m_nOutCsp				= 0;
-	
-	// === New swscaler options
-	m_nSwRefresh			= 0;
-	m_nSwOutputFormats		= 0;
-	// set the output formats order in the DWORD nibbles with literal values [0x00543210] = 0,1,2,3,4,5
-	// set the output formats count in the DWORD nibbles adding checked flag (8) [0x0054ba98] = 4
-	for (int i=0; i<6; i++) {
-		m_nSwOutputFormats = (m_nSwOutputFormats<<4) | (5-i + (i>1 ? 8 : 0));
-	}
-	m_nSwChromaToRGB		= 1;
-	m_nSwResizeMethodBE		= 2;
-	m_nSwColorspace			= 2;
-	m_nSwInputLevels		= 2;
-	m_nSwOutputLevels		= 2;
-	//
-
-	m_PixFmt				= AV_PIX_FMT_NB;
-
-	m_nDialogHWND			= 0;
-
-	m_rtStartCache			= INVALID_TIME;
 #ifdef REGISTER_FILTER
 	CRegKey key;
-	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\MPC Video Decoder"), KEY_READ)) {
+	ULONG len = 255;
+	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, OPT_REGKEY_VideoDec, KEY_READ)) {
 		DWORD dw;
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("ThreadNumber"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_ThreadNumber, dw)) {
 			m_nThreadNumber = dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("DiscardMode"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_DiscardMode, dw)) {
 			m_nDiscardMode = dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("Deinterlacing"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_Deinterlacing, dw)) {
 			m_nDeinterlacing = (MPC_DEINTERLACING_FLAGS)dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("ActiveCodecs"), dw)) {
-			m_nActiveCodecs = dw;
-		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("ARMode"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_ARMode, dw)) {
 			m_nARMode = dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("DXVACheckCompatibility"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_DXVACheck, dw)) {
 			m_nDXVACheckCompatibility = dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("DisableDXVA_SD"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_DisableDXVA_SD, dw)) {
 			m_nDXVA_SD = dw;
 		}
 
 		// === New swscaler options
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwOutputFormats"), dw)) {
-			m_nSwOutputFormats = dw;
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPTION_SW_NV12, dw)) {
+			m_fPixFmts[PixFmt_NV12] = !!dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwChromaToRGB"), dw)) {
-			m_nSwChromaToRGB = dw;
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPTION_SW_YV12, dw)) {
+			m_fPixFmts[PixFmt_YV12] = !!dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwResizeMethodBE"), dw)) {
-			m_nSwResizeMethodBE = dw;
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPTION_SW_YUY2, dw)) {
+			m_fPixFmts[PixFmt_YUY2] = !!dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwColorspace"), dw)) {
-			m_nSwColorspace = dw;
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPTION_SW_RGB32, dw)) {
+			m_fPixFmts[PixFmt_RGB32] = !!dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwInputLevels"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_SwPreset, dw)) {
+			m_nSwPreset = dw;
+		}
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_SwStandard, dw)) {
+			m_nSwStandard = dw;
+		}
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_SwInputLevels, dw)) {
 			m_nSwInputLevels = dw;
 		}
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SwOutputLevels"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_SwOutputLevels, dw)) {
 			m_nSwOutputLevels = dw;
 		}
 		//
 	}
+	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, OPT_REGKEY_VCodecs, KEY_READ)) {
+		m_nActiveCodecs = 0;
+		for (size_t i = 0; i < _countof(vcodecs); i++) {
+			DWORD dw = 1;
+			key.QueryDWORDValue(vcodecs[i].opt_name, dw);
+			if (dw) {
+				m_nActiveCodecs |= vcodecs[i].flag;
+			}
+		}
+	}
 #else
-	m_nThreadNumber				= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("ThreadNumber"), m_nThreadNumber);
-	m_nDiscardMode				= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("DiscardMode"), m_nDiscardMode);
-	m_nDeinterlacing			= (MPC_DEINTERLACING_FLAGS)AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("Deinterlacing"), m_nDeinterlacing);
-	m_nARMode					= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("ARMode"), m_nARMode);
-	m_nDXVACheckCompatibility	= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("DXVACheckCompatibility"), m_nDXVACheckCompatibility);
-	m_nDXVA_SD					= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("DisableDXVA_SD"), m_nDXVA_SD);
+	m_nThreadNumber				= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_ThreadNumber, m_nThreadNumber);
+	m_nDiscardMode				= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_DiscardMode, m_nDiscardMode);
+	m_nDeinterlacing			= (MPC_DEINTERLACING_FLAGS)AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_Deinterlacing, m_nDeinterlacing);
+	m_nARMode					= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_ARMode, m_nARMode);
+	m_nDXVACheckCompatibility	= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_DXVACheck, m_nDXVACheckCompatibility);
+	m_nDXVA_SD					= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_DisableDXVA_SD, m_nDXVA_SD);
 
 	// === New swscaler options
-	m_nSwOutputFormats			= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwOutputFormats"), m_nSwOutputFormats);
-	m_nSwChromaToRGB			= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwChromaToRGB"), m_nSwChromaToRGB);
-	m_nSwResizeMethodBE			= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwResizeMethodBE"), m_nSwResizeMethodBE);
-	m_nSwColorspace				= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwColorspace"), m_nSwColorspace);
-	m_nSwInputLevels			= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwInputLevels"), m_nSwInputLevels);
-	m_nSwOutputLevels			= AfxGetApp()->GetProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwOutputLevels"), m_nSwOutputLevels);
+	m_fPixFmts[PixFmt_NV12]		= !!AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPTION_SW_NV12,  m_fPixFmts[PixFmt_NV12]);
+	m_fPixFmts[PixFmt_YV12]		= !!AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPTION_SW_YV12,  m_fPixFmts[PixFmt_YV12]);
+	m_fPixFmts[PixFmt_YUY2]		= !!AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPTION_SW_YUY2,  m_fPixFmts[PixFmt_YUY2]);
+	m_fPixFmts[PixFmt_RGB32]	= !!AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPTION_SW_RGB32, m_fPixFmts[PixFmt_RGB32]);
+	m_nSwPreset					= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_SwPreset, m_nSwPreset);
+	m_nSwStandard				= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_SwStandard, m_nSwStandard);
+	m_nSwInputLevels			= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_SwInputLevels, m_nSwInputLevels);
+	m_nSwOutputLevels			= AfxGetApp()->GetProfileInt(OPT_SECTION_VideoDec, OPT_SwOutputLevels, m_nSwOutputLevels);
 	//
 #endif
 
@@ -874,7 +986,9 @@ CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 
 	avcodec_register_all();
 	av_log_set_callback(ff_log);
+	m_FormatConverter.SetOptions(m_nSwPreset, m_nSwStandard, m_nSwInputLevels, m_nSwOutputLevels);
 
+	HWND hWnd = NULL;
 	EnumWindows(EnumFindProcessWnd, (LPARAM)&hWnd);
 	DetectVideoCard(hWnd);
 
@@ -882,18 +996,18 @@ CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	// Check codec definition table
 	int nCodecs	  = _countof(ffCodecs);
 	int nPinTypes = _countof(sudPinTypesIn);
-	ASSERT (nCodecs == nPinTypes);
+	ASSERT(nCodecs == nPinTypes);
 	for (int i = 0; i < nPinTypes; i++) {
-		ASSERT (ffCodecs[i].clsMinorType == sudPinTypesIn[i].clsMinorType);
+		ASSERT(ffCodecs[i].clsMinorType == sudPinTypesIn[i].clsMinorType);
 	}
 #endif
 }
 
 void CMPCVideoDecFilter::DetectVideoCard(HWND hWnd)
 {
-	IDirect3D9* pD3D9 = NULL;
-	m_nPCIVendor = 0;
-	m_nPCIDevice = 0;
+	IDirect3D9* pD3D9				= NULL;
+	m_nPCIVendor					= 0;
+	m_nPCIDevice					= 0;
 	m_VideoDriverVersion.HighPart	= 0;
 	m_VideoDriverVersion.LowPart	= 0;
 
@@ -920,8 +1034,7 @@ CMPCVideoDecFilter::~CMPCVideoDecFilter()
 
 bool CMPCVideoDecFilter::IsVideoInterlaced()
 {
-	// NOT A BUG : always tell DirectShow it's interlaced (progressive flags set in
-	// SetTypeSpecificFlags function)
+	// NOT A BUG : always tell DirectShow it's interlaced - progressive flags set in SetTypeSpecificFlags() function
 	return true;
 };
 
@@ -936,7 +1049,7 @@ REFERENCE_TIME CMPCVideoDecFilter::GetDuration()
 		}
 	}
 
-	return AvgTimePerFrame;
+	return max(AvgTimePerFrame, m_rtAvrTimePerFrame);
 }
 
 #define AVRTIMEPERFRAME_PULLDOWN 417083
@@ -958,8 +1071,8 @@ void CMPCVideoDecFilter::GetOutputSize(int& w, int& h, int& arx, int& ary, int& 
 {
 	RealWidth	= PictWidth();
 	RealHeight	= PictHeight();
-	w = PictWidthRounded();
-	h = PictHeightRounded();
+	w			= PictWidthRounded();
+	h			= PictHeightRounded();
 }
 
 int CMPCVideoDecFilter::PictWidth()
@@ -978,7 +1091,7 @@ int CMPCVideoDecFilter::PictWidthRounded()
 	if (!m_nOutputWidth || m_nOutputWidth < m_pAVCtx->coded_width) {
 		m_nOutputWidth = m_pAVCtx->coded_width;
 	}
-	return ((m_nOutputWidth + 15) / 16) * 16;
+	return ((m_nOutputWidth + 15) & ~15); // rounding to 16
 }
 
 int CMPCVideoDecFilter::PictHeightRounded()
@@ -987,7 +1100,7 @@ int CMPCVideoDecFilter::PictHeightRounded()
 	if (!m_nOutputHeight || m_nOutputHeight < m_pAVCtx->coded_height) {
 		m_nOutputHeight = m_pAVCtx->coded_height;
 	}
-	return ((m_nOutputHeight + 15) / 16) * 16;
+	return ((m_nOutputHeight + 15) & ~15); // rounding to 16
 }
 
 static bool IsFFMPEGEnabled(FFMPEG_CODECS ffcodec, const bool FFmpegFilters[FFM_LAST + !FFM_LAST])
@@ -997,8 +1110,6 @@ static bool IsFFMPEGEnabled(FFMPEG_CODECS ffcodec, const bool FFmpegFilters[FFM_
 	}
 
 	return FFmpegFilters[ffcodec.FFMPEGCode];
-
-	return false;
 }
 
 static bool IsDXVAEnabled(FFMPEG_CODECS ffcodec, const bool DXVAFilters[TRA_DXVA_LAST + !TRA_DXVA_LAST])
@@ -1008,8 +1119,6 @@ static bool IsDXVAEnabled(FFMPEG_CODECS ffcodec, const bool DXVAFilters[TRA_DXVA
 	}
 
 	return DXVAFilters[ffcodec.DXVACode];
-
-	return false;
 }
 
 int CMPCVideoDecFilter::FindCodec(const CMediaType* mtIn, bool bForced)
@@ -1028,7 +1137,7 @@ int CMPCVideoDecFilter::FindCodec(const CMediaType* mtIn, bool bForced)
 			switch (ffCodecs[i].nFFCodec) {
 				case AV_CODEC_ID_FLV1 :
 				case AV_CODEC_ID_VP6F :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_FLASH) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_FLASH) != 0;
 					break;
 				case AV_CODEC_ID_MPEG4 :
 					if ((*ffCodecs[i].clsMinorType == MEDIASUBTYPE_DX50) ||		// DivX
@@ -1036,77 +1145,78 @@ int CMPCVideoDecFilter::FindCodec(const CMediaType* mtIn, bool bForced)
 							(*ffCodecs[i].clsMinorType == MEDIASUBTYPE_DIVX) ||
 							(*ffCodecs[i].clsMinorType == MEDIASUBTYPE_divx) ||
 							(*ffCodecs[i].clsMinorType == MEDIASUBTYPE_Divx) ) {
-						bCodecActivated = (m_nActiveCodecs & MPCVD_DIVX) != 0;
+						bCodecActivated = (m_nActiveCodecs & CODEC_DIVX) != 0;
 					} else {
-						bCodecActivated = (m_nActiveCodecs & MPCVD_XVID) != 0;	// Xvid/MPEG-4
+						bCodecActivated = (m_nActiveCodecs & CODEC_XVID) != 0;	// Xvid/MPEG-4
 					}
 					break;
 				case AV_CODEC_ID_WMV1 :
 				case AV_CODEC_ID_WMV2 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_WMV) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_WMV) != 0;
 					break;
 				case AV_CODEC_ID_WMV3 :
-					m_bUseDXVA = (m_nActiveCodecs & MPCVD_WMV3_DXVA) != 0;
-					m_bUseFFmpeg = (m_nActiveCodecs & MPCVD_WMV) != 0;
+					m_bUseDXVA = (m_nActiveCodecs & CODEC_WMV3_DXVA) != 0;
+					m_bUseFFmpeg = (m_nActiveCodecs & CODEC_WMV) != 0;
 					bCodecActivated = m_bUseDXVA || m_bUseFFmpeg;
 					break;
 				case AV_CODEC_ID_MSMPEG4V3 :
 				case AV_CODEC_ID_MSMPEG4V2 :
 				case AV_CODEC_ID_MSMPEG4V1 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_MSMPEG4) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_MSMPEG4) != 0;
 					break;
 				case AV_CODEC_ID_H264 :
-					m_bUseDXVA = (m_nActiveCodecs & MPCVD_H264_DXVA) != 0;
-					m_bUseFFmpeg = (m_nActiveCodecs & MPCVD_H264) != 0;
+					m_bUseDXVA = (m_nActiveCodecs & CODEC_H264_DXVA) != 0;
+					m_bUseFFmpeg = (m_nActiveCodecs & CODEC_H264) != 0;
 					bCodecActivated = m_bUseDXVA || m_bUseFFmpeg;
 					break;
 				case AV_CODEC_ID_SVQ3 :
 				case AV_CODEC_ID_SVQ1 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_SVQ3) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_SVQ3) != 0;
 					break;
 				case AV_CODEC_ID_H263 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_H263) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_H263) != 0;
 					break;
 				case AV_CODEC_ID_DIRAC  :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_DIRAC) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_DIRAC) != 0;
 					break;
 				case AV_CODEC_ID_DVVIDEO  :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_DV) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_DV) != 0;
 					break;
 				case AV_CODEC_ID_THEORA :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_THEORA) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_THEORA) != 0;
 					break;
 				case AV_CODEC_ID_VC1 :
-					m_bUseDXVA = (m_nActiveCodecs & MPCVD_VC1_DXVA) != 0;
-					m_bUseFFmpeg = (m_nActiveCodecs & MPCVD_VC1) != 0;
+					m_bUseDXVA = (m_nActiveCodecs & CODEC_VC1_DXVA) != 0;
+					m_bUseFFmpeg = (m_nActiveCodecs & CODEC_VC1) != 0;
 					bCodecActivated = m_bUseDXVA || m_bUseFFmpeg;
 					break;
 				case AV_CODEC_ID_AMV :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_AMVV) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_AMVV) != 0;
 					break;
 				case AV_CODEC_ID_LAGARITH :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_LAGARITH) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_LAGARITH) != 0;
 					break;
 				case AV_CODEC_ID_VP3  :
 				case AV_CODEC_ID_VP5  :
 				case AV_CODEC_ID_VP6  :
 				case AV_CODEC_ID_VP6A :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_VP356) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_VP356) != 0;
 					break;
 				case AV_CODEC_ID_VP8  :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_VP8) != 0;
+				case AV_CODEC_ID_VP9  :
+					bCodecActivated = (m_nActiveCodecs & CODEC_VP89) != 0;
 					break;
 				case AV_CODEC_ID_MJPEG  :
 				case AV_CODEC_ID_MJPEGB :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_MJPEG) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_MJPEG) != 0;
 					break;
 				case AV_CODEC_ID_INDEO3 :
 				case AV_CODEC_ID_INDEO4 :
 				case AV_CODEC_ID_INDEO5 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_INDEO) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_INDEO) != 0;
 					break;
 				case AV_CODEC_ID_UTVIDEO :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_UTVD) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_UTVD) != 0;
 					break;
 				case AV_CODEC_ID_CSCD    :
 				case AV_CODEC_ID_QTRLE   :
@@ -1114,36 +1224,39 @@ int CMPCVideoDecFilter::FindCodec(const CMediaType* mtIn, bool bForced)
 				case AV_CODEC_ID_TSCC2   :
 				case AV_CODEC_ID_VMNC    :
 				case AV_CODEC_ID_CINEPAK :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_SCREC) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_SCREC) != 0;
 					break;
 				case AV_CODEC_ID_RV10 :
 				case AV_CODEC_ID_RV20 :
 				case AV_CODEC_ID_RV30 :
 				case AV_CODEC_ID_RV40 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_RV) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_REALV) != 0;
 					break;
 				case AV_CODEC_ID_MPEG2VIDEO :
-					m_bUseDXVA = (m_nActiveCodecs & MPCVD_MPEG2_DXVA) != 0;
-					m_bUseFFmpeg = (m_nActiveCodecs & MPCVD_MPEG2) != 0;
+					m_bUseDXVA = (m_nActiveCodecs & CODEC_MPEG2_DXVA) != 0;
+					m_bUseFFmpeg = (m_nActiveCodecs & CODEC_MPEG2) != 0;
 					bCodecActivated = m_bUseDXVA || m_bUseFFmpeg;
 					break;
 				case AV_CODEC_ID_MPEG1VIDEO :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_MPEG1) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_MPEG1) != 0;
 					break;
 				case AV_CODEC_ID_PRORES :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_PRORES) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_PRORES) != 0;
 					break;
 				case AV_CODEC_ID_BINKVIDEO :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_BINKV) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_BINKV) != 0;
 					break;
 				case AV_CODEC_ID_PNG :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_PNG) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_PNG) != 0;
 					break;
 				case AV_CODEC_ID_CLLC :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_CLLC) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_CLLC) != 0;
 					break;
 				case AV_CODEC_ID_V210 :
-					bCodecActivated = (m_nActiveCodecs & MPCVD_V210) != 0;
+					bCodecActivated = (m_nActiveCodecs & CODEC_V210) != 0;
+					break;
+				case AV_CODEC_ID_HEVC :
+					bCodecActivated = (m_nActiveCodecs & CODEC_HEVC) != 0;
 					break;
 			}
 
@@ -1197,20 +1310,10 @@ void CMPCVideoDecFilter::ffmpegCleanup()
 	if (m_pFFBuffer2) {
 		av_freep(&m_pFFBuffer2);
 	}
-	if (m_pAlignedFFBuffer) {
-		av_freep(&m_pAlignedFFBuffer);
-	}
 
 	if (m_pFrame) {
-		av_freep(&m_pFrame);
+		av_frame_free(&m_pFrame);
 	}
-
-	if (m_pSwsContext) {
-		sws_freeContext(m_pSwsContext);
-	}
-	
-	m_pSwsContext	= NULL;
-	m_PixFmt		= AV_PIX_FMT_NB;
 
 	m_pAVCodec		= NULL;
 	m_pAVCtx		= NULL;
@@ -1221,8 +1324,8 @@ void CMPCVideoDecFilter::ffmpegCleanup()
 	m_nFFBufferSize			= 0;
 	m_pFFBuffer2			= NULL;
 	m_nFFBufferSize2		= 0;
-	m_pAlignedFFBuffer		= NULL;
-	m_nAlignedFFBufferSize	= 0;
+
+	m_FormatConverter.Cleanup();
 	
 	m_nCodecNb		= -1;
 	m_nCodecId		= AV_CODEC_ID_NONE;
@@ -1241,7 +1344,7 @@ STDMETHODIMP CMPCVideoDecFilter::NonDelegatingQueryInterface(REFIID riid, void**
 
 HRESULT CMPCVideoDecFilter::CheckInputType(const CMediaType* mtIn)
 {
-	for (int i=0; i<_countof(sudPinTypesIn); i++) {
+	for (int i = 0; i < _countof(sudPinTypesIn); i++) {
 		if ((mtIn->majortype == *sudPinTypesIn[i].clsMajorType) &&
 				(mtIn->subtype == *sudPinTypesIn[i].clsMinorType)) {
 			return S_OK;
@@ -1313,23 +1416,6 @@ HRESULT CMPCVideoDecFilter::SetMediaType(PIN_DIRECTION direction, const CMediaTy
 	return __super::SetMediaType(direction, pmt);
 }
 
-VIDEO_OUTPUT_FORMATS DXVAFormats[] = { // DXVA2
-	{&MEDIASUBTYPE_NV12, 1, 12, 'avxd'},
-	{&MEDIASUBTYPE_NV12, 1, 12, 'AVXD'},
-	{&MEDIASUBTYPE_NV12, 1, 12, 'AVxD'},
-	{&MEDIASUBTYPE_NV12, 1, 12, 'AvXD'}
-};
-
-// === New swscaler options
-VIDEO_OUTPUT_FORMATS SoftwareFormats[] = { // Software
-	{&MEDIASUBTYPE_NV12,   2, 12, '21VN'},
-	{&MEDIASUBTYPE_YV12,   3, 12, '21VY'},
-	{&MEDIASUBTYPE_YUY2,   1, 16, '2YUY'},
-	{&MEDIASUBTYPE_RGB32,  1, 32, BI_RGB}, //1
-	{&MEDIASUBTYPE_RGB565, 1, 16, BI_BITFIELDS},
-	{&MEDIASUBTYPE_RGB555, 1, 16, BI_RGB}
-};
-
 bool CMPCVideoDecFilter::IsDXVASupported()
 {
 	if (m_nCodecNb != -1) {
@@ -1380,7 +1466,7 @@ HRESULT CMPCVideoDecFilter::FindDecoderConfiguration()
 				TRACE(_T("Enumerate DXVA mode : %s\n"), GetDXVAMode(&pDecoderGuids[iGuid]));
 
 				// Do we support this mode?
-				if (!IsSupportedDecoderMode(pDecoderGuids[iGuid])) {
+				if (!IsSupportedDecoderMode(&pDecoderGuids[iGuid])) {
 					continue;
 				}
 
@@ -1432,7 +1518,9 @@ HRESULT CMPCVideoDecFilter::FindDecoderConfiguration()
 
 HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 {
-	bool bReinit = ((m_pAVCtx != NULL) && (m_nDecoderMode != MODE_DXVA1));
+	TRACE(L"CMPCVideoDecFilter::InitDecoder()\n");
+
+	bool bReinit = ((m_pAVCtx != NULL));
 
 	ffmpegCleanup();
 
@@ -1442,8 +1530,8 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 		return VFW_E_TYPE_NOT_ACCEPTED;
 	}
 
+	// Prevent connection to the video decoder - need to support decoding of uncompressed(v210) video
 	if (CComPtr<IBaseFilter> pFilter = GetFilterFromPin(m_pInput->GetConnected()) ) {
-		// Prevent connection to the video decoder - need to support decoding of uncompressed(v210) video
 		if (IsVideoDecoder(pFilter, true)) {
 			return VFW_E_TYPE_NOT_ACCEPTED;
 		}
@@ -1454,12 +1542,19 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 
 	m_bReorderBFrame	= true;
 	m_pAVCodec			= avcodec_find_decoder(m_nCodecId);
-	CheckPointer (m_pAVCodec, VFW_E_UNSUPPORTED_VIDEO);
+	CheckPointer(m_pAVCodec, VFW_E_UNSUPPORTED_VIDEO);
 
-	m_pAVCtx	= avcodec_alloc_context3(m_pAVCodec);
-	CheckPointer (m_pAVCtx, E_POINTER);
+	m_pAVCtx = avcodec_alloc_context3(m_pAVCodec);
+	CheckPointer(m_pAVCtx, E_POINTER);
 
-	if (m_nCodecId == AV_CODEC_ID_MPEG2VIDEO || m_nCodecId == AV_CODEC_ID_MPEG1VIDEO) {
+	if (m_nCodecId == AV_CODEC_ID_MPEG2VIDEO
+			|| m_nCodecId == AV_CODEC_ID_MPEG1VIDEO
+			|| pmt->subtype == MEDIASUBTYPE_H264
+			|| pmt->subtype == MEDIASUBTYPE_h264
+			|| pmt->subtype == MEDIASUBTYPE_X264
+			|| pmt->subtype == MEDIASUBTYPE_x264
+			|| pmt->subtype == MEDIASUBTYPE_H264_bis
+			|| pmt->subtype == MEDIASUBTYPE_HEVC) {
 		m_pParser = av_parser_init(m_nCodecId);
 	}
 
@@ -1472,11 +1567,8 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 		FFSetThreadNumber(m_pAVCtx, m_nCodecId, IsDXVASupported() ? 1 : nThreadNumber);
 	}
 
-	m_pFrame = avcodec_alloc_frame();
-	CheckPointer (m_pFrame, E_POINTER);
-
-	m_h264RandomAccess.SetAVCNALSize(0);
-	m_h264RandomAccess.flush(m_pAVCtx->thread_count);
+	m_pFrame = av_frame_alloc();
+	CheckPointer(m_pFrame, E_POINTER);
 
 	BITMAPINFOHEADER *pBMI = NULL;
 	if (pmt->formattype == FORMAT_VideoInfo) {
@@ -1492,12 +1584,17 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 		MPEG2VIDEOINFO* mpg2v	= (MPEG2VIDEOINFO*)pmt->pbFormat;
 		pBMI					= &mpg2v->hdr.bmiHeader;
 
-		m_pAVCtx->codec_tag		= pBMI->biCompression ? pBMI->biCompression : pmt->subtype.Data1;
+		if ((pBMI->biCompression == FCC('HEVC') || pBMI->biCompression == FCC('HVC1')) && mpg2v->dwProfile) { // TODO - make it better :)
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
 
-		if ((m_pAVCtx->codec_tag == MAKEFOURCC('a','v','c','1')) || (m_pAVCtx->codec_tag == MAKEFOURCC('A','V','C','1'))) {
-			m_bReorderBFrame			= IsAVI() ? true : false;
-		} else if ((m_pAVCtx->codec_tag == MAKEFOURCC('m','p','4','v')) || (m_pAVCtx->codec_tag == MAKEFOURCC('M','P','4','V'))) {
-			m_bReorderBFrame			= false;
+		switch (m_nCodecId) {
+			case AV_CODEC_ID_H264:
+				m_bReorderBFrame = IsAVI() ? true : false;
+				break;
+			case AV_CODEC_ID_MPEG4:
+				m_bReorderBFrame = false;
+				break;
 		}
 	} else {
 		return VFW_E_INVALIDMEDIATYPE;
@@ -1507,13 +1604,15 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 			|| m_nCodecId == AV_CODEC_ID_RV20
 			|| m_nCodecId == AV_CODEC_ID_RV30
 			|| m_nCodecId == AV_CODEC_ID_RV40
-			|| m_nCodecId == AV_CODEC_ID_VP8
 			|| m_nCodecId == AV_CODEC_ID_VP3
+			|| m_nCodecId == AV_CODEC_ID_VP8
+			|| m_nCodecId == AV_CODEC_ID_VP9
 			|| m_nCodecId == AV_CODEC_ID_THEORA
 			|| m_nCodecId == AV_CODEC_ID_MPEG2VIDEO
 			|| m_nCodecId == AV_CODEC_ID_MPEG1VIDEO
 			|| m_nCodecId == AV_CODEC_ID_DIRAC
-			|| m_nCodecId == AV_CODEC_ID_UTVIDEO) {
+			|| m_nCodecId == AV_CODEC_ID_UTVIDEO
+			|| m_nCodecId == AV_CODEC_ID_HEVC) {
 		m_bReorderBFrame = false;
 	}
 
@@ -1527,9 +1626,11 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 	m_pAVCtx->err_recognition       = AV_EF_CAREFUL;
 	m_pAVCtx->idct_algo             = FF_IDCT_AUTO;
 	m_pAVCtx->skip_loop_filter      = (AVDiscard)m_nDiscardMode;
+	m_pAVCtx->strict_std_compliance	= FF_COMPLIANCE_EXPERIMENTAL;
+	m_pAVCtx->refcounted_frames		= 1;
 
-	if (m_nCodecId == AV_CODEC_ID_H264) {
-		m_pAVCtx->flags2           |= CODEC_FLAG2_SHOW_ALL;
+	if (m_nCodecId == AV_CODEC_ID_H264 && IsDXVASupported()) {
+		m_pAVCtx->flags2			|= CODEC_FLAG2_SHOW_ALL;
 	}
 
 	if (m_pAVCtx->codec_tag == MAKEFOURCC('m','p','g','2')) {
@@ -1537,19 +1638,20 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 	}
 
 	AllocExtradata(m_pAVCtx, pmt);
+
 	ExtractAvgTimePerFrame(&m_pInput->CurrentMediaType(), m_rtAvrTimePerFrame);
 	int wout, hout;
 	ExtractDim(&m_pInput->CurrentMediaType(), wout, hout, m_nARX, m_nARY);
 	UNREFERENCED_PARAMETER(wout);
 	UNREFERENCED_PARAMETER(hout);
 
-	m_pAVCtx->using_dxva = (IsDXVASupported() && (m_nCodecId == AV_CODEC_ID_H264 || m_nCodecId == AV_CODEC_ID_MPEG2VIDEO));
+	m_pAVCtx->using_dxva = IsDXVASupported();
 
 	if (avcodec_open2(m_pAVCtx, m_pAVCodec, NULL) < 0) {
 		return VFW_E_INVALIDMEDIATYPE;
 	}
 
-	FFGetOutputSize(m_pAVCtx, m_pFrame, &m_nOutputWidth, &m_nOutputHeight);
+	FFGetFrameProps(m_pAVCtx, m_pFrame, m_nOutputWidth, m_nOutputHeight);
 
 	if (IsDXVASupported()) {
 		do {
@@ -1574,12 +1676,12 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 						} else if (!m_strDeviceDescription.Find(RADEON_MOBILITY_HD_IDENTIFY)) {
 							ati_version = m_strDeviceDescription.GetAt(CString(RADEON_MOBILITY_HD_IDENTIFY).GetLength());
 						}
-						IsAtiDXVACompatible = (atoi(&ati_version) >= 4); // HD4xxx/Mobility and above AMD/ATI cards support level 5.1 and ref = 16
+						IsAtiDXVACompatible = (_wtoi(&ati_version) >= 4); // HD4xxx/Mobility and above AMD/ATI cards support level 5.1 and ref = 16
 					}
 				} else if (m_nPCIVendor == PCIV_Intel && !IsWinVistaOrLater() && m_nPCIDevice == 0x8108) {
 					break; // Disable support H.264 DXVA on Intel GMA500 in WinXP
 				}
-				int nCompat = FFH264CheckCompatibility (PictWidthRounded(), PictHeightRounded(), m_pAVCtx, m_pFrame, m_nPCIVendor, m_nPCIDevice, m_VideoDriverVersion, IsAtiDXVACompatible);
+				int nCompat = FFH264CheckCompatibility (PictWidthRounded(), PictHeightRounded(), m_pAVCtx, m_nPCIVendor, m_nPCIDevice, m_VideoDriverVersion, IsAtiDXVACompatible);
 
 				if ((nCompat & DXVA_PROFILE_HIGHER_THAN_HIGH) || (nCompat & DXVA_HIGH_BIT)) { // DXVA unsupported
 					break;
@@ -1603,7 +1705,7 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 					}
 				}
 			} else if (m_nCodecId == AV_CODEC_ID_MPEG2VIDEO) {
-				if (!MPEG2CheckCompatibility(m_pAVCtx, m_pFrame)) {
+				if (!MPEG2CheckCompatibility(m_pAVCtx)) {
 					break;
 				}
 			} else if (m_nCodecId == AV_CODEC_ID_WMV3) {
@@ -1623,64 +1725,108 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 		}
 	}
 
-	BuildDXVAOutputFormat();
+	av_frame_unref(m_pFrame);
+
+	BuildOutputFormat();
 
 	if (bReinit) {
-		if (IsDXVASupported() && SUCCEEDED(FindDecoderConfiguration())) {
-			dynamic_cast<CVideoDecOutputPin*>(m_pOutput)->Recommit();
-			m_nDecoderMode = MODE_DXVA2;
-		} else {
-			SAFE_DELETE (m_pDXVADecoder);
+		SAFE_DELETE(m_pDXVADecoder);
+
+		if (m_nDecoderMode == MODE_DXVA2) {
+			if (m_pDXVA2Allocator && IsDXVASupported() && SUCCEEDED(FindDecoderConfiguration())) {
+				RecommitAllocator();
+			}
+		} else if (m_nDecoderMode == MODE_DXVA1) {
+			SAFE_DELETE(m_pDXVADecoder);
+			if (IsDXVASupported()) {
+				ReconnectOutput(PictWidthRounded(), PictHeightRounded(), true, true, GetDuration(), PictWidth(), PictHeight());
+				if (m_pDXVADecoder) {
+					m_pDXVADecoder->ConfigureDXVA1();
+				}
+			}
 		}
 	}
 
 	return S_OK;
 }
 
-void CMPCVideoDecFilter::BuildDXVAOutputFormat()
+void CMPCVideoDecFilter::BuildOutputFormat()
 {
-	SAFE_DELETE_ARRAY (m_pVideoOutputFormat);
+	SAFE_DELETE_ARRAY(m_pVideoOutputFormat);
 
 	// === New swscaler options
-	int	nSwIndex[6];
-	int nSwCount	= 0;
-	int nSwOF		= 0;
-	// get the output formats order from the DWORD nibbles extracting literal values [0x00543210] = 0,1,2,3,4,5
-	// get the output formats count from the DWORD nibbles extracting checked flag (8) [0x0054ba98] = 4
-	for (int i = 0; i < 6; i++) {
-		nSwOF = (m_nSwOutputFormats & (0x0000000F << (4*i))) >> (4*i);
-		if ((nSwOF & 8) !=0) {
-			nSwIndex[nSwCount] = (nSwOF & ~8);
-			nSwCount++;
+	int nSwIndex[PixFmt_count];
+	int nSwCount = 0;
+	bool inqueue[PixFmt_count];
+	for (int i = 0; i < PixFmt_count; i++) {
+		inqueue[i] = m_fPixFmts[i];
+	}
+
+	if (m_pAVCtx->pix_fmt != AV_PIX_FMT_NONE) {
+		const AVPixFmtDescriptor* av_pfdesc = av_pix_fmt_desc_get(m_pAVCtx->pix_fmt);
+		int bpp = av_get_bits_per_pixel(av_pfdesc);
+
+		if (av_pfdesc->flags & AV_PIX_FMT_FLAG_RGB && inqueue[PixFmt_RGB32]) {
+			// if any RGB then add RGB32
+			nSwIndex[nSwCount++] = PixFmt_RGB32;
+			inqueue[PixFmt_RGB32] = false;
+		} else if (av_pfdesc->nb_components >= 3) {
+			// if YUV then add similar YUV formats
+			for (int i = 0; i < PixFmt_count; i++) {
+				const SW_OUT_FMT* swof = GetSWOF(i);
+				if (inqueue[i] && bpp == swof->bpp
+						&& av_pfdesc->log2_chroma_w == swof->chroma_w
+						&& av_pfdesc->log2_chroma_h == swof->chroma_h) {
+					nSwIndex[nSwCount++] = i;
+					inqueue[i] = false;
+				}
+			}
 		}
 	}
-	m_nVideoOutputCount = (IsDXVASupported() ? ffCodecs[m_nCodecNb].DXVAModeCount() + _countof (DXVAFormats) : 0) +
-						  (m_bUseFFmpeg   ? (nSwCount>0) ? nSwCount : _countof(SoftwareFormats) : 0);
+
+	// add other active formats
+	for (int i = 0; i < PixFmt_count; i++) {
+		if (inqueue[i]) {
+			nSwIndex[nSwCount++] = i;
+			inqueue[i] = false;
+		}
+	}
+
+	if (!m_fPixFmts[PixFmt_YUY2]) {
+		// if YUY2 has not been added yet, then add it to the end of the list
+		nSwIndex[nSwCount++] = PixFmt_YUY2;
+	}
+
+	int nVideoOutputCountPrev = m_nVideoOutputCount;
+	m_nVideoOutputCount = (IsDXVASupported() ? (IsWinXP() ? ffCodecs[m_nCodecNb].DXVAModeCount() : _countof (DXVAFormats)) : 0) +
+						  (m_bUseFFmpeg   ? nSwCount : 0);
 
 	m_pVideoOutputFormat = DNew VIDEO_OUTPUT_FORMATS[m_nVideoOutputCount];
 
 	int nPos = 0;
 	if (IsDXVASupported()) {
-		// Dynamic DXVA media types for DXVA1
-		for (nPos = 0; nPos < ffCodecs[m_nCodecNb].DXVAModeCount(); nPos++) {
-			m_pVideoOutputFormat[nPos].subtype			= ffCodecs[m_nCodecNb].DXVAModes->Decoder[nPos];
-			m_pVideoOutputFormat[nPos].biCompression	= 'avxd';
-			m_pVideoOutputFormat[nPos].biBitCount		= 12;
-			m_pVideoOutputFormat[nPos].biPlanes			= 1;
+		if (IsWinXP()) {
+			// Dynamic DXVA media types for DXVA1
+			for (nPos = 0; nPos < ffCodecs[m_nCodecNb].DXVAModeCount(); nPos++) {
+				m_pVideoOutputFormat[nPos].subtype			= ffCodecs[m_nCodecNb].DXVAModes->Decoder[nPos];
+				m_pVideoOutputFormat[nPos].biCompression	= 'avxd';
+				m_pVideoOutputFormat[nPos].biBitCount		= 12;
+				m_pVideoOutputFormat[nPos].biPlanes			= 1;
+			}
+		} else {
+			// Static list for DXVA2
+			memcpy(&m_pVideoOutputFormat[nPos], DXVAFormats, sizeof(DXVAFormats));
+			nPos += _countof (DXVAFormats);
 		}
-
-		// Static list for DXVA2
-		memcpy(&m_pVideoOutputFormat[nPos], DXVAFormats, sizeof(DXVAFormats));
-		nPos += _countof (DXVAFormats);
 	}
 	// Software rendering
 	if (m_bUseFFmpeg) {
-		if (nSwCount>0) {
-			for (int i = 0; i < nSwCount; i++) {
-				m_pVideoOutputFormat[nPos + i] = SoftwareFormats[nSwIndex[i]];
-			}
-		} else {
-			memcpy(&m_pVideoOutputFormat[nPos], SoftwareFormats, sizeof(SoftwareFormats));
+		for (int i = 0; i < nSwCount; i++) {
+			const SW_OUT_FMT* swof = GetSWOF(nSwIndex[i]);
+			m_pVideoOutputFormat[nPos + i].subtype			= swof->subtype;
+			m_pVideoOutputFormat[nPos + i].biCompression	= swof->biCompression;
+			m_pVideoOutputFormat[nPos + i].biBitCount		= swof->bpp;
+			m_pVideoOutputFormat[nPos + i].biPlanes			= swof->planes;
 		}
 	}
 }
@@ -1696,7 +1842,7 @@ int CMPCVideoDecFilter::GetPicEntryNumber()
 	}
 }
 
-void CMPCVideoDecFilter::GetOutputFormats (int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats)
+void CMPCVideoDecFilter::GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats)
 {
 	nNumber		= m_nVideoOutputCount;
 	*ppFormats	= m_pVideoOutputFormat;
@@ -1750,7 +1896,6 @@ void CMPCVideoDecFilter::AllocExtradata(AVCodecContext* pAVCtx, const CMediaType
 			extra[extralen-1] = 0;
 
 			bH264avc = TRUE;
-			m_h264RandomAccess.SetAVCNALSize(mp2vi->dwFlags);
 		} else {
 			// Just copy extradata for other formats
 			extra = (uint8_t *)av_mallocz(extralen + FF_INPUT_BUFFER_PADDING_SIZE);
@@ -1760,7 +1905,54 @@ void CMPCVideoDecFilter::AllocExtradata(AVCodecContext* pAVCtx, const CMediaType
 		if (m_nCodecId == AV_CODEC_ID_H264 && !bH264avc && extra[0] == 1) {
 			av_freep(&extra);
 			extralen = 0;
+		} 
+		
+		if (m_nCodecId == AV_CODEC_ID_HEVC) {
+			// try Reconstruct NAL units sequence into NAL Units in Byte-Stream Format
+			BYTE* src		= extra;
+			BYTE* src_end	= extra + extralen;
+			BYTE* dst		= NULL;
+			int dst_len		= 0;
+			
+			int NALCount	= 0;
+			while (src + 2 < src_end) {
+				int len = (src[0] << 8 | src[1]);
+				if (len == 0) {
+					break;
+				}
+				if ((len <= 2) || (src + len + 2 > src_end)) {
+					NALCount = 0;
+					break;
+				}
+				src += 2;
+				int nat = (src[0] >> 1) & 0x3F;
+				if (nat < NAL_UNIT_VPS || nat > NAL_UNIT_PPS) {
+					NALCount = 0;
+					break;
+				}
+
+				dst = (BYTE *)av_realloc_f(dst, dst_len + len + 3 + FF_INPUT_BUFFER_PADDING_SIZE, 1);
+				// put startcode 0x000001
+				dst[dst_len]		= 0x00;
+				dst[dst_len + 1]	= 0x00;
+				dst[dst_len + 2]	= 0x01;
+				memcpy(dst + dst_len + 3, src, len);
+				
+				dst_len += len + 3;
+
+				src += len;
+				NALCount++;
+			}
+
+			if (NALCount > 1) {
+				av_freep(&extra);
+				extra		= dst;
+				extralen	= dst_len;
+			} else {
+				av_freep(&dst);
+			}
 		}
+
 		m_pAVCtx->extradata = extra;
 		m_pAVCtx->extradata_size = (int)extralen;
 	}
@@ -1776,7 +1968,7 @@ HRESULT CMPCVideoDecFilter::CompleteConnect(PIN_DIRECTION direction, IPin* pRece
 		if (IsDXVASupported()) {
 			if (m_nDecoderMode == MODE_DXVA1) {
 				m_pDXVADecoder->ConfigureDXVA1();
-			} else if (SUCCEEDED (ConfigureDXVA2(pReceivePin)) && SUCCEEDED (SetEVRForDXVA2(pReceivePin)) ) {
+			} else if (SUCCEEDED(ConfigureDXVA2(pReceivePin)) && SUCCEEDED(SetEVRForDXVA2(pReceivePin)) ) {
 				m_nDecoderMode = MODE_DXVA2;
 			}
 		}
@@ -1789,6 +1981,9 @@ HRESULT CMPCVideoDecFilter::CompleteConnect(PIN_DIRECTION direction, IPin* pRece
 			if FAILED(hr = ReopenVideo()) {
 				return hr;
 			}
+
+			m_nSwRefresh = 2;
+			ReconnectRenderer();
 		}
 
 		CLSID ClsidSourceFilter = GetCLSID(m_pInput->GetConnected());
@@ -1802,13 +1997,18 @@ HRESULT CMPCVideoDecFilter::CompleteConnect(PIN_DIRECTION direction, IPin* pRece
 			}
 		}
 
-		if (m_nDecoderMode != MODE_SOFTWARE) {
-			m_nOutCsp = FF_CSP_UNSUPPORTED;
-		}
-		
 		// Cannot use YUY2 if horizontal or vertical resolution is not even
 		if (((m_pOutput->CurrentMediaType().subtype == MEDIASUBTYPE_YUY2) && (m_pAVCtx->width&1 || m_pAVCtx->height&1))) {
 			return VFW_E_INVALIDMEDIATYPE;
+		}
+
+		if (CComPtr<IBaseFilter> pFilter = GetFilterFromPin(m_pOutput->GetConnected())) {
+			if (CComQIPtr<IVMRMixerControl> pVMRMC = pFilter) {
+				DWORD dwPrefs;
+				if (SUCCEEDED(pVMRMC->GetMixingPrefs(&dwPrefs))) {
+					m_bIsVMR7_YUV = dwPrefs & MixerPref_RenderTargetYUV;
+				}
+			}
 		}
 	}
 
@@ -1867,26 +2067,21 @@ HRESULT CMPCVideoDecFilter::NewSegment(REFERENCE_TIME rtStart, REFERENCE_TIME rt
 		m_pDXVADecoder->NewSegment();
 	}
 	
-	m_nPosB = 1;
 	memset(&m_BFrames, 0, sizeof(m_BFrames));
-	m_rtLastStop		= 0;
-	m_dRate				= dRate;
-
-	m_h264RandomAccess.flush(m_pAVCtx->thread_count);
+	m_nPosB = 1;
+	m_dRate	= dRate;
 
 	m_bWaitingForKeyFrame = TRUE;
 
-	m_rtStartCache = INVALID_TIME;
-
-	m_rtPrevStop = 0;
-
 	rm.video_after_seek	= true;
-	m_rtStart			= rtStart;
 
-	if (m_nCodecId == AV_CODEC_ID_H264 && m_nFrameType != PICT_FRAME && m_nPCIVendor == PCIV_ATI && m_nDecoderMode == MODE_DXVA2) {
-		if (SUCCEEDED(FindDecoderConfiguration())) {
-			dynamic_cast<CVideoDecOutputPin*>(m_pOutput)->Recommit();
-		}
+	m_rtStart		= rtStart;
+	m_rtStartCache	= INVALID_TIME;
+	m_rtPrevStop	= 0;
+	m_rtLastStop	= 0;
+
+	if (m_nCodecId == AV_CODEC_ID_H264 && (m_nDecoderMode == MODE_SOFTWARE || (m_nFrameType != PICT_FRAME && m_nPCIVendor == PCIV_ATI))) {
+		InitDecoder(&m_pInput->CurrentMediaType());
 	}
 
 	return __super::NewSegment (rtStart, rtStop, dRate);
@@ -1899,7 +2094,7 @@ HRESULT CMPCVideoDecFilter::EndOfStream()
 	if (m_nDecoderMode == MODE_SOFTWARE) {
 		REFERENCE_TIME rtStart = 0, rtStop = 0;
 		SoftwareDecode(NULL, NULL, 0, rtStart, rtStop);
-	} else if (m_nDecoderMode == MODE_DXVA2 && m_pDXVADecoder) { // TODO - need check under WinXP on DXVA1
+	} else if (m_nDecoderMode == MODE_DXVA2 && m_pDXVADecoder && m_pDXVA2Allocator) { // TODO - need check under WinXP on DXVA1
 		m_pDXVADecoder->EndOfStream();
 	}
 
@@ -1950,161 +2145,18 @@ void CMPCVideoDecFilter::SetTypeSpecificFlags(IMediaSample* pMS)
 			switch (m_pFrame->pict_type) {
 				case AV_PICTURE_TYPE_I :
 				case AV_PICTURE_TYPE_SI :
-					props.dwTypeSpecificFlags |= AM_VIDEO_FLAG_I_SAMPLE;
+					props.dwTypeSpecificFlags	|= AM_VIDEO_FLAG_I_SAMPLE;
 					break;
 				case AV_PICTURE_TYPE_P :
 				case AV_PICTURE_TYPE_SP :
-					props.dwTypeSpecificFlags |= AM_VIDEO_FLAG_P_SAMPLE;
+					props.dwTypeSpecificFlags	|= AM_VIDEO_FLAG_P_SAMPLE;
 					break;
 				default :
-					props.dwTypeSpecificFlags |= AM_VIDEO_FLAG_B_SAMPLE;
+					props.dwTypeSpecificFlags	|= AM_VIDEO_FLAG_B_SAMPLE;
 					break;
 			}
 
 			pMS2->SetProperties(sizeof(props), (BYTE*)&props);
-		}
-	}
-}
-
-unsigned __int64 CMPCVideoDecFilter::GetCspFromMediaType(GUID& subtype)
-{
-	// === New swscaler options
-	if (subtype == MEDIASUBTYPE_I420 || subtype == MEDIASUBTYPE_IYUV || subtype == MEDIASUBTYPE_YV12) {
-		return (FF_CSP_420P|FF_CSP_FLAGS_YUV_ADJ);
-	} else if (subtype == MEDIASUBTYPE_NV12) {
-		return FF_CSP_NV12;
-	} else if (subtype == MEDIASUBTYPE_YUY2) {
-		return FF_CSP_YUY2;
-	} else if (subtype == MEDIASUBTYPE_RGB32) {
-		return FF_CSP_RGB32;
-	} else if (subtype == MEDIASUBTYPE_RGB565) {
-		return FF_CSP_RGB16;
-	} else if (subtype == MEDIASUBTYPE_RGB555) {
-		return FF_CSP_RGB15;
-	}
-	//
-	ASSERT (FALSE);
-	return FF_CSP_NULL;
-}
-
-void CMPCVideoDecFilter::InitSwscale()
-{
-	BITMAPINFOHEADER bihOut;
-	ExtractBIH(&m_pOutput->CurrentMediaType(), &bihOut);
-
-	if (m_pSwsContext == NULL
-		|| (m_pOutSize.cx != bihOut.biWidth)
-		|| (m_pOutSize.cy != abs(bihOut.biHeight))) {
-
-		if (m_pSwsContext) {
-			sws_freeContext(m_pSwsContext);
-			m_pSwsContext	= NULL;
-			m_PixFmt		= AV_PIX_FMT_NB;
-		}
-
-		int sws_FlagsR = 0;
-		int sws_FlagsO = 0;
-
-		switch (m_nSwChromaToRGB) {
-			case 0  :										// GUI 'Fast'
-				sws_FlagsO = SWS_ACCURATE_RND;
-				break;
-			case 1  :										// GUI 'Normal'
-			default :
-				sws_FlagsO = SWS_FULL_CHR_H_INP | SWS_ACCURATE_RND;
-				break;
-			case 2  :										// GUI 'Full'
-				sws_FlagsO = SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP | SWS_ACCURATE_RND;
-				break;
-		}
-
-		switch (m_nSwResizeMethodBE) {
-			case 0  :										// GUI 'Area'
-				sws_FlagsR = SWS_AREA;
-				break;
-			case 1  :										// GUI 'Bicubic'
-				sws_FlagsR = SWS_BICUBIC;
-				break;
-			case 2  :										// GUI 'Bilinear'
-			default :
-				sws_FlagsR = SWS_BILINEAR;
-				break;
-			case 3  :										// GUI 'Fast Bilinear'
-				sws_FlagsR = SWS_FAST_BILINEAR;
-				break;
-			case 4  :										// GUI 'Gauss'
-				sws_FlagsR = SWS_GAUSS;
-				break;
-			case 5  :										// GUI 'Lanczos'
-				sws_FlagsR = SWS_LANCZOS;
-				break;
-			case 6  :										// GUI 'Point'
-				sws_FlagsR = SWS_POINT;
-				break;
-			case 7  :										// GUI 'Sinc'
-				sws_FlagsR = SWS_SINC;
-				break;
-			case 8  :										// GUI 'Spline'
-				sws_FlagsR = SWS_SPLINE;
-				break;
-			case 9  :										// GUI 'X'
-				sws_FlagsR = SWS_X;
-				break;
-		}
-		
-		int sws_Flags = sws_FlagsR | sws_FlagsO;
-		
-		m_nOutCsp = GetCspFromMediaType(m_pOutput->CurrentMediaType().subtype);
-
-		if (m_nDialogHWND) {
-			EnableWindow(GetDlgItem(m_nDialogHWND, IDC_PP_RESIZEMETHODBE), TRUE);
-			EnableWindow(GetDlgItem(m_nDialogHWND, IDC_PP_SWCHROMATORGB), (m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp)));
-			EnableWindow(GetDlgItem(m_nDialogHWND, IDC_PP_SWCOLORSPACE), (m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp)));
-			EnableWindow(GetDlgItem(m_nDialogHWND, IDC_PP_SWINPUTLEVELS), (m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp)));
-			EnableWindow(GetDlgItem(m_nDialogHWND, IDC_PP_SWOUTPUTLEVELS), (m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp)));
-		}
-
-		m_PixFmt = csp_ffdshow2lavc(csp_lavc2ffdshow(m_pAVCtx->pix_fmt));
-		if (m_PixFmt == AV_PIX_FMT_NB) {
-			m_PixFmt = m_pAVCtx->pix_fmt;
-		}
-
-		m_pSwsContext = sws_getCachedContext(
-							NULL,
-							m_pAVCtx->width,
-							m_pAVCtx->height,
-							m_PixFmt,
-							m_pAVCtx->width,
-							m_pAVCtx->height,
-							csp_ffdshow2lavc(m_nOutCsp),
-							sws_Flags | SWS_PRINT_INFO,
-							NULL,
-							NULL,
-							NULL);
-
-		if (m_pSwsContext == NULL) {
-			m_PixFmt = AV_PIX_FMT_NB;
-			return;
-		}
-
-		m_nSwOutBpp		= bihOut.biBitCount;
-		m_pOutSize.cx	= bihOut.biWidth;
-		m_pOutSize.cy	= abs(bihOut.biHeight);
-
-		int *inv_tbl = NULL, *tbl = NULL;
-		int srcRange, dstRange, brightness, contrast, saturation;
-		int ret = sws_getColorspaceDetails(m_pSwsContext, &inv_tbl, &srcRange, &tbl, &dstRange, &brightness, &contrast, &saturation);
-		if (ret >= 0) {
-			int nColorspace;
-			if (m_nSwColorspace == 2) {
-				nColorspace = PictWidth() > 768 ? SWS_CS_ITU709 : SWS_CS_ITU601;	// GUI 'Auto'
-			} else {
-				nColorspace = m_nSwColorspace == 1 ? SWS_CS_ITU709 : SWS_CS_ITU601;	// GUI 'HD(BT.709)' : 'SD(BT.601)'
-			}
-		
-			dstRange = m_nSwOutputLevels>1 ? 0 : m_nSwOutputLevels; // GUI 'Auto' = 'TV(16-235)'
-			srcRange = m_nSwInputLevels>1 ? 0 : m_nSwInputLevels; // GUI 'Auto' = 'TV(16-235)'
-			sws_setColorspaceDetails(m_pSwsContext, sws_getCoefficients(nColorspace), srcRange, tbl, dstRange, brightness, contrast, saturation);
 		}
 	}
 }
@@ -2163,7 +2215,7 @@ static int64_t process_rv_timestamp(RMDemuxContext *rm, enum AVCodecID nCodecId,
 	return rm_fix_timestamp(buf, timestamp, nCodecId, &rm->kf_base, &rm->kf_pts);
 }
 
-void copyPlane(BYTE *dstp, stride_t dst_pitch, const BYTE *srcp, stride_t src_pitch, int row_size, int height, bool flip = false)
+void copyPlane(BYTE *dstp, int dst_pitch, const BYTE *srcp, int src_pitch, int row_size, int height, bool flip = false)
 {
 	if (!flip) {
 		for (int y = height; y > 0; --y) {
@@ -2193,10 +2245,8 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 	AVPacket		avpkt;
 	av_init_packet(&avpkt);
 
-	if (!bFlush && m_nCodecId == AV_CODEC_ID_H264) {
-		if (!m_h264RandomAccess.searchRecoveryPoint(pDataIn, nSize)) {
-			return S_OK;
-		}
+	if (m_nSwRefresh && (FAILED(hr = ReconnectRenderer()))) {
+		return hr;
 	}
 
 	while (nSize > 0 || bFlush) {
@@ -2283,7 +2333,7 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 					avpkt.size	= 0;
 				}
 
-				int ret2 = avcodec_decode_video2 (m_pAVCtx, m_pFrame, &got_picture, &avpkt);
+				int ret2 = avcodec_decode_video2(m_pAVCtx, m_pFrame, &got_picture, &avpkt);
 				if (ret2 < 0) {
 					TRACE(_T("CMPCVideoDecFilter::SoftwareDecode() - decoding failed despite successfull parsing\n"));
 					got_picture = 0;
@@ -2292,10 +2342,11 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 				got_picture = 0;
 			}
 		} else {
-			used_bytes = avcodec_decode_video2 (m_pAVCtx, m_pFrame, &got_picture, &avpkt);
+			used_bytes = avcodec_decode_video2(m_pAVCtx, m_pFrame, &got_picture, &avpkt);
 		}
 
 		if (used_bytes < 0) {
+			av_frame_unref(m_pFrame);
 			return S_OK;
 		}
 
@@ -2318,9 +2369,7 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 							 || m_nCodecId == AV_CODEC_ID_THEORA
 							 || m_nCodecId == AV_CODEC_ID_MPEG4;
 
-		if (m_nCodecId == AV_CODEC_ID_H264) {
-			m_h264RandomAccess.judgeFrameUsability(m_pFrame, &got_picture);
-		} else if (fWaitKeyFrame) {
+		if (fWaitKeyFrame) {
 			if (m_bWaitingForKeyFrame && got_picture) {
 				if (m_pFrame->key_frame) {
 					m_bWaitingForKeyFrame = FALSE;
@@ -2334,6 +2383,8 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 			if (!avpkt.size) {
 				bFlush = FALSE; // End flushing, no more frames
 			}
+
+			av_frame_unref(m_pFrame);
 			continue;
 		}
 
@@ -2353,6 +2404,7 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 		m_rtPrevStop = rtStop;
 
 		if ((pIn && pIn->IsPreroll() == S_OK) || rtStart < 0) {
+			av_frame_unref(m_pFrame);
 			continue;
 		}
 
@@ -2361,135 +2413,17 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 
 		UpdateAspectRatio();
 		if (FAILED(hr = GetDeliveryBuffer(m_pAVCtx->width, m_pAVCtx->height, &pOut, GetDuration())) || FAILED(hr = pOut->GetPointer(&pDataOut))) {
+			av_frame_unref(m_pFrame);
 			continue;//return hr;
 		}
 
 		pOut->SetTime(&rtStart, &rtStop);
 		pOut->SetMediaTime(NULL, NULL);
 
-		// change colorspace details/output format
-		{
-			//soft refresh - signal new swscaler colorspace details
-			if (m_nSwRefresh == 1){
-				m_nSwRefresh--;
-				if (m_pSwsContext) {
-					sws_freeContext(m_pSwsContext);
-					m_pSwsContext	= NULL;
-					m_PixFmt		= AV_PIX_FMT_NB;
-				}
-			}
-
-			// hard refresh - signal new output format
-			if (m_nSwRefresh == 2){
-				m_nSwRefresh--;
-				CComPtr<IPin> pRendererPin;
-				CComPtr<IPinConnection> pRendererConn;
-				CMediaType cmtRenderer;
-
-				BuildDXVAOutputFormat(); // refresh supported media types
-
-				CAutoLock cObjectLock(m_pLock);
-
-				cmtRenderer.InitMediaType();
-				GetMediaType(0, &cmtRenderer);
-
- 				m_pOutput->ConnectedTo(&pRendererPin);
-				hr = pRendererPin->QueryInterface(IID_IPinConnection, (void**)&pRendererConn);
-				if (FAILED(hr))	{
-					// madVR accepts dynamic media type changes but does not support IPinConnection
-					if (S_OK == (hr = pRendererPin->QueryAccept(&cmtRenderer))) {
-						if (S_OK == (hr = m_pOutput->SetMediaType(&cmtRenderer))) {
-							ReconnectOutput(PictWidth(), PictHeight(), true, true);
-						}
-					}
-					return hr;
-				}
-
-				if (S_OK == (hr = NotifyEvent(EC_DISPLAY_CHANGED, (LONG_PTR)m_pOutput->GetConnected(), 0))) {
-					SleepEx(200, TRUE);
-					hr = m_pOutput->SetMediaType(&cmtRenderer);
-				}
-
-				/*
-				// VMR accepts dynamic media type changes - but failed QueryAccept()
-				hr = pRendererConn->DynamicQueryAccept(&cmtRenderer);
-				if (SUCCEEDED(hr)) {
-					//VMR accepts dynamic media type changes.
-					if (S_OK == (hr = m_pOutput->SetMediaType(&cmtRenderer))) {
-						ReconnectOutput(PictWidth(), PictHeight(), true, true);
-					}
-				}
-				*/
-
-				return hr;
-			}
-		}
-
-		AVPixelFormat PixFmt = csp_ffdshow2lavc(csp_lavc2ffdshow(m_pAVCtx->pix_fmt));
-		if (PixFmt == AV_PIX_FMT_NB) {
-			PixFmt = m_pAVCtx->pix_fmt;
-		}
-
-		if ((m_PixFmt != AV_PIX_FMT_NB) && (PixFmt != m_PixFmt)) {
-			sws_freeContext(m_pSwsContext);
-			m_pSwsContext	= NULL;
-			m_PixFmt		= AV_PIX_FMT_NB;
-		}
-
-		InitSwscale();
-
-		if (m_pSwsContext != NULL) {
-
-			int outStride = m_pOutSize.cx;
-			BYTE *outData = pDataOut;
-
-			// From LAVVideo ...
-			// Check if we have proper pixel alignment and the dst memory is actually aligned
-			if (FFALIGN(outStride, 16) != outStride || ((uintptr_t)pDataOut % 16u)) {
-				outStride = FFALIGN(outStride, 16);
-				int requiredSize = (outStride * m_pAVCtx->height * m_nSwOutBpp) << 3;
-				if (requiredSize > m_nAlignedFFBufferSize) {
-					av_freep(&m_pAlignedFFBuffer);
-					m_nAlignedFFBufferSize	= requiredSize;
-					m_pAlignedFFBuffer		= (BYTE*)av_malloc(m_nAlignedFFBufferSize+FF_INPUT_BUFFER_PADDING_SIZE);
-				}
-				outData = m_pAlignedFFBuffer;
-			}
-
-			uint8_t*	dst[4] = {NULL, NULL, NULL, NULL};
-			stride_t	dstStride[4] = {0, 0, 0, 0};
-			const TcspInfo *outcspInfo=csp_getInfo(m_nOutCsp);
-
-			// === New swscaler options
-			if (m_nOutCsp == FF_CSP_YUY2 || m_nOutCsp == FF_CSP_RGB32 || m_nOutCsp == FF_CSP_RGBA || m_nOutCsp == FF_CSP_RGB16 || m_nOutCsp == FF_CSP_RGB15) {
-				dst[0] = outData;
-				dstStride[0] = (m_nSwOutBpp>>3) * (outStride);
-			} else {
-				for (unsigned int i=0; i<outcspInfo->numPlanes; i++) {
-					dstStride[i] = outStride >> outcspInfo->shiftX[i];
-					dst[i] = !i ? outData : dst[i-1] + dstStride[i-1] * (m_pOutSize.cy >> outcspInfo->shiftY[i-1]) ;
-				}
-
-				if (m_nOutCsp & FF_CSP_420P) {
-					std::swap(dst[1], dst[2]);
-				}
-			}
-
-			sws_scale(m_pSwsContext, m_pFrame->data, m_pFrame->linesize, 0, m_pAVCtx->height, dst, dstStride);
-
-			if (outData != pDataOut) {
-				if (m_nOutCsp & FF_CSP_420P) {
-					std::swap(dst[1], dst[2]);
-				}
-				int rowsize = 0, height = 0;
-				for (unsigned int i=0; i<outcspInfo->numPlanes; i++) {
-					rowsize	= (m_pOutSize.cx*outcspInfo->Bpp) >> outcspInfo->shiftX[i];
-					height	= m_pAVCtx->height >> outcspInfo->shiftY[i];
-					copyPlane(pDataOut, rowsize, dst[i], (outStride*outcspInfo->Bpp) >> outcspInfo->shiftX[i], rowsize, height, (m_nOutCsp == FF_CSP_RGB32));
-					pDataOut += rowsize * height;
-				}
-			}
-		}
+		BITMAPINFOHEADER bihOut;
+		ExtractBIH(&m_pOutput->CurrentMediaType(), &bihOut);
+		m_FormatConverter.UpdateOutput2(bihOut.biCompression, bihOut.biWidth, bihOut.biHeight);
+		m_FormatConverter.Converting(pDataOut, m_pFrame);
 
 #if defined(_DEBUG) && 0
 		static REFERENCE_TIME	rtLast = 0;
@@ -2498,8 +2432,68 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 		rtLast = rtStart;
 #endif
 
-		SetTypeSpecificFlags (pOut);
+		SetTypeSpecificFlags(pOut);
 		hr = m_pOutput->Deliver(pOut);
+
+		av_frame_unref(m_pFrame);
+	}
+
+	return hr;
+}
+
+// change colorspace details/output format
+HRESULT CMPCVideoDecFilter::ReconnectRenderer()
+{
+	HRESULT hr = S_OK;
+
+	//soft refresh - signal new swscaler colorspace details
+	if (m_nSwRefresh >= 1) {
+		m_FormatConverter.SetOptions(m_nSwPreset, m_nSwStandard, m_nSwInputLevels, m_nSwOutputLevels);
+	}
+
+	// hard refresh - signal new output format
+	if (m_nSwRefresh == 2) {
+		m_nSwRefresh--;
+
+		CComPtr<IPin> pRendererPin;
+		CComPtr<IPinConnection> pRendererConn;
+		CMediaType cmtRenderer;
+
+		BuildOutputFormat(); // refresh supported media types
+
+		CAutoLock cObjectLock(m_pLock);
+
+		cmtRenderer.InitMediaType();
+		GetMediaType(0, &cmtRenderer);
+
+ 		m_pOutput->ConnectedTo(&pRendererPin);
+		hr = pRendererPin->QueryInterface(IID_IPinConnection, (void**)&pRendererConn);
+		if (FAILED(hr)) {
+			// madVR accepts dynamic media type changes but does not support IPinConnection
+			if (S_OK == (hr = pRendererPin->QueryAccept(&cmtRenderer))) {
+				if (S_OK == (hr = m_pOutput->SetMediaType(&cmtRenderer))) {
+					ReconnectOutput(PictWidth(), PictHeight(), true, true);
+				}
+			}
+
+			return hr;
+		}
+
+		if (S_OK == (hr = NotifyEvent(EC_DISPLAY_CHANGED, (LONG_PTR)m_pOutput->GetConnected(), 0))) {
+			SleepEx(200, TRUE);
+			hr = m_pOutput->SetMediaType(&cmtRenderer);
+		}
+
+		/*
+		// VMR accepts dynamic media type changes - but failed QueryAccept()
+		hr = pRendererConn->DynamicQueryAccept(&cmtRenderer);
+		if (SUCCEEDED(hr)) {
+			//VMR accepts dynamic media type changes.
+			if (S_OK == (hr = m_pOutput->SetMediaType(&cmtRenderer))) {
+				ReconnectOutput(PictWidth(), PictHeight(), true, true);
+			}
+		}
+		*/
 	}
 
 	return hr;
@@ -2512,6 +2506,9 @@ HRESULT CMPCVideoDecFilter::ReopenVideo()
 		m_bUseDXVA = false;
 		avcodec_close(m_pAVCtx);
 		m_pAVCtx->using_dxva = false;
+		if (m_nCodecId == AV_CODEC_ID_H264) {
+			m_pAVCtx->flags2 &= ~CODEC_FLAG2_SHOW_ALL;
+		}
 		int nThreadNumber = m_nThreadNumber ? m_nThreadNumber : m_pCpuId->GetProcessorNumber() * 3/2;
 		if ((nThreadNumber > 1) && FFGetThreadType(m_nCodecId)) {
 			FFSetThreadNumber(m_pAVCtx, m_nCodecId, nThreadNumber);
@@ -2552,17 +2549,18 @@ HRESULT CMPCVideoDecFilter::Transform(IMediaSample* pIn)
 	if (m_pAVCtx->has_b_frames) {
 		m_BFrames[m_nPosB].rtStart	= rtStart;
 		m_BFrames[m_nPosB].rtStop	= rtStop;
-		m_nPosB						= 1-m_nPosB;
+		m_nPosB						= 1 - m_nPosB;
 	}
 
 	switch (m_nDecoderMode) {
 		case MODE_SOFTWARE :
-			hr = SoftwareDecode (pIn, pDataIn, nSize, rtStart, rtStop);
+			hr = SoftwareDecode(pIn, pDataIn, nSize, rtStart, rtStop);
 			break;
 		case MODE_DXVA1 :
 		case MODE_DXVA2 :
 			{
-				CheckPointer (m_pDXVADecoder, E_UNEXPECTED);
+				CheckPointer(m_pDXVADecoder, E_UNEXPECTED);
+				CheckPointer(m_pDXVA2Allocator, E_UNEXPECTED);
 				UpdateAspectRatio();
 
 				// Change aspect ratio for DXVA1
@@ -2574,11 +2572,12 @@ HRESULT CMPCVideoDecFilter::Transform(IMediaSample* pIn)
 				int width	= PictWidthRounded();
 				int Height	= PictHeightRounded();
 
-				hr = m_pDXVADecoder->DecodeFrame (pDataIn, nSize, rtStart, rtStop);
+				hr = m_pDXVADecoder->DecodeFrame(pDataIn, nSize, rtStart, rtStop);
+				av_frame_unref(m_pFrame);
 
 				if (width != PictWidthRounded() || Height != PictHeightRounded()) {
 					FindDecoderConfiguration();
-					dynamic_cast<CVideoDecOutputPin*>(m_pOutput)->Recommit();
+					RecommitAllocator();
 					ReconnectOutput(PictWidth(), PictHeight());
 				}
 			}
@@ -2626,8 +2625,8 @@ void CMPCVideoDecFilter::ReorderBFrames(REFERENCE_TIME& rtStart, REFERENCE_TIME&
 {
 	// Re-order B-frames if needed
 	if (m_pAVCtx->has_b_frames && m_bReorderBFrame) {
-		rtStart	= m_BFrames [m_nPosB].rtStart;
-		rtStop	= m_BFrames [m_nPosB].rtStop;
+		rtStart	= m_BFrames[m_nPosB].rtStart;
+		rtStop	= m_BFrames[m_nPosB].rtStop;
 	}
 }
 
@@ -2640,35 +2639,31 @@ void CMPCVideoDecFilter::FillInVideoDescription(DXVA2_VideoDesc *pDesc)
 	pDesc->UABProtectionLevel	= 1;
 }
 
-BOOL CMPCVideoDecFilter::IsSupportedDecoderMode(const GUID& mode)
+BOOL CMPCVideoDecFilter::IsSupportedDecoderMode(const GUID* mode)
 {
 	if (IsDXVASupported()) {
-		for (int i=0; i<MAX_SUPPORTED_MODE; i++) {
+		for (int i = 0; i < MAX_SUPPORTED_MODE; i++) {
 			if (*ffCodecs[m_nCodecNb].DXVAModes->Decoder[i] == GUID_NULL) {
 				break;
-			} else if (*ffCodecs[m_nCodecNb].DXVAModes->Decoder[i] == mode) {
-				return true;
+			} else if (*ffCodecs[m_nCodecNb].DXVAModes->Decoder[i] == *mode) {
+				return TRUE;
 			}
 		}
 	}
 
-	return false;
+	return FALSE;
 }
 
 BOOL CMPCVideoDecFilter::IsSupportedDecoderConfig(const D3DFORMAT nD3DFormat, const DXVA2_ConfigPictureDecode& config, bool& bIsPrefered)
 {
-	bool bRet = false;
-
-	bRet = (nD3DFormat == MAKEFOURCC('N', 'V', '1', '2') || nD3DFormat == MAKEFOURCC('I', 'M', 'C', '3'));
-
 	bIsPrefered = (config.ConfigBitstreamRaw == ffCodecs[m_nCodecNb].DXVAModes->PreferedConfigBitstream);
-	return bRet;
+	return (nD3DFormat == MAKEFOURCC('N', 'V', '1', '2') || nD3DFormat == MAKEFOURCC('I', 'M', 'C', '3'));
 }
 
 HRESULT CMPCVideoDecFilter::FindDXVA2DecoderConfiguration(IDirectXVideoDecoderService *pDecoderService,
-		const GUID& guidDecoder,
-		DXVA2_ConfigPictureDecode *pSelectedConfig,
-		BOOL *pbFoundDXVA2Configuration)
+														  const GUID& guidDecoder,
+														  DXVA2_ConfigPictureDecode *pSelectedConfig,
+														  BOOL *pbFoundDXVA2Configuration)
 {
 	HRESULT hr = S_OK;
 	UINT cFormats = 0;
@@ -2820,13 +2815,53 @@ HRESULT CMPCVideoDecFilter::CreateDXVA2Decoder(UINT nNumRenderTargets, IDirect3D
 
 	if (SUCCEEDED(hr)) {
 		// need recreate dxva decoder after "stop" on Intel HD Graphics
-		SAFE_DELETE (m_pDXVADecoder);
+		SAFE_DELETE(m_pDXVADecoder);
 		m_pDXVADecoder = CDXVADecoder::CreateDecoder(this, pDirectXVideoDec, &m_DXVADecoderGUID, GetPicEntryNumber(), &m_DXVA2Config);
 		if (m_pDXVADecoder) {
 			m_pDXVADecoder->SetDirectXVideoDec(pDirectXVideoDec);
 		} else {
 			hr = E_FAIL;
 		}
+	}
+
+	return hr;
+}
+
+HRESULT CMPCVideoDecFilter::InitAllocator(IMemAllocator **ppAlloc)
+{
+	HRESULT hr = S_FALSE;
+	m_pDXVA2Allocator = DNew CVideoDecDXVAAllocator(this, &hr);
+	if (!m_pDXVA2Allocator) {
+		return E_OUTOFMEMORY;
+	}
+	if (FAILED(hr)) {
+		SAFE_DELETE(m_pDXVA2Allocator);
+		return hr;
+	}
+	
+	// Return the IMemAllocator interface.
+	return m_pDXVA2Allocator->QueryInterface(__uuidof(IMemAllocator), (void **)ppAlloc);
+}
+
+HRESULT CMPCVideoDecFilter::RecommitAllocator()
+{
+	HRESULT hr = S_OK;
+
+	if (m_pDXVA2Allocator) {
+
+		hr = m_pDXVA2Allocator->Decommit();
+		if (m_pDXVA2Allocator->DecommitInProgress()) {
+			TRACE(_T("CVideoDecOutputPin::Recommit() : WARNING! DXVA2 Allocator is still busy, trying to flush downstream\n"));
+			if (m_pDXVA2Allocator) {
+				m_pDXVADecoder->EndOfStream();
+			}
+			if (m_pDXVA2Allocator->DecommitInProgress()) {
+				TRACE(_T("CVideoDecOutputPin::Recommit() : WARNING! Flush had no effect, decommit of the allocator still not complete\n"));
+			} else {
+				TRACE(_T("CVideoDecOutputPin::Recommit() : Flush was successfull, decommit completed!\n"));
+			}
+		}
+		hr = m_pDXVA2Allocator->Commit();
 	}
 
 	return hr;
@@ -2848,7 +2883,7 @@ HRESULT CMPCVideoDecFilter::FindDXVA1DecoderConfiguration(IAMVideoAccelerator* p
 			// Look for a format that matches our output format.
 			for (DWORD iFormat = 0; iFormat < dwFormats; iFormat++) {
 				if (pPixelFormats[iFormat].dwFourCC == MAKEFOURCC('N', 'V', '1', '2')) {
-					memcpy (pPixelFormat, &pPixelFormats[iFormat], sizeof(DDPIXELFORMAT));
+					memcpy(pPixelFormat, &pPixelFormats[iFormat], sizeof(DDPIXELFORMAT));
 					SAFE_DELETE_ARRAY(pPixelFormats)
 					return S_OK;
 				}
@@ -2862,22 +2897,10 @@ HRESULT CMPCVideoDecFilter::FindDXVA1DecoderConfiguration(IAMVideoAccelerator* p
 	return hr;
 }
 
-HRESULT CMPCVideoDecFilter::CheckDXVA1Decoder(const GUID *pGuid)
-{
-	if (m_nCodecNb != -1) {
-		for (int i = 0; i < MAX_SUPPORTED_MODE; i++)
-			if (*ffCodecs[m_nCodecNb].DXVAModes->Decoder[i] == *pGuid) {
-				return S_OK;
-			}
-	}
-
-	return E_INVALIDARG;
-}
-
 void CMPCVideoDecFilter::SetDXVA1Params(const GUID* pGuid, DDPIXELFORMAT* pPixelFormat)
 {
 	m_DXVADecoderGUID		= *pGuid;
-	memcpy (&m_PixelFormat, pPixelFormat, sizeof (DDPIXELFORMAT));
+	memcpy(&m_PixelFormat, pPixelFormat, sizeof (DDPIXELFORMAT));
 }
 
 WORD CMPCVideoDecFilter::GetDXVA1RestrictedMode()
@@ -2892,12 +2915,9 @@ WORD CMPCVideoDecFilter::GetDXVA1RestrictedMode()
 	return DXVA_RESTRICTED_MODE_UNRESTRICTED;
 }
 
-HRESULT CMPCVideoDecFilter::CreateDXVA1Decoder(IAMVideoAccelerator*  pAMVideoAccelerator, const GUID* pDecoderGuid, DWORD dwSurfaceCount)
+HRESULT CMPCVideoDecFilter::CreateDXVA1Decoder(IAMVideoAccelerator* pAMVideoAccelerator, const GUID* pDecoderGuid, DWORD dwSurfaceCount)
 {
-	if (m_pDXVADecoder && m_DXVADecoderGUID	== *pDecoderGuid) {
-		return S_OK;
-	}
-	SAFE_DELETE (m_pDXVADecoder);
+	SAFE_DELETE(m_pDXVADecoder);
 
 	if (!m_bUseDXVA) {
 		return E_FAIL;
@@ -2948,11 +2968,6 @@ STDMETHODIMP CMPCVideoDecFilter::CreatePage(const GUID& guid, IPropertyPage** pp
 	}
 
 	return *ppPage ? S_OK : E_FAIL;
-}
-
-void CMPCVideoDecFilter::SetFrameType(FF_FIELD_TYPE nFrameType)
-{
-	m_nFrameType = nFrameType;
 }
 
 // EVR functions
@@ -3018,47 +3033,48 @@ STDMETHODIMP CMPCVideoDecFilter::Apply()
 {
 #ifdef REGISTER_FILTER
 	CRegKey key;
-	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\MPC Video Decoder"))) {
-		key.SetDWORDValue(_T("ThreadNumber"), m_nThreadNumber);
-		key.SetDWORDValue(_T("DiscardMode"), m_nDiscardMode);
-		key.SetDWORDValue(_T("Deinterlacing"), (int)m_nDeinterlacing);
-		key.SetDWORDValue(_T("ActiveCodecs"), m_nActiveCodecs);
-		key.SetDWORDValue(_T("ARMode"), m_nARMode);
-		key.SetDWORDValue(_T("DXVACheckCompatibility"), m_nDXVACheckCompatibility);
-		key.SetDWORDValue(_T("DisableDXVA_SD"), m_nDXVA_SD);
+	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, OPT_REGKEY_VideoDec)) {
+		key.SetDWORDValue(OPT_ThreadNumber, m_nThreadNumber);
+		key.SetDWORDValue(OPT_DiscardMode, m_nDiscardMode);
+		key.SetDWORDValue(OPT_Deinterlacing, (int)m_nDeinterlacing);
+		key.SetDWORDValue(OPT_ARMode, m_nARMode);
+		key.SetDWORDValue(OPT_DXVACheck, m_nDXVACheckCompatibility);
+		key.SetDWORDValue(OPT_DisableDXVA_SD, m_nDXVA_SD);
 
 		// === New swscaler options
-		if (m_nSwRefresh > 0) {
-			key.SetDWORDValue(_T("SwChromaToRGB"), m_nSwChromaToRGB);
-			key.SetDWORDValue(_T("SwResizeMethodBE"), m_nSwResizeMethodBE);
-			key.SetDWORDValue(_T("SwColorspace"), m_nSwColorspace);
-			key.SetDWORDValue(_T("SwInputLevels"), m_nSwInputLevels);
-			key.SetDWORDValue(_T("SwOutputLevels"), m_nSwOutputLevels);
-		}
-		if (m_nSwRefresh > 1) {
-			key.SetDWORDValue(_T("SwOutputFormats"), m_nSwOutputFormats);
-		}
+		key.SetDWORDValue(OPTION_SW_NV12,  m_fPixFmts[PixFmt_NV12]);
+		key.SetDWORDValue(OPTION_SW_YV12,  m_fPixFmts[PixFmt_YV12]);
+		key.SetDWORDValue(OPTION_SW_YUY2,  m_fPixFmts[PixFmt_YUY2]);
+		key.SetDWORDValue(OPTION_SW_RGB32, m_fPixFmts[PixFmt_RGB32]);
+		key.SetDWORDValue(OPT_SwPreset, m_nSwPreset);
+		key.SetDWORDValue(OPT_SwStandard, m_nSwStandard);
+		key.SetDWORDValue(OPT_SwInputLevels, m_nSwInputLevels);
+		key.SetDWORDValue(OPT_SwOutputLevels, m_nSwOutputLevels);
 		//
 	}
+	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, OPT_REGKEY_VCodecs)) {
+		for (size_t i = 0; i < _countof(vcodecs); i++) {
+			DWORD dw = m_nActiveCodecs & vcodecs[i].flag ? 1 : 0;
+			key.SetDWORDValue(vcodecs[i].opt_name, dw);
+		}
+	}
 #else
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("ThreadNumber"), m_nThreadNumber);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("DiscardMode"), m_nDiscardMode);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("Deinterlacing"), (int)m_nDeinterlacing);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("ARMode"), m_nARMode);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("DXVACheckCompatibility"), m_nDXVACheckCompatibility);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("DisableDXVA_SD"), m_nDXVA_SD);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_ThreadNumber, m_nThreadNumber);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_DiscardMode, m_nDiscardMode);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_Deinterlacing, (int)m_nDeinterlacing);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_ARMode, m_nARMode);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_DXVACheck, m_nDXVACheckCompatibility);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_DisableDXVA_SD, m_nDXVA_SD);
 
 	// === New swscaler options
-	if (m_nSwRefresh > 0) {
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwChromaToRGB"), m_nSwChromaToRGB);
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwResizeMethodBE"), m_nSwResizeMethodBE);
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwColorspace"), m_nSwColorspace);
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwInputLevels"), m_nSwInputLevels);
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwOutputLevels"), m_nSwOutputLevels);
-	}
-	if (m_nSwRefresh > 1) {
-		AfxGetApp()->WriteProfileInt(_T("Filters\\MPC Video Decoder"), _T("SwOutputFormats"), m_nSwOutputFormats);
-	}
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPTION_SW_NV12,  m_fPixFmts[PixFmt_NV12]);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPTION_SW_YV12,  m_fPixFmts[PixFmt_YV12]);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPTION_SW_YUY2,  m_fPixFmts[PixFmt_YUY2]);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPTION_SW_RGB32, m_fPixFmts[PixFmt_RGB32]);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_SwPreset, m_nSwPreset);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_SwStandard, m_nSwStandard);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_SwInputLevels, m_nSwInputLevels);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_VideoDec, OPT_SwOutputLevels, m_nSwOutputLevels);
 	//
 #endif
 
@@ -3115,14 +3131,14 @@ STDMETHODIMP_(GUID*) CMPCVideoDecFilter::GetDXVADecoderGuid()
 	}
 }
 
-STDMETHODIMP CMPCVideoDecFilter::SetActiveCodecs(DWORD nValue)
+STDMETHODIMP CMPCVideoDecFilter::SetActiveCodecs(ULONGLONG nValue)
 {
 	CAutoLock cAutoLock(&m_csProps);
 	m_nActiveCodecs = nValue;
 	return S_OK;
 }
 
-STDMETHODIMP_(DWORD) CMPCVideoDecFilter::GetActiveCodecs()
+STDMETHODIMP_(ULONGLONG) CMPCVideoDecFilter::GetActiveCodecs()
 {
 	CAutoLock cAutoLock(&m_csProps);
 	return m_nActiveCodecs;
@@ -3178,55 +3194,57 @@ STDMETHODIMP CMPCVideoDecFilter::SetSwRefresh(int nValue)
 {
 	CAutoLock cAutoLock(&m_csProps);
 	m_nSwRefresh = nValue;
+
+	if (m_nSwRefresh && m_pAVCtx && m_nDecoderMode == MODE_SOFTWARE) {
+		ReconnectRenderer();
+	}
 	return S_OK;
 }
 
-STDMETHODIMP CMPCVideoDecFilter::SetSwOutputFormats(int nValue)
+STDMETHODIMP CMPCVideoDecFilter::SetSwPixelFormat(MPCPixelFormat pf, bool enable)
 {
 	CAutoLock cAutoLock(&m_csProps);
-	m_nSwOutputFormats = (int)nValue;
+	if (pf < 0 && pf >= PixFmt_count) {
+		return E_INVALIDARG;
+	}
+
+	m_fPixFmts[pf] = enable;
 	return S_OK;
-}
-STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwOutputFormats()
-{
-	CAutoLock cAutoLock(&m_csProps);
-	return (int)m_nSwOutputFormats;
 }
 
-STDMETHODIMP CMPCVideoDecFilter::SetSwChromaToRGB(int nValue)
+STDMETHODIMP_(bool) CMPCVideoDecFilter::GetSwPixelFormat(MPCPixelFormat pf)
 {
 	CAutoLock cAutoLock(&m_csProps);
-	m_nSwChromaToRGB = nValue;
-	return S_OK;
-}
-STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwChromaToRGB()
-{
-	CAutoLock cAutoLock(&m_csProps);
-	return m_nSwChromaToRGB;
+
+	if (pf < 0 && pf >= PixFmt_count) {
+		return false;
+	}
+
+	return m_fPixFmts[pf];
 }
 
-STDMETHODIMP CMPCVideoDecFilter::SetSwResizeMethodBE(int nValue)
+STDMETHODIMP CMPCVideoDecFilter::SetSwPreset(int nValue)
 {
 	CAutoLock cAutoLock(&m_csProps);
-	m_nSwResizeMethodBE = nValue;
+	m_nSwPreset = nValue;
 	return S_OK;
 }
-STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwResizeMethodBE()
+STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwPreset()
 {
 	CAutoLock cAutoLock(&m_csProps);
-	return m_nSwResizeMethodBE;
+	return m_nSwPreset;
 }
 
-STDMETHODIMP CMPCVideoDecFilter::SetSwColorspace(int nValue)
+STDMETHODIMP CMPCVideoDecFilter::SetSwStandard(int nValue)
 {
 	CAutoLock cAutoLock(&m_csProps);
-	m_nSwColorspace = nValue;
+	m_nSwStandard = nValue;
 	return S_OK;
 }
-STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwColorspace()
+STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwStandard()
 {
 	CAutoLock cAutoLock(&m_csProps);
-	return m_nSwColorspace;
+	return m_nSwStandard;
 }
 
 STDMETHODIMP CMPCVideoDecFilter::SetSwInputLevels(int nValue)
@@ -3253,6 +3271,31 @@ STDMETHODIMP_(int) CMPCVideoDecFilter::GetSwOutputLevels()
 	return m_nSwOutputLevels;
 }
 
+STDMETHODIMP_(int) CMPCVideoDecFilter::IsColorTypeConversion()
+{
+	CAutoLock cAutoLock(&m_csProps);
+
+	if (!m_pAVCtx) {
+		return -1; // no decoding or no conversion
+	}
+
+	if (m_nDecoderMode != MODE_SOFTWARE) {
+		return 0;
+	}
+
+	if (m_pAVCtx->pix_fmt == AV_PIX_FMT_NONE || m_FormatConverter.GetOutPixFormat() == PixFmt_None) {
+		return -1; // no decoding or no conversion
+	}
+	
+	bool in_rgb = !!(av_pix_fmt_desc_get(m_pAVCtx->pix_fmt)->flags & AV_PIX_FMT_FLAG_RGB);
+	bool out_rgb = (m_FormatConverter.GetOutPixFormat() == PixFmt_RGB32);
+	if (in_rgb != out_rgb) {
+		return 1; // YUV->RGB or RGB->YUV conversion
+	}
+
+	return 0; // YUV->YUV or RGB->RGB conversion
+}
+
 STDMETHODIMP CMPCVideoDecFilter::SetDialogHWND(HWND nValue)
 {
 	CAutoLock cAutoLock(&m_csProps);
@@ -3260,10 +3303,12 @@ STDMETHODIMP CMPCVideoDecFilter::SetDialogHWND(HWND nValue)
 	return S_OK;
 }
 
-STDMETHODIMP_(unsigned __int64) CMPCVideoDecFilter::GetOutputFormat()
+STDMETHODIMP CMPCVideoDecFilter::GetOutputMediaType(CMediaType* pmt)
 {
 	CAutoLock cAutoLock(&m_csProps);
-	return m_nOutCsp;
+	CopyMediaType(pmt, &m_pOutput->CurrentMediaType());
+
+	return S_OK;
 }
 
 // === IMPCVideoDecFilter2
@@ -3302,7 +3347,6 @@ CVideoDecOutputPin::CVideoDecOutputPin(TCHAR* pObjectName, CBaseVideoFilter* pFi
 	: CBaseVideoOutputPin(pObjectName, pFilter, phr, pName)
 {
 	m_pVideoDecFilter		= static_cast<CMPCVideoDecFilter*> (pFilter);
-	m_pDXVA2Allocator		= NULL;
 	m_dwDXVA1SurfaceCount	= 0;
 	m_GuidDecoderDXVA1		= GUID_NULL;
 	memset (&m_ddUncompPixelFormat, 0, sizeof(m_ddUncompPixelFormat));
@@ -3314,19 +3358,8 @@ CVideoDecOutputPin::~CVideoDecOutputPin(void)
 
 HRESULT CVideoDecOutputPin::InitAllocator(IMemAllocator **ppAlloc)
 {
-	//TRACE("CVideoDecOutputPin::InitAllocator\n");
 	if (m_pVideoDecFilter->UseDXVA2()) {
-		HRESULT hr = S_FALSE;
-		m_pDXVA2Allocator = DNew CVideoDecDXVAAllocator(m_pVideoDecFilter, &hr);
-		if (!m_pDXVA2Allocator) {
-			return E_OUTOFMEMORY;
-		}
-		if (FAILED(hr)) {
-			delete m_pDXVA2Allocator;
-			return hr;
-		}
-		// Return the IMemAllocator interface.
-		return m_pDXVA2Allocator->QueryInterface(__uuidof(IMemAllocator), (void **)ppAlloc);
+		return m_pVideoDecFilter->InitAllocator(ppAlloc);
 	} else {
 		return __super::InitAllocator(ppAlloc);
 	}
@@ -3344,16 +3377,16 @@ STDMETHODIMP CVideoDecOutputPin::GetUncompSurfacesInfo(const GUID *pGuid, LPAMVA
 {
 	HRESULT hr = E_INVALIDARG;
 
-	if (SUCCEEDED (m_pVideoDecFilter->CheckDXVA1Decoder (pGuid))) {
-		CComQIPtr<IAMVideoAccelerator>		pAMVideoAccelerator	= GetConnected();
+	if (m_pVideoDecFilter->IsSupportedDecoderMode(pGuid)) {
+		CComQIPtr<IAMVideoAccelerator> pAMVideoAccelerator = GetConnected();
 
 		if (pAMVideoAccelerator) {
 			pUncompBufferInfo->dwMaxNumSurfaces		= m_pVideoDecFilter->GetPicEntryNumber();
 			pUncompBufferInfo->dwMinNumSurfaces		= m_pVideoDecFilter->GetPicEntryNumber();
 
-			hr = m_pVideoDecFilter->FindDXVA1DecoderConfiguration (pAMVideoAccelerator, pGuid, &pUncompBufferInfo->ddUncompPixelFormat);
-			if (SUCCEEDED (hr)) {
-				memcpy (&m_ddUncompPixelFormat, &pUncompBufferInfo->ddUncompPixelFormat, sizeof(DDPIXELFORMAT));
+			hr = m_pVideoDecFilter->FindDXVA1DecoderConfiguration(pAMVideoAccelerator, pGuid, &pUncompBufferInfo->ddUncompPixelFormat);
+			if (SUCCEEDED(hr)) {
+				memcpy(&m_ddUncompPixelFormat, &pUncompBufferInfo->ddUncompPixelFormat, sizeof(DDPIXELFORMAT));
 				m_GuidDecoderDXVA1 = *pGuid;
 			}
 		}
@@ -3378,16 +3411,16 @@ STDMETHODIMP CVideoDecOutputPin::GetCreateVideoAcceleratorData(const GUID *pGuid
 	DXVA_ConnectMode*					pConnectMode;
 
 	if (pAMVideoAccelerator) {
-		memcpy (&UncompInfo.ddUncompPixelFormat, &m_ddUncompPixelFormat, sizeof (DDPIXELFORMAT));
+		memcpy(&UncompInfo.ddUncompPixelFormat, &m_ddUncompPixelFormat, sizeof (DDPIXELFORMAT));
 		UncompInfo.dwUncompWidth		= m_pVideoDecFilter->PictWidthRounded();
 		UncompInfo.dwUncompHeight		= m_pVideoDecFilter->PictHeightRounded();
 		hr = pAMVideoAccelerator->GetCompBufferInfo(&m_GuidDecoderDXVA1, &UncompInfo, &dwNumTypesCompBuffers, CompInfo);
 
-		if (SUCCEEDED (hr)) {
-			hr = m_pVideoDecFilter->CreateDXVA1Decoder (pAMVideoAccelerator, pGuid, m_dwDXVA1SurfaceCount);
+		if (SUCCEEDED(hr)) {
+			hr = m_pVideoDecFilter->CreateDXVA1Decoder(pAMVideoAccelerator, pGuid, m_dwDXVA1SurfaceCount);
 
-			if (SUCCEEDED (hr)) {
-				m_pVideoDecFilter->SetDXVA1Params (&m_GuidDecoderDXVA1, &m_ddUncompPixelFormat);
+			if (SUCCEEDED(hr)) {
+				m_pVideoDecFilter->SetDXVA1Params(&m_GuidDecoderDXVA1, &m_ddUncompPixelFormat);
 
 				pConnectMode					= (DXVA_ConnectMode*)CoTaskMemAlloc (sizeof(DXVA_ConnectMode));
 				pConnectMode->guidMode			= m_GuidDecoderDXVA1;
@@ -3401,25 +3434,13 @@ STDMETHODIMP CVideoDecOutputPin::GetCreateVideoAcceleratorData(const GUID *pGuid
 	return hr;
 }
 
-HRESULT CVideoDecOutputPin::Recommit()
+//
+void GetFormatList(CAtlList<SUPPORTED_FORMATS>& fmts)
 {
-	HRESULT hr = S_OK;
+	fmts.RemoveAll();
 
-	if (m_pDXVA2Allocator) {
-		hr = m_pDXVA2Allocator->Decommit();
-		if (m_pDXVA2Allocator->DecommitInProgress()) {
-			TRACE(_T("CVideoDecOutputPin::Recommit() : WARNING! DXVA2 Allocator is still busy, trying to flush downstream\n"));
-			m_pVideoDecFilter->EndOfStream();
-			m_pVideoDecFilter->BeginFlush();
-			m_pVideoDecFilter->EndFlush();
-			if (m_pDXVA2Allocator->DecommitInProgress()) {
-				TRACE(_T("CVideoDecOutputPin::Recommit() : WARNING! Flush had no effect, decommit of the allocator still not complete\n"));
-			} else {
-				TRACE(_T("CVideoDecOutputPin::Recommit() : Flush was successfull, decommit completed!\n"));
-			}
-		}
-		hr = m_pDXVA2Allocator->Commit();
+	for (size_t i = 0; i < _countof(ffCodecs); i++) {
+		SUPPORTED_FORMATS fmt = {ffCodecs[i].clsMinorType, ffCodecs[i].FFMPEGCode, ffCodecs[i].DXVACode};
+		fmts.AddTail(fmt);
 	}
-
-	return hr;
 }

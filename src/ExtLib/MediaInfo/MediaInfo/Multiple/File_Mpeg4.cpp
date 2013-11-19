@@ -57,7 +57,10 @@ namespace Elements
     const int64u moov_meta______=0x2D2D2D2D;
     const int64u moov_meta___ART=0xA9415254;
     const int64u moov_meta___alb=0xA9616C62;
+    const int64u moov_meta___ard=0xA9617264;
+    const int64u moov_meta___arg=0xA9617267;
     const int64u moov_meta___aut=0xA9617574;
+    const int64u moov_meta___con=0xA963696E;
     const int64u moov_meta___cmt=0xA9636D74;
     const int64u moov_meta___cpy=0xA9637079;
     const int64u moov_meta___day=0xA9646179;
@@ -72,35 +75,80 @@ namespace Elements
     const int64u moov_meta___hos=0xA9686F73;
     const int64u moov_meta___inf=0xA9696E66;
     const int64u moov_meta___key=0xA96B6579;
+    const int64u moov_meta___lyr=0xA96C7972;
     const int64u moov_meta___mak=0xA96D616B;
     const int64u moov_meta___mod=0xA96D6F64;
     const int64u moov_meta___nam=0xA96E616D;
+    const int64u moov_meta___ope=0xA96F7065;
     const int64u moov_meta___prd=0xA9707264;
     const int64u moov_meta___PRD=0xA9505244;
     const int64u moov_meta___prf=0xA9707266;
     const int64u moov_meta___req=0xA9726571;
+    const int64u moov_meta___sne=0xA9736E65;
+    const int64u moov_meta___sol=0xA9736F6C;
     const int64u moov_meta___src=0xA9737263;
+    const int64u moov_meta___st3=0xA9737403;
     const int64u moov_meta___swr=0xA9737772;
     const int64u moov_meta___too=0xA9746F6F;
+    const int64u moov_meta___url=0xA975726C;
     const int64u moov_meta___wrn=0xA977726E;
     const int64u moov_meta___wrt=0xA9777274;
+    const int64u moov_meta___xpd=0xA9787064;
     const int64u moov_meta__aART=0x61415254;
+    const int64u moov_meta__akID=0x616B4944;
     const int64u moov_meta__albm=0x616C626D;
+    const int64u moov_meta__apID=0x61704944;
+    const int64u moov_meta__atID=0x61744944;
     const int64u moov_meta__auth=0x61757468;
+    const int64u moov_meta__catg=0x63617467;
+    const int64u moov_meta__cnID=0x636E4944;
     const int64u moov_meta__cpil=0x6370696C;
     const int64u moov_meta__cprt=0x63707274;
     const int64u moov_meta__covr=0x636F7672;
+    const int64u moov_meta__desc=0x64657363;
     const int64u moov_meta__disk=0x6469736B;
     const int64u moov_meta__dscp=0x64736370;
+    const int64u moov_meta__egid=0x65676964;
+    const int64u moov_meta__flvr=0x666C7672;
     const int64u moov_meta__gnre=0x676E7265;
+    const int64u moov_meta__geID=0x67654944;
+    const int64u moov_meta__grup=0x67727570;
+    const int64u moov_meta__hdvd=0x68647664;
+    const int64u moov_meta__itnu=0x69746E75;
+    const int64u moov_meta__keyw=0x6B657977;
+    const int64u moov_meta__ldes=0x6C646573;
     const int64u moov_meta__name=0x6E616D65;
+    const int64u moov_meta__pcst=0x70637374;
     const int64u moov_meta__perf=0x70657266;
     const int64u moov_meta__pgap=0x70676170;
+    const int64u moov_meta__plID=0x706C4944;
+    const int64u moov_meta__purd=0x70757264;
+    const int64u moov_meta__purl=0x7075726C;
+    const int64u moov_meta__rate=0x72617465;
+    const int64u moov_meta__rndu=0x726E6475;
+    const int64u moov_meta__rpdu=0x72706475;
+    const int64u moov_meta__rtng=0x72746E67;
+    const int64u moov_meta__sdes=0x73646573;
+    const int64u moov_meta__sfID=0x73664944;
+    const int64u moov_meta__soaa=0x736F6161;
+    const int64u moov_meta__soal=0x736F616C;
+    const int64u moov_meta__soar=0x736F6172;
+    const int64u moov_meta__soco=0x736F636F;
+    const int64u moov_meta__sonm=0x736F6E6D;
+    const int64u moov_meta__sosn=0x736F736E;
+    const int64u moov_meta__stik=0x7374696B;
     const int64u moov_meta__titl=0x7469746C;
     const int64u moov_meta__tool=0x746F6F6C;
     const int64u moov_meta__trkn=0x74726B6E;
     const int64u moov_meta__tmpo=0x746D706F;
+    const int64u moov_meta__tven=0x7476656E;
+    const int64u moov_meta__tves=0x74766573;
+    const int64u moov_meta__tvnn=0x74766E6E;
+    const int64u moov_meta__tvsh=0x74767368;
+    const int64u moov_meta__tvsn=0x7476736E;
+    const int64u moov_meta__xid_=0x78696420;
     const int64u moov_meta__year=0x79656172;
+    const int64u moov_meta__yyrc=0x79797263;
     const int64u skip=0x736B6970;
     const int64u wide=0x77696465;
 }
@@ -197,6 +245,13 @@ File_Mpeg4::~File_Mpeg4()
 //---------------------------------------------------------------------------
 void File_Mpeg4::Streams_Accept()
 {
+    if (!IsSub)
+    {
+        /*bool IsDashMpd=false;
+        for (size_t Pos=0; pos<ftyps
+        TestContinuousFileNames();*/
+    }
+
     if (!IsSub && MajorBrand==0x6A703220) //"jp2 "
     {
         TestContinuousFileNames();
@@ -241,6 +296,11 @@ void File_Mpeg4::Streams_Finish()
                 Fill(Stream_Text, StreamPos_Last, "MuxingMode", __T("Final Cut"), Unlimited);
                 Merge(*Stream->second.Parsers[0], Stream_Text, 0, StreamPos_Last);
             }
+
+            //Law rating
+            Ztring LawRating=Stream->second.Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+            if (!LawRating.empty())
+                Fill(Stream_General, 0, General_LawRating, LawRating, true);
         }
 
         return;
@@ -275,41 +335,6 @@ void File_Mpeg4::Streams_Finish()
             if (Duplicates)
                 Temp->second.edts.resize(1);
         }
-
-        //Edit Lists
-        float64 Delay=0;
-        switch (Temp->second.edts.size())
-        {
-            case 0 :
-                    break;
-            case 1 :
-                    if (Temp->second.edts[0].Duration==Temp->second.tkhd_Duration && Temp->second.edts[0].Rate==0x00010000)
-                    {
-                        Delay=Temp->second.edts[0].Delay;
-                        Delay=-Delay;
-                        if (Temp->second.mdhd_TimeScale)
-                            Delay/=Temp->second.mdhd_TimeScale; //In seconds
-                    }
-                    break;
-            case 2 :
-                    if (Temp->second.edts[0].Delay==(int32u)-1 && Temp->second.edts[0].Duration+Temp->second.edts[1].Duration==Temp->second.tkhd_Duration && Temp->second.edts[0].Rate==0x00010000 && Temp->second.edts[1].Rate==0x00010000)
-                    {
-                        Delay=Temp->second.edts[0].Duration;
-                        Temp->second.tkhd_Duration-=float64_int64s(Delay);
-                        Delay/=TimeScale; //In seconds
-                    }
-                    break;
-            default:
-                    break; //TODO: handle more complex Edit Lists
-        }
-        Delay+=Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay)).To_float64()/1000; //TODO: use TimeCode value directly instead of the rounded value
-        if (!Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source)).empty() && Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source))!=__T("Container"))
-        {
-            Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Original), Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay)));
-            Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Original_Source), Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source)));
-        }
-        Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay), Delay*1000, 0, true);
-        Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source), "Container", Unlimited, true, true);
 
         //Fragments
         if (IsFragmented)
@@ -396,6 +421,46 @@ void File_Mpeg4::Streams_Finish()
                 if (Temp->second.stsz_StreamSize)
                     Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, HasPadding?Generic_StreamSize_Encoded:Generic_StreamSize), Temp->second.stsz_StreamSize);
             }
+        }
+
+        //Edit Lists
+        float64 Delay=0;
+        switch (Temp->second.edts.size())
+        {
+            case 0 :
+                    break;
+            case 1 :
+                    if (Temp->second.edts[0].Duration==Temp->second.tkhd_Duration && Temp->second.edts[0].Rate==0x00010000)
+                    {
+                        Delay=Temp->second.edts[0].Delay;
+                        Delay=-Delay;
+                        if (Temp->second.mdhd_TimeScale)
+                            Delay/=Temp->second.mdhd_TimeScale; //In seconds
+                    }
+                    break;
+            case 2 :
+                    if (Temp->second.edts[0].Delay==(int32u)-1 && Temp->second.edts[0].Duration+Temp->second.edts[1].Duration==Temp->second.tkhd_Duration && Temp->second.edts[0].Rate==0x00010000 && Temp->second.edts[1].Rate==0x00010000)
+                    {
+                        Delay=Temp->second.edts[0].Duration;
+                        Temp->second.tkhd_Duration-=float64_int64s(Delay);
+                        Delay/=TimeScale; //In seconds
+                    }
+                    break;
+            default:
+                    break; //TODO: handle more complex Edit Lists
+        }
+        if (Delay && !Retrieve(StreamKind_Last, StreamPos_Last, "Source_Duration").empty())
+        {
+            Delay+=Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay)).To_float64()/1000; //TODO: use TimeCode value directly instead of the rounded value
+            if (!Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source)).empty() && Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source))!=__T("Container"))
+            {
+                Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Original), Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay)));
+                Fill(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Original_Source), Retrieve(StreamKind_Last, StreamPos_Last, Fill_Parameter(StreamKind_Last, Generic_Delay_Source)));
+            }
+            Fill(StreamKind_Last, StreamPos_Last, "Source_Delay", Delay*1000, 0, true);
+            Fill(StreamKind_Last, StreamPos_Last, "Source_Delay_Source", "Container", Unlimited, true, true);
+            (*Stream_More)[StreamKind_Last][StreamPos_Last](Ztring().From_Local("Source_Delay"), Info_Options)=__T("N NT");
+            (*Stream_More)[StreamKind_Last][StreamPos_Last](Ztring().From_Local("Source_Delay_Source"), Info_Options)=__T("N NT");
         }
 
         if (StreamKind_Last==Stream_Video && Temp->second.TimeCode==NULL)
@@ -542,11 +607,19 @@ void File_Mpeg4::Streams_Finish()
                         for (size_t Pos=0; Pos<StreamMoreSave.size(); Pos++)
                             Fill(StreamKind_Last, StreamPos_Last, StreamMoreSave(Pos, 0).To_Local().c_str(), StreamMoreSave(Pos, 1));
                     }
+                    Ztring LawRating=Temp->second.Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+                    if (!LawRating.empty())
+                        Fill(Stream_General, 0, General_LawRating, LawRating, true);
                 }
                 else
                 {
                     //Temp->second.Parsers[0]->Clear(StreamKind_Last, StreamPos_Last, "Delay"); //DV TimeCode is removed
                     Merge(*Temp->second.Parsers[0], StreamKind_Last, 0, StreamPos_Last);
+
+                    //Law rating
+                    Ztring LawRating=Temp->second.Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+                    if (!LawRating.empty())
+                        Fill(Stream_General, 0, General_LawRating, LawRating, true);
                 }
 
                 //Hacks - After
@@ -668,6 +741,13 @@ void File_Mpeg4::Streams_Finish()
                 Fill(StreamKind_Last, StreamPos_Last, "Source_Original", Source_Original, true);
                 Fill(StreamKind_Last, StreamPos_Last, "Source_Original_Info", Source_Original_Info, true);
             }
+            if (StreamKind_Last==Stream_Audio
+             && Retrieve(Stream_Audio, StreamPos_Last, Audio_Format)!=__T("PCM")
+             && !Retrieve(Stream_Audio, StreamPos_Last, Audio_Channel_s__Original).empty())
+            {
+                Clear(Stream_Audio, StreamPos_Last, Audio_Channel_s__Original);
+                Fill(Stream_Audio, StreamPos_Last, Audio_Channel_s_, 6, 10, true); //The PCM channel count is fake
+            }
 
             //Muxing Mode
             Fill(StreamKind_Last, StreamPos_Last, "MuxingMode", Temp->second.MI->Get(Stream_General, 0, General_Format));
@@ -758,6 +838,31 @@ void File_Mpeg4::Streams_Finish()
         {
             Fill(Stream_Audio, StreamPos_Last, Audio_ChannelPositions, Mpeg4_chan(101));
             Fill(Stream_Audio, StreamPos_Last, Audio_ChannelLayout, Mpeg4_chan_Layout(101));
+        }
+
+        //Bitrate Mode
+        if (Retrieve(StreamKind_Last, StreamPos_Last, "BitRate_Mode").empty())
+        {
+            if (Temp->second.stss.empty() && Temp->second.stss.size()!=Temp->second.stsz_Total.size() && !IsFragmented)
+            {
+                int64u Size_Min=(int64u)-1, Size_Max=0;
+                for (size_t Pos=0; Pos<Temp->second.stsz_Total.size(); Pos++)
+                {
+                    if (Temp->second.stsz_Total[Pos]<Size_Min)
+                        Size_Min=Temp->second.stsz_Total[Pos];
+                    if (Temp->second.stsz_Total[Pos]>Size_Max)
+                        Size_Max=Temp->second.stsz_Total[Pos];
+                }
+
+                if (Size_Min*(1.005+0.005)<Size_Max)
+                    Fill(StreamKind_Last, StreamPos_Last, "BitRate_Mode", "VBR");
+                else
+                    Fill(StreamKind_Last, StreamPos_Last, "BitRate_Mode", "CBR");
+            }
+            else
+            {
+                //TODO: compute Bit rate mode from stsz and stss (in order to compute per GOP instead of per frame)
+            }
         }
 
         ++Temp;
@@ -1278,12 +1383,12 @@ bool File_Mpeg4::Header_Begin()
 {
     #if MEDIAINFO_DEMUX
         //Handling of multiple frames in one block
-        if (IsParsing_mdat && Config->Demux_Unpacketize_Get())
+        if (IsParsing_mdat && Config->Demux_Unpacketize_Get() && Streams[(int32u)Element_Code].Demux_EventWasSent)
         {
-            for (size_t Pos=0; Pos<Streams[(int32u)Element_Code].Parsers.size(); Pos++)
-                Open_Buffer_Continue(Streams[(int32u)Element_Code].Parsers[Pos], Buffer+Buffer_Offset, 0);
-                if (Config->Demux_EventWasSent)
-                    return false;
+            Open_Buffer_Continue(Streams[(int32u)Element_Code].Parsers[0], Buffer+Buffer_Offset, 0);
+            if (Config->Demux_EventWasSent)
+                return false;
+            Stream->second.Demux_EventWasSent=false;
         }
     #endif //MEDIAINFO_DEMUX
 
@@ -1300,17 +1405,16 @@ void File_Mpeg4::Header_Parse()
     if (IsParsing_mdat)
     {
         //Positionning
-        if (File_Offset+Buffer_Offset<mdat_Pos_Temp->first)
+        if (mdat_Pos_Temp==mdat_Pos.end() || File_Offset+Buffer_Offset<mdat_Pos_Temp->first)
         {
-            if (File_Offset+Buffer_Size>mdat_Pos_Temp->first)
-            {
-                Buffer_Offset=(size_t)(File_Offset+Buffer_Size-mdat_Pos_Temp->first);
-            }
-            else
-            {
-                Buffer_Offset=Buffer_Size;
-                return;
-            }
+            Header_Fill_Code(0, "(Junk)");
+            int64u Size=mdat_Pos_Temp==mdat_Pos.end()?Element_TotalSize_Get():(mdat_Pos_Temp->first-(File_Offset+Buffer_Offset));
+            if (Size>1 && Size>=Buffer_MaximumSize/2)
+                Size=Buffer_MaximumSize;
+            if (Size==Element_TotalSize_Get())
+                IsParsing_mdat=false;
+            Header_Fill_Size(Size);
+            return;
         }
 
         //Filling
@@ -1405,6 +1509,19 @@ struct Mpeg4_muxing
 };
 bool File_Mpeg4::BookMark_Needed()
 {
+    #if MEDIAINFO_MD5
+        if (!mdat_MustParse && !mdat_Pos_NormalParsing && Config->File_Md5_Get() && FirstMdatPos<FirstMoovPos)
+        {
+            Element_Show();
+            while (Element_Level>0)
+                Element_End0();
+            mdat_Pos_NormalParsing=true;
+            GoTo(0);
+            IsSecondPass=true;
+            return false;
+        }
+    #endif //MEDIAINFO_MD5
+
     if (!mdat_MustParse)
         return false;
 
@@ -1451,15 +1568,22 @@ bool File_Mpeg4::BookMark_Needed()
 
         //For each stream
         for (std::map<int32u, stream>::iterator Temp=Streams.begin(); Temp!=Streams.end(); ++Temp)
+            if (!Temp->second.Parsers.empty())
         {
-            #if MEDIAINFO_DEMUX
-                if (Config_Demux && Config->File_Demux_Interleave_Get() && !Temp->second.File_Name.empty())
-                {
-                    //Remark: supporting both embedded and referenced streams is currently not supported
-                    mdat_Pos.clear();
-                    return false;
-                }
-            #endif // MEDIAINFO_DEMUX
+            if (!Temp->second.File_Name.empty())
+            {
+                #if MEDIAINFO_DEMUX
+                    if (Config_Demux && Config->File_Demux_Interleave_Get()
+                     && Temp->second.StreamKind!=Stream_Other) // e.g. a time code, we can live without demuxing the time code
+                    {
+                        //Remark: supporting both embedded and referenced streams is currently not supported
+                        mdat_Pos.clear();
+                        return false;
+                    }
+                    else
+                #endif // MEDIAINFO_DEMUX
+                       continue;
+             }
 
             if (!Temp->second.stsz.empty() || Temp->second.stsz_Sample_Size)
             {
@@ -1509,7 +1633,7 @@ bool File_Mpeg4::BookMark_Needed()
                         if (stsz_Pos>=Temp->second.stsz.size())
                             break;
                     }
-                    else if (Temp->second.StreamKind==Stream_Audio && Temp->second.stsz_Sample_Size<=Sample_ByteSize && Temp->second.stsc[stsc_Pos].SamplesPerChunk*Temp->second.stsz_Sample_Size*Temp->second.stsz_Sample_Multiplier<0x1000000)
+                    else if (Temp->second.IsPcm && (!Sample_ByteSize || Temp->second.stsz_Sample_Size<=Sample_ByteSize) && Temp->second.stsc[stsc_Pos].SamplesPerChunk*Temp->second.stsz_Sample_Size*Temp->second.stsz_Sample_Multiplier<0x1000000)
                     {
                         //Same size per sample, but granularity is too small
                         mdat_Pos[Temp->second.stco[stco_Pos]].StreamID=Temp->first;
@@ -1534,7 +1658,7 @@ bool File_Mpeg4::BookMark_Needed()
                             }
                         #endif //MEDIAINFO_DEMUX
                     }
-                    else
+                    else if (stsc_Pos<Temp->second.stsc.size())
                     {
                         //Same size per sample
                         int64u Chunk_Offset=0;
@@ -1555,7 +1679,7 @@ bool File_Mpeg4::BookMark_Needed()
                 for (size_t Pos=0; Pos<Temp->second.Parsers.size(); Pos++)
                     Temp->second.Parsers[Pos]->Stream_BitRateFromContainer=Temp->second.stsz_StreamSize*8/(((float64)Temp->second.stts_Duration)/Temp->second.mdhd_TimeScale);
                 #if MEDIAINFO_DEMUX
-                    if (!Temp_stts_Durations.empty())
+                    if (FrameCount_MaxPerStream==(int64u)-1 && !Temp_stts_Durations.empty())
                     {
                         Temp->second.stts_Durations=Temp_stts_Durations;
                         for (stsc_Pos=0; stsc_Pos<Temp->second.stsc.size(); stsc_Pos++)
@@ -1631,7 +1755,15 @@ bool File_Mpeg4::BookMark_Needed()
         Element_Begin1("Second pass");
 
         mdat_Pos_Temp=mdat_Pos.begin();
-        GoTo(mdat_Pos_Temp->first);
+        #if MEDIAINFO_MD5
+            if (Config->File_Md5_Get())
+            {
+                GoTo(0);
+                Md5_ParseUpTo=mdat_Pos_Temp->first;
+            }
+            else
+        #endif //MEDIAINFO_MD5
+                GoTo(mdat_Pos_Temp->first);
         IsParsing_mdat=true;
         mdat_Pos_NormalParsing=true;
     }
@@ -1665,9 +1797,13 @@ File_Mpeg4::method File_Mpeg4::Metadata_Get(std::string &Parameter, int64u Meta)
     switch (Meta)
     {
         //http://atomicparsley.sourceforge.net/mpeg-4files.html
-        case Elements::moov_meta___ART : Parameter="Performer"; Method=Method_String; break;
+        //http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/QuickTime.html#ItemList
         case Elements::moov_meta___alb : Parameter="Album"; Method=Method_String; break;
+        case Elements::moov_meta___ard : Parameter="Director"; Method=Method_String; break;
+        case Elements::moov_meta___arg : Parameter="Arranger"; Method=Method_String; break;
+        case Elements::moov_meta___ART : Parameter="Performer"; Method=Method_String; break;
         case Elements::moov_meta___aut : Parameter="Performer"; Method=Method_String; break;
+        case Elements::moov_meta___con : Parameter="Conductor"; Method=Method_String; break;
         case Elements::moov_meta___cmt : Parameter="Comment"; Method=Method_String; break;
         case Elements::moov_meta___cpy : Parameter="Copyright"; Method=Method_String; break;
         case Elements::moov_meta___day : Parameter="Recorded_Date"; Method=Method_String; break;
@@ -1682,34 +1818,77 @@ File_Mpeg4::method File_Mpeg4::Metadata_Get(std::string &Parameter, int64u Meta)
         case Elements::moov_meta___hos : Parameter="HostComputer"; Method=Method_String; break;
         case Elements::moov_meta___inf : Parameter="Title/More"; Method=Method_String; break;
         case Elements::moov_meta___key : Parameter="Keywords"; Method=Method_String; break;
+        case Elements::moov_meta___lyr : Parameter="Lyrics"; Method=Method_String; break;
         case Elements::moov_meta___mak : Parameter="Make"; Method=Method_String; break;
         case Elements::moov_meta___mod : Parameter="Model"; Method=Method_String; break;
         case Elements::moov_meta___nam : Parameter="Title"; Method=Method_String3; break;
+        case Elements::moov_meta___ope : Parameter="Original/Performer"; Method=Method_String; break;
         case Elements::moov_meta___prd : Parameter="Producer"; Method=Method_String; break;
         case Elements::moov_meta___PRD : Parameter="Product"; Method=Method_String; break;
         case Elements::moov_meta___prf : Parameter="Performer"; Method=Method_String; break;
         case Elements::moov_meta___req : Parameter="Comment"; Method=Method_String; break;
-        case Elements::moov_meta___src : Parameter="DistribtedBy"; Method=Method_String; break;
+        case Elements::moov_meta___sne : Parameter="SoundEngineer"; Method=Method_String; break;
+        case Elements::moov_meta___sol : Parameter="Conductor"; Method=Method_String; break;
+        case Elements::moov_meta___src : Parameter="DistributedBy"; Method=Method_String; break;
+        case Elements::moov_meta___st3 : Parameter="Subtitle"; Method=Method_String; break;
         case Elements::moov_meta___swr : Parameter="Encoded_Application"; Method=Method_String; break;
         case Elements::moov_meta___too : Parameter="Encoded_Application"; Method=Method_String; break;
+        case Elements::moov_meta___url : Parameter="Track/Url"; Method=Method_String; break;
         case Elements::moov_meta___wrn : Parameter="Warning"; Method=Method_String; break;
         case Elements::moov_meta___wrt : Parameter="Composer"; Method=Method_String; break;
-        case Elements::moov_meta__auth : Parameter="Performer"; Method=Method_String2; break;
-        case Elements::moov_meta__albm : Parameter="Album"; Method=Method_String2; break; //Has a optional track number after the NULL byte
+        case Elements::moov_meta___xpd : Parameter="ExecutiveProducer"; Method=Method_String; break;
         case Elements::moov_meta__aART : Parameter="Album/Performer"; Method=Method_String2; break;
+        case Elements::moov_meta__akID : Parameter="AppleStoreAccountType"; Method=Method_Binary; break;
+        case Elements::moov_meta__albm : Parameter="Album"; Method=Method_String2; break; //Has a optional track number after the NULL byte
+        case Elements::moov_meta__apID : Parameter="AppleStoreAccount"; Method=Method_String; break;
+        case Elements::moov_meta__atID : Parameter="AlbumTitleID"; Method=Method_Binary; break;
+        case Elements::moov_meta__auth : Parameter="Performer"; Method=Method_String2; break;
+        case Elements::moov_meta__catg : Parameter="Category"; Method=Method_String; break;
+        case Elements::moov_meta__cnID : Parameter="AppleStoreCatalogID"; Method=Method_String; break;
         case Elements::moov_meta__cpil : Parameter="Compilation"; Method=Method_Binary; break;
         case Elements::moov_meta__cprt : Parameter="Copyright"; Method=Method_String2; break;
+        case Elements::moov_meta__desc : Parameter="Description"; Method=Method_String; break;
         case Elements::moov_meta__disk : Parameter="Part"; Method=Method_Binary; break;
         case Elements::moov_meta__dscp : Parameter="Title/More"; Method=Method_String2; break;
+        case Elements::moov_meta__egid : Parameter="EpisodeGlobalUniqueID"; Method=Method_Binary; break;
+        case Elements::moov_meta__flvr : Parameter="Flavour"; Method=Method_Binary; break;
         case Elements::moov_meta__gnre : Parameter="Genre"; Method=Method_String2; break;
+        case Elements::moov_meta__geID : Parameter="GenreID"; Method=Method_Binary; break;
+        case Elements::moov_meta__grup : Parameter="Grouping"; Method=Method_String; break;
+        case Elements::moov_meta__hdvd : Parameter="HDVideo"; Method=Method_Binary; break;
+        case Elements::moov_meta__itnu : Parameter="iTunesU"; Method=Method_Binary; break;
+        case Elements::moov_meta__keyw : Parameter="Keyword"; Method=Method_String; break;
+        case Elements::moov_meta__ldes : Parameter="LongDescription"; Method=Method_String; break;
         case Elements::moov_meta__name : Parameter="Title"; Method=Method_String; break;
+        case Elements::moov_meta__pcst : Parameter="Podcast"; Method=Method_Binary; break;
         case Elements::moov_meta__perf : Parameter="Performer"; Method=Method_String2; break;
         case Elements::moov_meta__pgap : Parameter.clear(); Method=Method_None; break;
+        case Elements::moov_meta__plID : Parameter="PlayListID"; Method=Method_Binary; break;
+        case Elements::moov_meta__purd : Parameter="PurchaseDate"; Method=Method_String; break;
+        case Elements::moov_meta__purl : Parameter="PodcastURL"; Method=Method_String; break;
+        case Elements::moov_meta__rate : Parameter="Rating"; Method=Method_Binary; break;
+        case Elements::moov_meta__rtng : Parameter="Rating"; Method=Method_Binary; break;
+        case Elements::moov_meta__sdes : Parameter="Description"; Method=Method_String; break;
+        case Elements::moov_meta__sfID : Parameter="AppleStoreCountry"; Method=Method_Binary; break;
+        case Elements::moov_meta__soaa : Parameter="Album/Performer/Sort"; Method=Method_String; break; //SortAlbumArtist
+        case Elements::moov_meta__soal : Parameter="Album/Sort"; Method=Method_String2; break; //SortAlbum
+        case Elements::moov_meta__soar : Parameter="Performer/Sort"; Method=Method_String; break; //SortArtist
+        case Elements::moov_meta__soco : Parameter="Composer/Sort"; Method=Method_String; break; //SortComposer
+        case Elements::moov_meta__sonm : Parameter="Title/Sort"; Method=Method_String; break; //SortName
+        case Elements::moov_meta__sosn : Parameter="Title/Sort"; Method=Method_String; break; //SortShow
+        case Elements::moov_meta__stik : Parameter="ContentType"; Method=Method_Binary; break;
         case Elements::moov_meta__titl : Parameter="Title"; Method=Method_String2; break;
         case Elements::moov_meta__tool : Parameter="Encoded_Application"; Method=Method_String3; break;
-        case Elements::moov_meta__trkn : Parameter="Track"; Method=Method_Binary; break;
-        case Elements::moov_meta__year : Parameter="Recorded_Date"; Method=Method_String2; break;
         case Elements::moov_meta__tmpo : Parameter="BPM"; Method=Method_Binary; break;
+        case Elements::moov_meta__trkn : Parameter="Track"; Method=Method_Binary; break;
+        case Elements::moov_meta__tven : Parameter="Part_ID"; Method=Method_Binary; break; //TVEpisodeID
+        case Elements::moov_meta__tves : Parameter="Part"; Method=Method_String; break; //TVEpisode
+        case Elements::moov_meta__tvnn : Parameter="TVNetworkName"; Method=Method_String; break;
+        case Elements::moov_meta__tvsh : Parameter="Title"; Method=Method_String; break; //TVShow
+        case Elements::moov_meta__tvsn : Parameter="Season"; Method=Method_String; break; //TVSeason
+        case Elements::moov_meta__xid_ : Parameter="Vendor"; Method=Method_String; break;
+        case Elements::moov_meta__year : Parameter="Recorded_Date"; Method=Method_String2; break;
+        case Elements::moov_meta__yyrc : Parameter="Recorded_Date"; Method=Method_String2; break;
         default :
             {
                 Parameter.clear();
@@ -1739,6 +1918,8 @@ File_Mpeg4::method File_Mpeg4::Metadata_Get(std::string &Parameter, const std::s
          if (Meta=="com.apple.quicktime.copyright") Parameter="Copyright";
     else if (Meta=="com.apple.quicktime.displayname") Parameter="Title";
     else if (Meta=="DATE") Parameter="Encoded_Date";
+    else if (Meta=="iTunEXTC") Parameter="ContentRating";
+    else if (Meta=="iTunMOVI") Parameter="iTunMOVI";
     else if (Meta=="iTunNORM") Parameter="";
     else if (Meta=="iTunes_CDDB_IDs") Parameter="";
     else if (Meta=="iTunSMPB") Parameter="";
@@ -1754,6 +1935,7 @@ void File_Mpeg4::Descriptors()
     //Preparing
     File_Mpeg4_Descriptors MI;
     MI.KindOfStream=StreamKind_Last;
+    MI.PosOfStream=StreamPos_Last;
     MI.Parser_DoNotFreeIt=true;
 
     int64u Elemen_Code_Save=Element_Code;

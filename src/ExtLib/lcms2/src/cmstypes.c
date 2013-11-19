@@ -1360,6 +1360,9 @@ void *Type_Measurement_Read(struct _cms_typehandler_struct* self, cmsIOHANDLER* 
 {
     cmsICCMeasurementConditions mc;
 
+	
+    memset(&mc, 0, sizeof(mc));
+	
     if (!_cmsReadUInt32Number(io, &mc.Observer)) return NULL;
     if (!_cmsReadXYZNumber(io,    &mc.Backing)) return NULL;
     if (!_cmsReadUInt32Number(io, &mc.Geometry)) return NULL;
@@ -1792,9 +1795,16 @@ void *Type_LUT8_Read(struct _cms_typehandler_struct* self, cmsIOHANDLER* io, cms
         if (T  == NULL) goto Error;
 
         Temp = (cmsUInt8Number*) _cmsMalloc(self ->ContextID, nTabSize);
-        if (Temp == NULL) goto Error;
+        if (Temp == NULL) {
+            _cmsFree(self ->ContextID, T);
+            goto Error;
+        }
 
-        if (io ->Read(io, Temp, nTabSize, 1) != 1) goto Error;
+        if (io ->Read(io, Temp, nTabSize, 1) != 1) {
+            _cmsFree(self ->ContextID, T);
+            _cmsFree(self ->ContextID, Temp);
+            goto Error;
+        }
 
         for (i = 0; i < nTabSize; i++) {
 
@@ -2339,27 +2349,30 @@ cmsStage* ReadCLUT(struct _cms_typehandler_struct* self, cmsIOHANDLER* io, cmsUI
     // Precision can be 1 or 2 bytes
     if (Precision == 1) {
 
-       cmsUInt8Number  v;
+        cmsUInt8Number  v;
 
         for (i=0; i < Data ->nEntries; i++) {
 
-                if (io ->Read(io, &v, sizeof(cmsUInt8Number), 1) != 1) return NULL;
-                Data ->Tab.T[i] = FROM_8_TO_16(v);
+            if (io ->Read(io, &v, sizeof(cmsUInt8Number), 1) != 1) return NULL;
+            Data ->Tab.T[i] = FROM_8_TO_16(v);
         }
 
     }
     else
         if (Precision == 2) {
 
-            if (!_cmsReadUInt16Array(io, Data->nEntries, Data ->Tab.T)) return NULL;
-    }
-    else {
-        cmsSignalError(self ->ContextID, cmsERROR_UNKNOWN_EXTENSION, "Unknown precision of '%d'", Precision);
-        return NULL;
-    }
+            if (!_cmsReadUInt16Array(io, Data->nEntries, Data ->Tab.T)) {
+                cmsStageFree(CLUT);
+                return NULL;
+            }
+        }
+        else {
+            cmsStageFree(CLUT);
+            cmsSignalError(self ->ContextID, cmsERROR_UNKNOWN_EXTENSION, "Unknown precision of '%d'", Precision);
+            return NULL;
+        }
 
-
-    return CLUT;
+        return CLUT;
 }
 
 static
@@ -5086,14 +5099,22 @@ void *Type_Dictionary_Read(struct _cms_typehandler_struct* self, cmsIOHANDLER* i
             if (!ReadOneMLUC(self, io, &a.DisplayValue, i, &DisplayValueMLU)) goto Error;
         }
 
-        rc = cmsDictAddEntry(hDict, NameWCS, ValueWCS, DisplayNameMLU, DisplayValueMLU);
+        if (NameWCS == NULL || ValueWCS == NULL) {
+        
+            cmsSignalError(self->ContextID, cmsERROR_CORRUPTION_DETECTED, "Bad dictionary Name/Value");        
+            rc = FALSE;
+        }
+        else {
+
+            rc = cmsDictAddEntry(hDict, NameWCS, ValueWCS, DisplayNameMLU, DisplayValueMLU);
+        }
 
         if (NameWCS != NULL) _cmsFree(self ->ContextID, NameWCS);
         if (ValueWCS != NULL) _cmsFree(self ->ContextID, ValueWCS);
         if (DisplayNameMLU != NULL) cmsMLUfree(DisplayNameMLU);
         if (DisplayValueMLU != NULL) cmsMLUfree(DisplayValueMLU);
 
-        if (!rc) return FALSE;
+        if (!rc) goto Error;
     }
 
    FreeArray(&a);

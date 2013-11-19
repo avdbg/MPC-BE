@@ -38,8 +38,10 @@
     <ProjectGuid>{D0620EF4-1313-40D5-9069-A82F6FE26994}</ProjectGuid>
     <RootNamespace>MpcAudioRenderer</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <ProjectName>MpcAudioRenderer</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="..\..\..\platform.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseOfMfc>Static</UseOfMfc>
@@ -117,11 +119,6 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Filter|Win32'">$(SolutionDir)bin\Filters_x86_Debug\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Filter|x64'">$(SolutionDir)bin\Filters_x64_Debug\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release Filter|Win32'">$(SolutionDir)bin\Filters_x86\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release Filter|x64'">$(SolutionDir)bin\Filters_x64\</OutDir>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug Filter|Win32'">.ax</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release Filter|Win32'">.ax</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug Filter|x64'">.ax</TargetExt>
@@ -132,8 +129,11 @@
       <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\ExtLib;..\..\..\ExtLib\ffmpeg;..\..\..\AudioTools;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dsound.lib;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ignore:4049 /ignore:4217 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>libgcc.a;libmingwex.a;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>MpcAudioRenderer.def</ModuleDefinitionFile>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\..\..\..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -144,8 +144,11 @@
       <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\ExtLib;..\..\..\ExtLib\ffmpeg;..\..\..\AudioTools;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dsound.lib;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ignore:4049 /ignore:4217 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>libgcc.a;libmingwex.a;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>MpcAudioRenderer.def</ModuleDefinitionFile>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\..\..\..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -156,8 +159,11 @@
       <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\ExtLib;..\..\..\ExtLib\ffmpeg;..\..\..\AudioTools;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dsound.lib;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ignore:4049 /ignore:4217 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>libgcc.a;libmingwex.a;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>MpcAudioRenderer.def</ModuleDefinitionFile>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\..\..\..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -168,8 +174,11 @@
       <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\ExtLib;..\..\..\ExtLib\ffmpeg;..\..\..\AudioTools;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dsound.lib;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ignore:4049 /ignore:4217 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>libgcc.a;libmingwex.a;Winmm.lib;vfw32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>MpcAudioRenderer.def</ModuleDefinitionFile>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\..\..\..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -181,7 +190,7 @@
       <PreprocessorDefinitions>_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -190,7 +199,7 @@
       <PreprocessorDefinitions>_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -199,7 +208,7 @@
       <PreprocessorDefinitions>_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -208,19 +217,10 @@
       <PreprocessorDefinitions>_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxctrlcontainer.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug' or '$(Configuration)'=='Release'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxglobals.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug' or '$(Configuration)'=='Release'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\winmdi.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug' or '$(Configuration)'=='Release'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="MpcAudioRenderer.cpp" />
     <ClCompile Include="MpcAudioRendererSettingsWnd.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -245,22 +245,19 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\AudioTools\AudioTools.vcxproj">
+      <Project>{1b6de4c0-9d27-4150-a327-e7f3b492b5f0}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\DSUtil\DSUtil.vcxproj">
       <Project>{fc70988b-1ae5-4381-866d-4f405e28ac42}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\ExtLib\SoundTouch\source\SoundTouch.vcxproj">
-      <Project>{68a5dd20-7057-448b-8fe0-b6ac8d205509}</Project>
+    <ProjectReference Include="..\..\..\ExtLib\ffmpeg\ffmpeg.vcxproj">
+      <Project>{438286b7-a9f4-411d-bcc5-948c40e37d8f}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\ExtLib\BaseClasses\BaseClasses.vcxproj">
       <Project>{e8a3f6fa-ae1c-4c8e-a0b6-9c8480324eaa}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\ExtLib\VirtualDub\Kasumi\Kasumi.vcxproj">
-      <Project>{0d252872-7542-4232-8d02-53f9182aee15}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\ExtLib\VirtualDub\system\system.vcxproj">
-      <Project>{c2082189-3ecb-4079-91fa-89d3c8a305c0}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\filters\Filters.vcxproj">
       <Project>{273b3149-3192-4b75-a791-470320b90812}</Project>

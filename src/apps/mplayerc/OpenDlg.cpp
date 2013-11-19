@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -27,6 +25,7 @@
 #include <dlgs.h>
 #include "OpenDlg.h"
 #include "PlayerYouTube.h"
+#include "MainFrm.h"
 
 // COpenDlg dialog
 
@@ -240,6 +239,10 @@ void COpenDlg::OnBnClickedOk()
 
 	if (m_mrucombo2.IsWindowEnabled()) {
 		m_fns.AddTail(m_path2);
+
+		if (::PathFileExists(m_path2)) {
+			((CMainFrame*)AfxGetMainWnd())->AddAudioPathsAddons(m_path2);
+		}
 	}
 
 	m_fMultipleFiles = false;
@@ -251,7 +254,7 @@ void COpenDlg::OnUpdateDub(CCmdUI* pCmdUI)
 {
 	UpdateData();
 
-	pCmdUI->Enable(AfxGetAppSettings().m_Formats.GetEngine(m_path) == DirectShow
+	pCmdUI->Enable(AfxGetAppSettings().GetRtspEngine(m_path) == DirectShow
 					&& ((CString(m_path).MakeLower().Find(_T("://"))) == -1));
 }
 
@@ -297,15 +300,17 @@ COpenFileDlg::COpenFileDlg(CAtlArray<CString>& mask, bool fAllowDirSelection, LP
 
 	str = GetFolderOnly(str);
 
-	m_InitialDir = DNew TCHAR[max(1000, str.GetLength() + 1)];
-	memset(m_InitialDir, 0, sizeof(m_InitialDir));
+	int size = max(1000, str.GetLength() + 1);
+	m_InitialDir = DNew TCHAR[size];
+	memset(m_InitialDir, 0, size * sizeof(TCHAR));
 	_tcscpy(m_InitialDir, str);
 	m_pOFN->lpstrInitialDir = m_InitialDir;
 
-	m_buff = DNew TCHAR[10000];
-	memset(m_buff, 0, sizeof(m_buff));
-	m_pOFN->lpstrFile = m_buff;
-	m_pOFN->nMaxFile = 10000;
+	size = 10000;
+	m_buff = DNew TCHAR[size];
+	memset(m_buff, 0, size * sizeof(TCHAR));
+	m_pOFN->lpstrFile	= m_buff;
+	m_pOFN->nMaxFile	= size;
 }
 
 COpenFileDlg::~COpenFileDlg()

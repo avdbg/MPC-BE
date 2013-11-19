@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -51,9 +49,7 @@ void CPacketQueue::Add(CAutoPtr<Packet> p)
 			size_t newsize = tail->GetCount() + p->GetCount();
 			tail->SetCount(newsize, max(1024, (int)newsize)); // doubles the reserved buffer size
 			memcpy(tail->GetData() + oldsize, p->GetData(), p->GetCount());
-			/*
-			GetTail()->Append(*p); // too slow
-			*/
+			//GetTail()->Append(*p); // too slow
 			return;
 		}
 	}
@@ -526,9 +522,11 @@ HRESULT CBaseSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 		return S_OK;
 	}
 
-	if (p->rtStart != INVALID_TIME && ((static_cast<CBaseSplitterFilter*>(m_pFilter))->GetFlag() & PACKET_PTS_DISCONTINUITY)) {
+	DWORD nFlag = (static_cast<CBaseSplitterFilter*>(m_pFilter))->GetFlag();
+
+	if (p->rtStart != INVALID_TIME && (nFlag & PACKET_PTS_DISCONTINUITY)) {
 		// Filter invalid PTS value (if too different from previous packet)
-		if (!IsDiscontinuous() && m_rtPrev != INVALID_TIME && p->rtStart > 0) {
+		if (!IsDiscontinuous() && !((nFlag & PACKET_PTS_VALIDATE_POSITIVE) && p->rtStart < 0)) {
 			REFERENCE_TIME rt = p->rtStart + m_rtOffset;
 			if (_abs64(rt - m_rtPrev) > MAX_PTS_SHIFT) {
 				m_rtOffset += m_rtPrev - rt;
@@ -1269,11 +1267,10 @@ STDMETHODIMP CBaseSplitterFilter::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYP
 	m_fn = pszFileName;
 	HRESULT hr = E_FAIL;
 	CComPtr<IAsyncReader> pAsyncReader;
-	CHdmvClipInfo::CPlaylist Items;
 	CHdmvClipInfo::CPlaylistChapter Chapters;
 
-	if (BuildPlaylist(pszFileName, Items)) {
-		pAsyncReader = (IAsyncReader*)DNew CAsyncFileReader(Items, hr);
+	if (BuildPlaylist(pszFileName, m_Items)) {
+		pAsyncReader = (IAsyncReader*)DNew CAsyncFileReader(m_Items, hr);
 	} else {
 		pAsyncReader = (IAsyncReader*)DNew CAsyncFileReader(CString(pszFileName), hr);
 	}
@@ -1285,7 +1282,7 @@ STDMETHODIMP CBaseSplitterFilter::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYP
 		return hr;
 	}
 
-	if (BuildChapters(pszFileName, Items, Chapters)) {
+	if (BuildChapters(pszFileName, m_Items, Chapters)) {
 		POSITION pos	= Chapters.GetHeadPosition();
 		int	i			= 1;
 		while (pos) {
@@ -1320,7 +1317,7 @@ STDMETHODIMP CBaseSplitterFilter::GetCurFile(LPOLESTR* ppszFileName, AM_MEDIA_TY
 LPCTSTR CBaseSplitterFilter::GetPartFilename(IAsyncReader* pAsyncReader)
 {
 	CComQIPtr<IFileHandle>	pFH = pAsyncReader;
-	return pFH ? pFH->GetFileName() : m_fn;
+	return pFH && pFH->IsValidFilename() ? pFH->GetFileName() : m_fn;
 }
 
 // IMediaSeeking
@@ -1643,4 +1640,28 @@ STDMETHODIMP CBaseSplitterFilter::GetStatus(int i, int& samples, int& size)
 STDMETHODIMP_(DWORD) CBaseSplitterFilter::GetPriority()
 {
 	return m_priority;
+}
+
+__int64 CBaseSplitterFilter::SeekBD(REFERENCE_TIME rt)
+{
+	if (m_Items.GetCount()) {
+		POSITION pos = m_Items.GetHeadPosition();
+		while (pos) {
+			CHdmvClipInfo::PlaylistItem* Item = m_Items.GetNext(pos);
+			if (rt >= Item->m_rtStartTime && rt <= (Item->m_rtStartTime + Item->Duration())) {
+				REFERENCE_TIME _rt = rt - Item->m_rtStartTime + Item->m_rtIn;
+				for (size_t idx = 0; idx < Item->m_sps.GetCount() - 1; idx++) {
+					if (_rt < Item->m_sps[idx].rt) {
+						if (idx > 0) {
+							idx--;
+						}
+
+						return Item->m_sps[idx].fp + Item->m_SizeIn;
+					}
+				}
+			}
+		}
+	}
+
+	return -1;
 }

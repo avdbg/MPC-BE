@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -42,7 +40,6 @@ private:
 	int			iMute;
 
 	CImageList	*m_pButtonsImages;
-	CImageList	*m_pButtonDXVA;
 	HICON		m_hDXVAIcon;
 
 	int iDXVAIconHeight;

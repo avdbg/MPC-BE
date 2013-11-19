@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -54,8 +52,6 @@ typedef struct {
 	CComPtr<IMediaSample>		pSample;		// Only for DXVA2 !
 	REFERENCE_TIME				rtStart;
 	REFERENCE_TIME				rtStop;
-	FF_FIELD_TYPE				n1FieldType;	// Top or bottom for the 1st field
-	FF_SLICE_TYPE				nSliceType;
 	int							nCodecSpecific;
 	DWORD						dwDisplayCount;
 } PICTURE_STORE;
@@ -119,7 +115,7 @@ protected :
 	};
 
 	// === Picture store functions
-	bool						AddToStore (int nSurfaceIndex, IMediaSample* pSample, bool bRefPicture, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop, bool bIsField, FF_FIELD_TYPE nFieldType, FF_SLICE_TYPE nSliceType, int nCodecSpecific);
+	bool						AddToStore (int nSurfaceIndex, IMediaSample* pSample, bool bRefPicture, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop, bool bIsField, int nCodecSpecific);
 	void						UpdateStore (int nSurfaceIndex, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop);
 	void						RemoveRefFrame (int nSurfaceIndex);
 	HRESULT						DisplayNextFrame();

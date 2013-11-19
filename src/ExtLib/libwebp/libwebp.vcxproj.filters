@@ -41,6 +41,15 @@
     <ClInclude Include="webp\mux_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="dec\alphai.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\alpha_processing.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\random.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dec\alpha.c">
@@ -185,6 +194,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="utils\quant_levels_dec.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\alpha_processing.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\random.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

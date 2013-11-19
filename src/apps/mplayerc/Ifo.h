@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,9 +23,10 @@
 
 // TODO: remove this when it's fixed in MSVC
 // Work around warning C4005: 'XXXX' : macro redefinition
+#pragma warning(push)
 #pragma warning(disable: 4005)
 #include <stdint.h>
-#pragma warning(default: 4005)
+#pragma warning(pop)
 
 #pragma pack(1)
 

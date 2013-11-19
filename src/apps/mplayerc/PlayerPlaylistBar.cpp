@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -31,6 +29,19 @@
 #include "PlayerPlaylistBar.h"
 #include "SettingsDefines.h"
 #include "OpenDlg.h"
+
+static CString MakePath(CString path)
+{
+	if (path.Find(L"://") >= 0) { // skip URLs
+		return path;
+	}
+
+	path.Replace('/', '\\');
+
+	CPath c(path);
+	c.Canonicalize();
+	return CString(c);
+}
 
 UINT CPlaylistItem::m_globalid  = 0;
 
@@ -87,14 +98,6 @@ POSITION CPlaylistItem::FindFile(LPCTSTR path)
 	return(NULL);
 }
 
-static CString StripPath(CString path)
-{
-	CString p = path;
-	p.Replace('\\', '/');
-	p = p.Mid(p.ReverseFind('/')+1);
-	return(p.IsEmpty() ? path : p);
-}
-
 CString CPlaylistItem::GetLabel(int i)
 {
 	CString str;
@@ -103,7 +106,7 @@ CString CPlaylistItem::GetLabel(int i)
 		if (!m_label.IsEmpty()) {
 			str = m_label;
 		} else if (!m_fns.IsEmpty()) {
-			str = StripPath(m_fns.GetHead());
+			str = GetFileOnly(m_fns.GetHead());
 		}
 	} else if (i == 1) {
 		if (m_fInvalid) {
@@ -165,12 +168,6 @@ void StringToPaths(const CString& curentdir, const CString& str, CAtlArray<CStri
 
 bool isSubExt(const CString& ext)
 {
-	static const TCHAR* subext[] = {
-		_T("srt"), _T("sub"), _T("smi"), _T("psb"),
-		_T("ssa"), _T("ass"), _T("idx"), _T("usf"),
-		_T("xss"), _T("txt"), _T("rt"), _T("sup")
-	};
-
 	for (size_t i = 0; i < _countof(subext); i++) {
 		if (ext.CompareNoCase(subext[i]) == 0) {
 			return true;
@@ -200,22 +197,39 @@ void CPlaylistItem::AutoLoadFiles()
 		name.Truncate(n);
 	}
 
-	if (AfxGetAppSettings().fAutoloadAudio) {
-		CAtlArray<CString> paths;
-		StringToPaths(curdir, AfxGetAppSettings().strAudioPaths, paths);
+	CString BDLabel, empty;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm) {
+		pMainFrm->MakeBDLabel(fn, empty, &BDLabel);
+	}
 
-		CMediaFormats& mf = AfxGetAppSettings().m_Formats;
+	AppSettings& s = AfxGetAppSettings();
+
+	if (s.fAutoloadAudio) {
+		CAtlArray<CString> paths;
+		StringToPaths(curdir, s.strAudioPaths, paths);
+
+		CAtlList<CString>* sl = &s.slAudioPathsAddons;
+		POSITION pos = sl->GetHeadPosition();
+		while (pos) {
+			paths.Add(sl->GetNext(pos));
+		}
+
+		CMediaFormats& mf = s.m_Formats;
 		if (!mf.FindExt(ext, true)) {
 			for (size_t i = 0; i < paths.GetCount(); i++) {
 				WIN32_FIND_DATA fd = {0};
 
 				HANDLE hFind;
-				for (int j = 1; j <= 2; j++) {
-					if (j == 1) {
-						hFind = FindFirstFile(paths[i] + name + _T(".*"), &fd);
-					} else { // if (j == 2) {
-						hFind = FindFirstFile(paths[i] + name + _T(".*.*"), &fd);
-					}
+				CAtlArray<CString> searchPattern;
+				searchPattern.Add(paths[i] + name + _T(".*"));
+				searchPattern.Add(paths[i] + name + _T(".*.*"));
+				if (BDLabel.GetLength() > 0) {
+					searchPattern.Add(paths[i] + BDLabel + _T(".*"));
+					searchPattern.Add(paths[i] + BDLabel + _T(".*.*"));
+				}
+				for (size_t j = 0; j < searchPattern.GetCount() - 1; j++) {
+					hFind = FindFirstFile(searchPattern[j], &fd);
 
 					if (hFind != INVALID_HANDLE_VALUE) {
 						do {
@@ -231,7 +245,7 @@ void CPlaylistItem::AutoLoadFiles()
 							ext2 = ext2.Mid(n + 1).MakeLower();
 							CString fullpath = paths[i] + fd.cFileName;
 
-							if (ext != ext2 && mf.FindExt(ext2, true) && !FindFileInList(m_fns, fullpath) && mf.IsUsingEngine(fullpath, DirectShow)) {
+							if (ext != ext2 && mf.FindExt(ext2, true) && !FindFileInList(m_fns, fullpath) && s.IsUsingRtspEngine(fullpath, DirectShow)) {
 								m_fns.AddTail(fullpath);
 							}
 						} while (FindNextFile(hFind, &fd));
@@ -243,21 +257,29 @@ void CPlaylistItem::AutoLoadFiles()
 		}
 	}
 
-	if (AfxGetAppSettings().fAutoloadSubtitles) {
+	if (s.fAutoloadSubtitles) {
 		CAtlArray<CString> paths;
-		StringToPaths(curdir, AfxGetAppSettings().strSubtitlePaths, paths);
+		StringToPaths(curdir, s.strSubtitlePaths, paths);
+
+		CAtlList<CString>* sl = &s.slSubtitlePathsAddons;
+		POSITION pos = sl->GetHeadPosition();
+		while (pos) {
+			paths.Add(sl->GetNext(pos));
+		}
 
 		for (size_t i = 0; i < paths.GetCount(); i++) {
 			WIN32_FIND_DATA fd = {0};
 
 			HANDLE hFind;
-			for (int j = 1; j <= 2; j++) {
-				if (j == 1) {
-					hFind = FindFirstFile(paths[i] + name + _T(".*"), &fd);
-				} else { // if (j == 2) {
-					hFind = FindFirstFile(paths[i] + name + _T(".*.*"), &fd);
-				}
-
+			CAtlArray<CString> searchPattern;
+			searchPattern.Add(paths[i] + name + _T(".*"));
+			searchPattern.Add(paths[i] + name + _T(".*.*"));
+			if (BDLabel.GetLength() > 0) {
+				searchPattern.Add(paths[i] + BDLabel + _T(".*"));
+				searchPattern.Add(paths[i] + BDLabel + _T(".*.*"));
+			}
+			for (size_t j = 0; j < searchPattern.GetCount() - 1; j++) {
+				hFind = FindFirstFile(searchPattern[j], &fd);
 				if (hFind != INVALID_HANDLE_VALUE) {
 					do {
 						if (fd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY) {
@@ -570,7 +592,7 @@ BOOL CPlayerPlaylistBar::PreTranslateMessage(MSG* pMsg)
 						for (int nItem = 0; nItem < m_list.GetItemCount(); nItem++) {
 							m_list.SetItemState(nItem, ~m_list.GetItemState(nItem, LVIS_SELECTED), LVIS_SELECTED);
 						}
-					}					   
+					}
 					break;
 			}
 		}
@@ -629,7 +651,7 @@ void CPlayerPlaylistBar::AddItem(CAtlList<CString>& fns, CAtlList<CString>* subs
 	while (pos) {
 		CString fn = fns.GetNext(pos);
 		if (!fn.Trim().IsEmpty()) {
-			pli.m_fns.AddTail(fn);
+			pli.m_fns.AddTail(MakePath(fn));
 		}
 	}
 
@@ -878,7 +900,7 @@ bool CPlayerPlaylistBar::ParseMPCPlayList(CString fn)
 			} else if (key == _T("time")) {
 				pli[i].m_duration = StringToReftime2(value);
 			} else if (key == _T("filename")) {
-				value = CombinePath(base, value);
+				value = MakePath(CombinePath(base, value));
 				pli[i].m_fns.AddTail(value);
 			} else if (key == _T("subtitle")) {
 				value = CombinePath(base, value);
@@ -1028,17 +1050,22 @@ bool CPlayerPlaylistBar::ParseM3UPlayList(CString fn)
 				pli->m_label = str.Trim();
 			}
 		} else {
-			pli->m_fns.AddTail(CombinePath(base, str));
+			CString fullPath = MakePath(CombinePath(base, str));
+			if (GetFileExt(fullPath).MakeLower() == L".m3u") {
+				SAFE_DELETE(pli);
+
+				ParseM3UPlayList(fullPath);
+				continue;
+			}
+
+			pli->m_fns.AddTail(MakePath(CombinePath(base, str)));
 			m_pl.AddTail(*pli);
 
-			delete pli;
-			pli = NULL;
+			SAFE_DELETE(pli);
 		}
 	}
 
-	if (pli) {
-		delete pli;
-	}
+	SAFE_DELETE(pli);
 
 	return (m_pl.GetCount() > c);
 }
@@ -1089,6 +1116,36 @@ void CPlayerPlaylistBar::Append(CAtlList<CString>& fns, bool fMulti, CAtlList<CS
 	Refresh();
 	EnsureVisible(m_pl.FindIndex(idx + 1));
 	SavePlaylist();
+}
+
+bool CPlayerPlaylistBar::Replace(CString filename, CAtlList<CString>& fns)
+{
+	if (filename.IsEmpty()) {
+		return false;
+	}
+
+	CPlaylistItem pli;
+	POSITION pos = fns.GetHeadPosition();
+	while (pos) {
+		CString fn = fns.GetNext(pos);
+		if (!fn.Trim().IsEmpty()) {
+			pli.m_fns.AddTail(MakePath(fn));
+		}
+	}
+	pli.AutoLoadFiles();
+
+	pos = m_pl.GetHeadPosition();
+	while (pos) {
+		CPlaylistItem& pli2 = m_pl.GetAt(pos);
+		if (pli2.FindFile(filename)) {
+			m_pl.SetAt(pos, pli);
+			m_pl.SetPos(pos);
+			EnsureVisible(pos, false);
+			return true;
+		}
+		m_pl.GetNext(pos);
+	}
+	return false;
 }
 
 void CPlayerPlaylistBar::Open(CStringW vdn, CStringW adn, int vinput, int vchannel, int ainput)
@@ -1373,9 +1430,9 @@ OpenMediaData* CPlayerPlaylistBar::GetCurOMD(REFERENCE_TIME rtStart)
 	return NULL;
 }
 
-bool CPlayerPlaylistBar::SelectFileInPlaylist(LPCTSTR filename)
+bool CPlayerPlaylistBar::SelectFileInPlaylist(CString filename)
 {
-	if (!filename) {
+	if (filename.IsEmpty()) {
 		return false;
 	}
 	POSITION pos = m_pl.GetHeadPosition();
@@ -1391,7 +1448,7 @@ bool CPlayerPlaylistBar::SelectFileInPlaylist(LPCTSTR filename)
 	return false;
 }
 
-void CPlayerPlaylistBar::LoadPlaylist(LPCTSTR filename)
+void CPlayerPlaylistBar::LoadPlaylist(CString filename)
 {
 	CString base;
 
@@ -2152,7 +2209,7 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
 
 			if (idx == 2) {
 				f.WriteString(_T("[playlist]\n"));
-			} else if (idx == 2) {
+			} else if (idx == 3) {
 				f.WriteString(_T("#EXTM3U\n"));
 			} else if (idx == 4) {
 				f.WriteString(_T("<ASX version = \"3.0\">\n"));

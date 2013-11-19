@@ -22,8 +22,10 @@
     <ProjectGuid>{40177920-A66C-4647-B119-332A10224C83}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Bento4</RootNamespace>
+    <ProjectName>Bento4</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="..\..\platform.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
@@ -132,6 +134,7 @@
     <ClInclude Include="Core\Ap4HdlrAtom.h" />
     <ClInclude Include="Core\Ap4HintTrackReader.h" />
     <ClInclude Include="Core\Ap4HmhdAtom.h" />
+    <ClInclude Include="Core\Ap4HvcCAtom.h" />
     <ClInclude Include="Core\Ap4IkmsAtom.h" />
     <ClInclude Include="Core\Ap4Interfaces.h" />
     <ClInclude Include="Core\Ap4IsfmAtom.h" />
@@ -207,6 +210,7 @@
     <ClCompile Include="Core\Ap4HdlrAtom.cpp" />
     <ClCompile Include="Core\Ap4HintTrackReader.cpp" />
     <ClCompile Include="Core\Ap4HmhdAtom.cpp" />
+    <ClCompile Include="Core\Ap4HvcCAtom.cpp" />
     <ClCompile Include="Core\Ap4IkmsAtom.cpp" />
     <ClCompile Include="Core\Ap4IsfmAtom.cpp" />
     <ClCompile Include="Core\Ap4IsmaCryp.cpp" />

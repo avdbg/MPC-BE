@@ -2150,9 +2150,9 @@ void CookPointers(cmsIT8* it8)
 
         if (cmsstrcasecmp(Fld, "SAMPLE_ID") == 0) {
 
-                    t -> SampleID = idField;
+            t -> SampleID = idField;
 
-        for (i=0; i < t -> nPatches; i++) {
+            for (i=0; i < t -> nPatches; i++) {
 
                 char *Data = GetData(it8, i, idField);
                 if (Data) {
@@ -2167,7 +2167,7 @@ void CookPointers(cmsIT8* it8)
                         SetData(it8, i, idField, Buffer);
 
                 }
-                }
+            }
 
         }
 
@@ -2766,7 +2766,7 @@ void CMSEXPORT cmsIT8DefineDblFormat(cmsHANDLE hIT8, const char* Formatter)
     if (Formatter == NULL)
         strcpy(it8->DoubleFormatter, DEFAULT_DBL_FORMAT);
     else
-        strcpy(it8->DoubleFormatter, Formatter);
+        strncpy(it8->DoubleFormatter, Formatter, sizeof(it8->DoubleFormatter));
 
     it8 ->DoubleFormatter[sizeof(it8 ->DoubleFormatter)-1] = 0;
 }

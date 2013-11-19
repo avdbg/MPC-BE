@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -26,7 +24,6 @@
 #include "../../filters/InternalPropertyPage.h"
 #include "MpaDecFilter.h"
 #include "resource.h"
-#include <afxcmn.h>
 
 class __declspec(uuid("24103041-884B-4772-B0D3-A600E7CBFEC7"))
 	CMpaDecSettingsWnd : public CInternalPropertyPageWnd

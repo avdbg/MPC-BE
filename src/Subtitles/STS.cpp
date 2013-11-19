@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -2654,7 +2652,7 @@ bool CSimpleTextSubtitle::Open(CTextFile* f, int CharSet, CString name)
 		ChangeUnknownStylesToDefault();
 
 		if (m_dstScreenSize == CSize(0, 0)) {
-			m_dstScreenSize = CSize(384, 288);
+			m_dstScreenSize = DEFSCREENSIZE;
 		}
 
 		return true;

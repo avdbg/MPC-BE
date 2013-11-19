@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,9 +23,9 @@
 
 enum MPCSampleFormat {
 	SF_PCM16 = 0,
+	SF_PCM24,
 	SF_PCM32,
 	SF_FLOAT,
-	SF_PCM24,
 	sfcount
 };
 

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2010-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -22,24 +20,26 @@
 
 #pragma once
 
-enum {
-	MODE_NONE = 0,
+enum WASAPI_MODE {
 	MODE_WASAPI_EXCLUSIVE,
-	MODE_WASAPI_EXCLUSIVE_BITSTREAM,
 	MODE_WASAPI_SHARED,
-	MODE_DIRECTSOUND
+	MODE_WASAPI_EXCLUSIVE_BITSTREAM,
+	MODE_NONE
 };
 
 interface __declspec(uuid("495D2C66-D430-439b-9DEE-40F9B7929BBA"))
 IMpcAudioRendererFilter :
 public IUnknown {
-	STDMETHOD(Apply()) = 0;
+	STDMETHOD(Apply()) PURE;
 
-	STDMETHOD(SetWasapiMode(INT nValue)) = 0;
-	STDMETHOD_(INT, GetWasapiMode()) = 0;
-	STDMETHOD(SetMuteFastForward(BOOL nValue)) = 0;
-	STDMETHOD_(BOOL, GetMuteFastForward()) = 0;
-	STDMETHOD(SetSoundDevice(CString nValue)) = 0;
-	STDMETHOD_(CString, GetSoundDevice()) = 0;
-	STDMETHOD_(UINT, GetMode()) = 0;
+	STDMETHOD(SetWasapiMode(INT nValue)) PURE;
+	STDMETHOD_(INT, GetWasapiMode()) PURE;
+	STDMETHOD(SetSoundDevice(CString nValue)) PURE;
+	STDMETHOD_(CString, GetSoundDevice()) PURE;
+	STDMETHOD_(UINT, GetMode()) PURE;
+	STDMETHOD(GetStatus(WAVEFORMATEX** ppWfxIn, WAVEFORMATEX** ppWfxOut)) PURE;
+	STDMETHOD(SetBitExactOutput(BOOL nValue)) PURE;
+	STDMETHOD_(BOOL, GetBitExactOutput()) PURE;
+	STDMETHOD(SetSystemLayoutChannels(BOOL nValue)) PURE;
+	STDMETHOD_(BOOL, GetSystemLayoutChannels()) PURE;
 };

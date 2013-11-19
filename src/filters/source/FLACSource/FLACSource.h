@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -77,10 +75,6 @@ public:
 
 	// CBaseFilter
 	STDMETHODIMP QueryFilterInfo(FILTER_INFO* pInfo);
-
-	// IDSMResourceBag
-	STDMETHODIMP_(DWORD) ResGetCount();
-	STDMETHODIMP ResGet(DWORD iIndex, BSTR* ppName, BSTR* ppDesc, BSTR* ppMime, BYTE** ppData, DWORD* pDataLen, DWORD_PTR* pTag);
 };
 
 class CGolombBuffer;

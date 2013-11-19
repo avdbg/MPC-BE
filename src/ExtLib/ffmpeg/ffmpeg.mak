@@ -1,8 +1,9 @@
-BIN_DIR  = ../../../bin
+BIN_DIR  = ../../../bin13
 ZLIB_DIR = ../zlib
 OPENJPEG_DIR = ../openjpeg
 OPUS_DIR = ../opus
 SPEEX_DIR = ../speex
+VPX_DIR = ../vpx
 
 ifeq ($(64BIT),yes)
 	MY_ARCH = x64
@@ -16,12 +17,20 @@ else
 	MY_DIR_PREFIX = Release
 endif
 
+ifeq ($(VS2010),yes)
+	BIN_DIR  = ../../../bin
+endif
+
+ifeq ($(VS2012),yes)
+	BIN_DIR  = ../../../bin12
+endif
+
 OBJ_DIR		= $(BIN_DIR)/obj/$(MY_DIR_PREFIX)_$(MY_ARCH)/ffmpeg/
 TARGET_LIB_DIR = $(BIN_DIR)/lib/$(MY_DIR_PREFIX)_$(MY_ARCH)
 TARGET_LIB	 = $(TARGET_LIB_DIR)/ffmpeg.lib
 
 # Compiler and yasm flags
-CFLAGS	= -I. -I.. -Ilibavcodec -Ilibavutil -I$(ZLIB_DIR) -I$(OPENJPEG_DIR) -I$(OPUS_DIR) -I$(SPEEX_DIR)\
+CFLAGS	= -I. -I.. -Ilibavcodec -Ilibavutil -I$(ZLIB_DIR) -I$(OPENJPEG_DIR) -I$(OPUS_DIR) -I$(SPEEX_DIR) -I$(VPX_DIR)\
 		-DHAVE_AV_CONFIG_H -D_ISOC99_SOURCE -D_XOPEN_SOURCE=600 \
 		-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 \
 		-O2 -ffast-math -fomit-frame-pointer \
@@ -49,6 +58,7 @@ endif
 
 # Object directories
 OBJ_DIRS = $(OBJ_DIR) \
+	$(OBJ_DIR)compat \
 	$(OBJ_DIR)libavcodec \
 	$(OBJ_DIR)libavcodec/x86 \
 	$(OBJ_DIR)libavresample \
@@ -93,6 +103,7 @@ SRCS_C = \
 	libavcodec/acelp_pitch_delay.c \
 	libavcodec/acelp_vectors.c \
 	libavcodec/adpcm.c \
+	libavcodec/aic.c \
 	libavcodec/adpcm_data.c \
 	libavcodec/alac.c \
 	libavcodec/alac_data.c \
@@ -141,9 +152,14 @@ SRCS_C = \
 	libavcodec/eac3enc.c \
 	libavcodec/eac3dec.c \
 	libavcodec/error_resilience.c \
+	libavcodec/exif.c \
 	libavcodec/faandct.c \
 	libavcodec/faanidct.c \
 	libavcodec/fft.c \
+	libavcodec/fft_fixed.c \
+	libavcodec/fft_fixed_32.c \
+	libavcodec/fft_float.c \
+	libavcodec/fft_init_table.c \
 	libavcodec/flac.c \
 	libavcodec/flacdata.c \
 	libavcodec/flacdec.c \
@@ -154,15 +170,18 @@ SRCS_C = \
 	libavcodec/fmtconvert.c \
 	libavcodec/frame_thread_encoder.c \
 	libavcodec/fraps.c \
+	libavcodec/g2meet.c \
 	libavcodec/golomb.c \
 	libavcodec/h263.c \
 	libavcodec/h263_parser.c \
 	libavcodec/h263dec.c \
+	libavcodec/h263dsp.c \
 	libavcodec/h264.c \
 	libavcodec/h264_cabac.c \
 	libavcodec/h264_cavlc.c \
 	libavcodec/h264_direct.c \
 	libavcodec/h264_loopfilter.c \
+	libavcodec/h264_mp4toannexb_bsf.c \
 	libavcodec/h264_parser.c \
 	libavcodec/h264_ps.c \
 	libavcodec/h264_refs.c \
@@ -172,6 +191,16 @@ SRCS_C = \
 	libavcodec/h264idct.c \
 	libavcodec/h264pred.c \
 	libavcodec/h264qpel.c \
+	libavcodec/hevc.c \
+	libavcodec/hevc_cabac.c \
+	libavcodec/hevc_filter.c \
+	libavcodec/hevc_mvs.c \
+	libavcodec/hevc_parser.c \
+	libavcodec/hevc_ps.c \
+	libavcodec/hevc_refs.c \
+	libavcodec/hevc_sei.c \
+	libavcodec/hevcdsp.c \
+	libavcodec/hevcpred.c \
 	libavcodec/hpeldsp.c \
 	libavcodec/huffman.c \
 	libavcodec/imc.c \
@@ -196,9 +225,13 @@ SRCS_C = \
 	libavcodec/libopus.c \
 	libavcodec/libopusdec.c \
 	libavcodec/libspeexdec.c \
+	libavcodec/libvpxdec.c \
 	libavcodec/lsp.c \
 	libavcodec/mathtables.c \
 	libavcodec/mdct.c \
+	libavcodec/mdct_fixed.c \
+	libavcodec/mdct_fixed_32.c \
+	libavcodec/mdct_float.c \
 	libavcodec/mjpeg.c \
 	libavcodec/mjpegbdec.c \
 	libavcodec/mjpegdec.c \
@@ -241,6 +274,7 @@ SRCS_C = \
 	libavcodec/mss3.c \
 	libavcodec/mss34dsp.c \
 	libavcodec/mss4.c \
+	libavcodec/msvideo1.c \
 	libavcodec/nellymoser.c \
 	libavcodec/nellymoserdec.c \
 	libavcodec/options.c \
@@ -249,6 +283,8 @@ SRCS_C = \
 	libavcodec/pngdec.c \
 	libavcodec/pngdsp.c \
 	libavcodec/pthread.c \
+	libavcodec/pthread_frame.c \
+	libavcodec/pthread_slice.c \
 	libavcodec/qdm2.c \
 	libavcodec/qtrle.c \
 	libavcodec/proresdata.c \
@@ -280,10 +316,17 @@ SRCS_C = \
 	libavcodec/svq1dec.c \
 	libavcodec/svq3.c \
 	libavcodec/synth_filter.c \
+	libavcodec/tak.c \
+	libavcodec/tak_parser.c \
+	libavcodec/takdec.c \
+	libavcodec/tiff.c \
+	libavcodec/tiff_common.c \
+	libavcodec/tiff_data.c \
 	libavcodec/truespeech.c \
 	libavcodec/tscc.c \
 	libavcodec/tscc2.c \
 	libavcodec/tta.c \
+	libavcodec/ttadata.c \
 	libavcodec/utvideo.c \
 	libavcodec/utvideodec.c \
 	libavcodec/utils.c \
@@ -322,14 +365,17 @@ SRCS_C = \
 	libavcodec/xiph.c \
 	libavcodec/x86/ac3dsp_init.c \
 	libavcodec/x86/constants.c \
+	libavcodec/x86/dct_init.c \
 	libavcodec/x86/dirac_dwt.c \
 	libavcodec/x86/diracdsp_mmx.c \
 	libavcodec/x86/dsputil_init.c \
 	libavcodec/x86/dsputil_mmx.c \
+	libavcodec/x86/dsputil_x86.c \
 	libavcodec/x86/fdct.c \
 	libavcodec/x86/fft_init.c \
 	libavcodec/x86/fmtconvert_init.c \
 	libavcodec/x86/fpel_mmx.c \
+	libavcodec/x86/h263dsp_init.c \
 	libavcodec/x86/h264_intrapred_init.c \
 	libavcodec/x86/h264chroma_init.c \
 	libavcodec/x86/h264dsp_init.c \
@@ -356,7 +402,7 @@ SRCS_C = \
 	libavcodec/x86/videodsp_init.c \
 	libavcodec/x86/vorbisdsp_init.c \
 	libavcodec/x86/vp3dsp_init.c \
-	libavcodec/x86/vp56dsp_init.c \
+	libavcodec/x86/vp6dsp_init.c \
 	libavcodec/x86/vp8dsp_init.c \
 	libavresample/audio_convert.c \
 	libavresample/audio_data.c \
@@ -381,12 +427,15 @@ SRCS_C = \
 	libavutil/error.c \
 	libavutil/eval.c \
 	libavutil/fifo.c \
+	libavutil/file_open.c \
 	libavutil/float_dsp.c \
 	libavutil/frame.c \
 	libavutil/imgutils.c \
 	libavutil/intfloat_readwrite.c \
 	libavutil/intmath.c \
 	libavutil/lfg.c \
+	libavutil/lls1.c \
+	libavutil/lls2.c \
 	libavutil/log.c \
 	libavutil/log2_tab.c \
 	libavutil/lzo.c \
@@ -404,6 +453,7 @@ SRCS_C = \
 	libavutil/utils.c \
 	libavutil/x86/cpu.c \
 	libavutil/x86/float_dsp_init.c \
+	libavutil/x86/lls_init.c \
 	libswscale/input.c \
 	libswscale/options.c \
 	libswscale/output.c \
@@ -454,8 +504,9 @@ SRCS_YASM = \
 	libavcodec/x86/videodsp.asm \
 	libavcodec/x86/vorbisdsp.asm \
 	libavcodec/x86/vp3dsp.asm \
-	libavcodec/x86/vp56dsp.asm \
+	libavcodec/x86/vp6dsp.asm \
 	libavcodec/x86/vp8dsp.asm \
+	libavcodec/x86/vp8dsp_loopfilter.asm \
 	libavresample/x86/audio_convert.asm \
 	libavresample/x86/audio_mix.asm \
 	libavresample/x86/dither.asm \
@@ -463,6 +514,7 @@ SRCS_YASM = \
 	libavutil/x86/cpuid.asm \
 	libavutil/x86/emms.asm \
 	libavutil/x86/float_dsp.asm \
+	libavutil/x86/lls.asm \
 	libswscale/x86/input.asm \
 	libswscale/x86/output.asm \
 	libswscale/x86/scale.asm

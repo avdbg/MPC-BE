@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2011-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -303,9 +301,9 @@ int ParseMPAHeader(const BYTE* buf, audioframe_t* audioframe)
 		bitrate = mpeg1_rates[3 - layer_desc][bitrate_index];
 	} else { // MPEG Version 2, MPEG Version 2.5
 		if (layer_desc == 0x3) { // Layer 1
-			bitrate = mpeg2_rates[3][bitrate_index];
+			bitrate = mpeg2_rates[0][bitrate_index];
 		} else { // Layer 2, Layer 3
-			bitrate = mpeg2_rates[4][bitrate_index];
+			bitrate = mpeg2_rates[1][bitrate_index];
 		}
 	}
 	bitrate *= 1000;
@@ -695,7 +693,7 @@ int ParseDTSHeader(const BYTE* buf, audioframe_t* audioframe)
 		// [22] 1411200 is actually 1234800 for 14-bit DTS-CD audio
 	};
 
-	int frame_size;
+	int frame_size = 0;
 	DWORD sync = *(DWORD*)buf;
 	switch (sync) {
 		case 0x0180fe7f:    // '7FFE8001' 16 bits and big endian bitstream
@@ -704,16 +702,18 @@ int ParseDTSHeader(const BYTE* buf, audioframe_t* audioframe)
 		case 0x80017ffe:    // 'FE7F0180' 16 bits and little endian bitstream
 			frame_size = ((buf[4] & 3) << 12 | buf[7] << 4 | (buf[6] & 0xf0) >> 4) + 1;
 			break;
-		case 0x00e8ff1f:    // '1FFFE800' 14 bits and big endian bitstream
-			frame_size = ((buf[6] & 3) << 12 | buf[7] << 4 | (buf[8] & 0x3C) >> 2) + 1;
-			frame_size = frame_size * 16 / 14;
+		case 0x00e8ff1f:    // '1FFFE800 07Fx' 14 bits and big endian bitstream
+			if (buf[4] == 0x07 && (buf[5] & 0xf0) == 0xf0) {
+				frame_size = ((buf[6] & 3) << 12 | buf[7] << 4 | (buf[8] & 0x3C) >> 2) + 1;
+				frame_size = frame_size * 16 / 14;
+			}
 			break;
-		case 0xe8001fff:    // 'FF1F00E8' 14 bits and little endian bitstream
-			frame_size = ((buf[7] & 3) << 12 | buf[6] << 4 | (buf[9] & 0x3C) >> 2) + 1;
-			frame_size = frame_size * 16 / 14;
+		case 0xe8001fff:    // 'FF1F00E8 Fx07' 14 bits and little endian bitstream
+			if ((buf[4] & 0xf0) == 0xf0 && buf[5] == 0x07) { //
+				frame_size = ((buf[7] & 3) << 12 | buf[6] << 4 | (buf[9] & 0x3C) >> 2) + 1;
+				frame_size = frame_size * 16 / 14;
+			}
 			break;
-		default:
-			frame_size = 0;
 	}
 
 	if (frame_size < 96) {
@@ -784,8 +784,8 @@ int ParseHdmvLPCMHeader(const BYTE* buf, audioframe_t* audioframe)
 		if (audioframe->channels == 0 || audioframe->samplerate == 0 || audioframe->param1 == 0) {
 			return 0;
 		}
-		audioframe->samples = frame_size  / (((audioframe->channels + 1) & ~1) * ((audioframe->param1 + 7) / 8));
-		audioframe->param2  = 0;
+		audioframe->param2  = ((audioframe->channels + 1) & ~1) * ((audioframe->param1 + 7) / 8); // bytes per frame
+		audioframe->samples = (frame_size - 4) / audioframe->param2;
 	}
 
 	return frame_size;

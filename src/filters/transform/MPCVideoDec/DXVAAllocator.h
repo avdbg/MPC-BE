@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -81,7 +79,7 @@ public:
 	//	CAtlList<int>			m_FreeSurface;
 
 	// *** from LAV
-	STDMETHODIMP_(BOOL) DecommitInProgress() { CAutoLock cal(this); return m_bDecommitInProgress; }
+	STDMETHODIMP_(BOOL) DecommitInProgress() { CAutoLock lock(this); return m_bDecommitInProgress; }
 
 protected:
 	HRESULT		Alloc(void);

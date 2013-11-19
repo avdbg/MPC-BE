@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -24,13 +22,15 @@
 #include "stdafx.h"
 #include "ShockwaveGraph.h"
 #include <math.h>
-
-IMPLEMENT_DYNCREATE(CShockwaveFlash, CWnd)
+#include "..\DSUtil\GolombBuffer.h"
+#include <zlib/zlib.h>
 
 using namespace DSObjects;
 
+
 CShockwaveGraph::CShockwaveGraph(HWND hParent, HRESULT& hr)
 	: m_fs(State_Stopped)
+	, vsize(0, 0)
 {
 	hr = S_OK;
 
@@ -54,6 +54,14 @@ CShockwaveGraph::~CShockwaveGraph()
 	m_wndWindowFrame.DestroyWindow();
 }
 
+static DWORD ReadBuffer(HANDLE hFile, BYTE* pBuff, DWORD nLen)
+{
+	DWORD dwRead;
+	ReadFile(hFile, pBuff, nLen, &dwRead, NULL);
+
+	return dwRead;
+}
+
 // IGraphBuilder
 STDMETHODIMP CShockwaveGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPlayList)
 {
@@ -63,6 +71,113 @@ STDMETHODIMP CShockwaveGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPla
 		e->Delete();
 		return E_FAIL;
 	}
+
+	HANDLE m_hFile = CreateFile(lpcwstrFile, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
+											 OPEN_EXISTING, FILE_ATTRIBUTE_READONLY|FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+
+	if (m_hFile != INVALID_HANDLE_VALUE) {
+		BYTE Buff[128] = {0};
+		ReadBuffer(m_hFile, Buff, 3);	// Signature
+		if (memcmp(Buff, "CWS", 3) == 0 || memcmp(Buff, "FWS", 3) == 0) {
+			CGolombBuffer gb(NULL, 0);
+
+			LARGE_INTEGER size = {0};
+			GetFileSizeEx(m_hFile, &size);
+
+			BYTE ver = 0;
+			ReadBuffer(m_hFile, &ver, 1);
+			DWORD flen = 0;
+			ReadBuffer(m_hFile, (BYTE*)(&flen), sizeof(flen));
+			flen -= 8;
+
+			CAtlArray<BYTE> DecompData;
+
+			if (memcmp(Buff, "CWS", 3) == 0) {
+				if (size.QuadPart < 5*MEGABYTE) {
+
+					DecompData.SetCount(size.QuadPart - 8);
+					DWORD size = ReadBuffer(m_hFile, DecompData.GetData(), DecompData.GetCount());
+
+					if (size == DecompData.GetCount()) {
+						// decompress
+						for (;;) {
+							int res;
+							z_stream d_stream;
+
+							d_stream.zalloc	= (alloc_func)0;
+							d_stream.zfree	= (free_func)0;
+							d_stream.opaque	= (voidpf)0;
+
+							if (Z_OK != (res = inflateInit(&d_stream))) {
+								DecompData.RemoveAll();
+								break;
+							}
+
+							d_stream.next_in	= DecompData.GetData();
+							d_stream.avail_in	= (uInt)DecompData.GetCount();
+
+							BYTE* dst = NULL;
+							int n = 0;
+							do {
+								dst = (unsigned char *)realloc(dst, ++n*1000);
+								d_stream.next_out	= &dst[(n-1)*1000];
+								d_stream.avail_out	= 1000;
+								if (Z_OK != (res = inflate(&d_stream, Z_NO_FLUSH)) && Z_STREAM_END != res) {
+									DecompData.RemoveAll();
+									free(dst);
+									break;
+								}
+							} while (0 == d_stream.avail_out && 0 != d_stream.avail_in && Z_STREAM_END != res);
+
+							inflateEnd(&d_stream);
+
+							DecompData.SetCount(d_stream.total_out);
+							memcpy(DecompData.GetData(), dst, DecompData.GetCount());
+
+							free(dst);
+
+							break;
+						}
+					}
+
+					if (flen == DecompData.GetCount()) {
+						gb.Reset(DecompData.GetData(), min(_countof(Buff), DecompData.GetCount()));
+					}
+				}
+	
+			} else if (memcmp(Buff, "FWS", 3) == 0) {
+				DWORD dwRead = ReadBuffer(m_hFile, Buff, min(_countof(Buff), size.QuadPart));
+				if (dwRead) {
+					gb.Reset(Buff, dwRead);
+				}
+			}
+
+			if (gb.GetSize() > 1) {
+				int Nbits	= (int)gb.BitRead(5);
+				UINT64 Xmin = gb.BitRead(Nbits);
+				UINT64 Xmax = gb.BitRead(Nbits);
+				UINT64 Ymin = gb.BitRead(Nbits);
+				UINT64 Ymax = gb.BitRead(Nbits);
+
+				vsize = CSize((Xmax-Xmin)/20, (Ymax-Ymin)/20);
+			}
+		}
+
+		CloseHandle(m_hFile);
+	}
+
+	// do not trust this value :)
+	if (vsize.cx == 0 || vsize.cy == 0) {
+		vsize.cx = m_wndDestFrame.TGetPropertyAsNumber(L"/", 8);
+		vsize.cy = m_wndDestFrame.TGetPropertyAsNumber(L"/", 9);
+	}
+
+	// default value ...
+	if (vsize.cx == 0 || vsize.cy == 0) {
+		vsize.cx = 640;
+		vsize.cy = 480;
+	}
+
 	return S_OK;
 }
 
@@ -70,10 +185,6 @@ STDMETHODIMP CShockwaveGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPla
 STDMETHODIMP CShockwaveGraph::Run()
 {
 	try {
-		// XXX - Does the following line have some side effect
-		// or is the variable unused?
-		/*long scale_mode = */this->m_wndDestFrame.get_ScaleMode();
-
 		if (m_fs != State_Running) {
 			m_wndDestFrame.Play();
 		}
@@ -83,7 +194,8 @@ STDMETHODIMP CShockwaveGraph::Run()
 	}
 	m_fs = State_Running;
 	m_wndWindowFrame.EnableWindow();
-	//	m_wndDestFrame.EnableWindow();
+	// m_wndDestFrame.EnableWindow();
+
 	return S_OK;
 }
 
@@ -97,6 +209,7 @@ STDMETHODIMP CShockwaveGraph::Pause()
 		e->Delete();
 		return E_FAIL;
 	}
+
 	m_fs = State_Paused;
 	return S_OK;
 }
@@ -109,6 +222,7 @@ STDMETHODIMP CShockwaveGraph::Stop()
 		e->Delete();
 		return E_FAIL;
 	}
+
 	m_fs = State_Stopped;
 	return S_OK;
 }
@@ -124,8 +238,6 @@ STDMETHODIMP CShockwaveGraph::GetState(LONG msTimeout, OAFilterState* pfs)
 			m_fs = State_Stopped;
 		}
 		fs = m_fs;
-		// HACK : Make sure that the movie is running in "show all".
-		m_wndDestFrame.SendMessage( WM_COMMAND, MAKEWPARAM(20034, 0), 0 );
 	} catch (CException* e) {
 		e->Delete();
 		return E_FAIL;
@@ -148,6 +260,7 @@ STDMETHODIMP CShockwaveGraph::GetTimeFormat(GUID* pFormat)
 STDMETHODIMP CShockwaveGraph::GetDuration(LONGLONG* pDuration)
 {
 	CheckPointer(pDuration, E_POINTER);
+
 	*pDuration = 0;
 	try {
 		if (m_wndDestFrame.get_ReadyState() >= READYSTATE_COMPLETE) {
@@ -157,12 +270,14 @@ STDMETHODIMP CShockwaveGraph::GetDuration(LONGLONG* pDuration)
 		e->Delete();
 		return E_FAIL;
 	}
+
 	return S_OK;
 }
 
 STDMETHODIMP CShockwaveGraph::GetCurrentPosition(LONGLONG* pCurrent)
 {
 	CheckPointer(pCurrent, E_POINTER);
+
 	*pCurrent = 0;
 	try {
 		if (m_wndDestFrame.get_ReadyState() >= READYSTATE_COMPLETE) {
@@ -172,6 +287,7 @@ STDMETHODIMP CShockwaveGraph::GetCurrentPosition(LONGLONG* pCurrent)
 		e->Delete();
 		return E_FAIL;
 	}
+
 	return S_OK;
 }
 
@@ -200,12 +316,13 @@ STDMETHODIMP CShockwaveGraph::put_Visible(long Visible)
 	if (IsWindow(m_wndDestFrame.m_hWnd)) {
 		m_wndDestFrame.ShowWindow(Visible == OATRUE ? SW_SHOWNORMAL : SW_HIDE);
 	}
+
 	return S_OK;
 }
 
 STDMETHODIMP CShockwaveGraph::get_Visible(long* pVisible)
 {
-return pVisible ? *pVisible = (m_wndDestFrame.IsWindowVisible() ? OATRUE : OAFALSE), S_OK : E_POINTER;
+	return pVisible ? *pVisible = (m_wndDestFrame.IsWindowVisible() ? OATRUE : OAFALSE), S_OK : E_POINTER;
 }
 
 STDMETHODIMP CShockwaveGraph::SetWindowPosition(long Left, long Top, long Width, long Height)
@@ -229,20 +346,15 @@ STDMETHODIMP CShockwaveGraph::SetDestinationPosition(long Left, long Top, long W
 
 STDMETHODIMP CShockwaveGraph::GetVideoSize(long* pWidth, long* pHeight)
 {
-	if (!pWidth || !pHeight) {
-		return E_POINTER;
-	}
+	CheckPointer(pWidth, E_POINTER);
+	CheckPointer(pHeight, E_POINTER);
+
+	*pWidth		= vsize.cx;
+	*pHeight	= vsize.cy;
 
 	CRect r;
 	m_wndWindowFrame.GetWindowRect(r);
-	if (!r.IsRectEmpty()) {
-		*pWidth = r.Width();
-		*pHeight = r.Height();
-	} else {
-		// no call exists to determine these...
-		*pWidth = 384;//m_wndDestFrame.get_;
-		*pHeight = 288;
-
+	if (r.IsRectEmpty()) {
 		NotifyEvent(EC_BG_AUDIO_CHANGED, 2, 0);
 	}
 
@@ -278,8 +390,12 @@ STDMETHODIMP CShockwaveGraph::get_Volume(long* plVolume)
 // IAMOpenProgress
 STDMETHODIMP CShockwaveGraph::QueryProgress(LONGLONG* pllTotal, LONGLONG* pllCurrent)
 {
+	CheckPointer(pllTotal, E_POINTER);
+	CheckPointer(pllCurrent, E_POINTER);
+
 	*pllTotal = 100;
 	*pllCurrent = m_wndDestFrame.PercentLoaded();
+
 	return S_OK;
 }
 

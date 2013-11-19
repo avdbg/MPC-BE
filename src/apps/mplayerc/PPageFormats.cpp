@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -31,7 +29,6 @@
 
 
 // CPPageFormats dialog
-
 
 CComPtr<IApplicationAssociationRegistration> CPPageFormats::m_pAAR;
 bool CPPageFormats::m_bSetContextFiles = false;
@@ -372,7 +369,7 @@ HRESULT CPPageFormats::RegisterUI()
 {
 	IApplicationAssociationRegistrationUI *pUI = NULL;
 
-	HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistrationUI, 
+	HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistrationUI,
 					NULL,
 					CLSCTX_INPROC,
 					__uuidof(IApplicationAssociationRegistrationUI),
@@ -418,8 +415,6 @@ bool CPPageFormats::RegisterShellExt(LPCTSTR lpszLibrary)
 			}
 
 			CString strParameters;
-			//strParameters.Format(_T(" \"%s\",DllRegisterServer"), lpszLibrary);
-			//Execute(_T("rundll32.exe"), strParameters);
 			strParameters.Format(_T(" /s \"%s\""), lpszLibrary);
 			Execute(_T("regsvr32.exe"), strParameters);
 
@@ -454,8 +449,6 @@ bool CPPageFormats::UnRegisterShellExt(LPCTSTR lpszLibrary)
 	if (hDLL == NULL) {
 		if (::PathFileExists(lpszLibrary)) {
 			CString strParameters;
-			//strParameters.Format(_T(" \"%s\",DllUnregisterServer"), lpszLibrary);
-			//Execute(_T("rundll32.exe"), strParameters);
 			strParameters.Format(_T(" /s /u \"%s\""), lpszLibrary);
 			Execute(_T("regsvr32.exe"), strParameters);
 
@@ -485,6 +478,7 @@ static struct {
 	{"MusicFiles",	" %1",		IDS_AUTOPLAY_PLAYMUSIC},
 	{"CDAudio",		" %1 /cd",	IDS_AUTOPLAY_PLAYAUDIOCD},
 	{"DVDMovie",	" %1 /dvd",	IDS_AUTOPLAY_PLAYDVDMOVIE},
+	{"BluRay",		" %1",		IDS_AUTOPLAY_PLAYBDMOVIE},
 };
 
 void CPPageFormats::AddAutoPlayToRegistry(autoplay_t ap, bool fRegister)
@@ -670,8 +664,8 @@ BOOL CPPageFormats::OnInitDialog()
 
 	AppSettings& s = AfxGetAppSettings();
 	bool fRtspFileExtFirst;
-	engine_t e = s.m_Formats.GetRtspHandler(fRtspFileExtFirst);
-	m_iRtspHandler = (e==RealMedia?0:e==QuickTime?1:2);
+	engine_t e = s.GetRtspHandler(fRtspFileExtFirst);
+	m_iRtspHandler = (e==RealMedia ? 0 : e == QuickTime ? 1 : 2);
 	m_fRtspFileExtFirst = fRtspFileExtFirst;
 
 	UpdateData(FALSE);
@@ -689,26 +683,29 @@ BOOL CPPageFormats::OnInitDialog()
 	CreateToolTip();
 
 	if (IsWinVistaOrLater() && !IsUserAnAdmin()) {
-		GetDlgItem(IDC_BUTTON1)->ShowWindow (SW_HIDE);
-		GetDlgItem(IDC_BUTTON3)->ShowWindow (SW_HIDE);
-		GetDlgItem(IDC_BUTTON4)->ShowWindow (SW_HIDE);
-		GetDlgItem(IDC_BUTTON6)->ShowWindow (SW_HIDE);
-		GetDlgItem(IDC_CHECK1)->EnableWindow (FALSE);
-		GetDlgItem(IDC_CHECK2)->EnableWindow (FALSE);
-		GetDlgItem(IDC_CHECK3)->EnableWindow (FALSE);
-		GetDlgItem(IDC_CHECK4)->EnableWindow (FALSE);
-		GetDlgItem(IDC_CHECK5)->EnableWindow (FALSE);
+		GetDlgItem(IDC_BUTTON1)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_BUTTON3)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_BUTTON4)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_BUTTON6)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_CHECK1)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK2)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK3)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK4)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK5)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK6)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK7)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK8)->EnableWindow(FALSE);
 
-		GetDlgItem(IDC_RADIO1)->EnableWindow (FALSE);
-		GetDlgItem(IDC_RADIO2)->EnableWindow (FALSE);
-		GetDlgItem(IDC_RADIO3)->EnableWindow (FALSE);
+		GetDlgItem(IDC_RADIO1)->EnableWindow(FALSE);
+		GetDlgItem(IDC_RADIO2)->EnableWindow(FALSE);
+		GetDlgItem(IDC_RADIO3)->EnableWindow(FALSE);
 
-		GetDlgItem(IDC_BUTTON5)->ShowWindow (SW_SHOW);
-		GetDlgItem(IDC_BUTTON5)->SendMessage (BCM_SETSHIELD, 0, 1);
+		GetDlgItem(IDC_BUTTON5)->ShowWindow(SW_SHOW);
+		GetDlgItem(IDC_BUTTON5)->SendMessage(BCM_SETSHIELD, 0, 1);
 
 		m_bInsufficientPrivileges = true;
 	} else {
-		GetDlgItem(IDC_BUTTON5)->ShowWindow (SW_HIDE);
+		GetDlgItem(IDC_BUTTON5)->ShowWindow(SW_HIDE);
 	}
 
 	CRegKey key;
@@ -993,16 +990,17 @@ BOOL CPPageFormats::OnApply()
 		SetListItemState(m_list.GetSelectionMark());
 	}
 
-	AddAutoPlayToRegistry(AP_VIDEO, !!m_apvideo.GetCheck());
-	AddAutoPlayToRegistry(AP_MUSIC, !!m_apmusic.GetCheck());
-	AddAutoPlayToRegistry(AP_AUDIOCD, !!m_apaudiocd.GetCheck());
-	AddAutoPlayToRegistry(AP_DVDMOVIE, !!m_apdvd.GetCheck());
+	AddAutoPlayToRegistry(AP_VIDEO,		!!m_apvideo.GetCheck());
+	AddAutoPlayToRegistry(AP_MUSIC,		!!m_apmusic.GetCheck());
+	AddAutoPlayToRegistry(AP_AUDIOCD,	!!m_apaudiocd.GetCheck());
+	AddAutoPlayToRegistry(AP_DVDMOVIE,	!!m_apdvd.GetCheck());
+	AddAutoPlayToRegistry(AP_BDMOVIE,	!!m_apdvd.GetCheck());
 
 	AppSettings& s = AfxGetAppSettings();
-	s.m_Formats.SetRtspHandler(m_iRtspHandler==0?RealMedia:m_iRtspHandler==1?QuickTime:DirectShow, !!m_fRtspFileExtFirst);
+	s.SetRtspHandler(m_iRtspHandler == 0 ? RealMedia : m_iRtspHandler == 1 ? QuickTime:DirectShow, !!m_fRtspFileExtFirst);
 	s.fAssociatedWithIcons = !!m_fAssociatedWithIcons.GetCheck();
 
-	if (m_bFileExtChanged && IsWinEight()) {
+	if (m_bFileExtChanged && IsWinEightOrLater()) {
 		HRESULT hr = RegisterUI();
 		UNREFERENCED_PARAMETER(hr);
 	}
@@ -1147,7 +1145,7 @@ void CPPageFormats::OnBnClickedVideo()
 			SetChecked(i, 0);
 			continue;
 		}
-		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly()?0:1);
+		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly() ? 0 : 1);
 	}
 	m_bFileExtChanged = true;
 
@@ -1164,7 +1162,7 @@ void CPPageFormats::OnBnClickedAudio()
 	CMediaFormats& mf = AfxGetAppSettings().m_Formats;
 
 	for (int i = 0, j = m_list.GetItemCount(); i < j; i++) {
-		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly()?1:0);
+		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly() ? 1 : 0);
 	}
 	m_bFileExtChanged = true;
 

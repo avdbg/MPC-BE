@@ -1,5 +1,4 @@
 /*
- * $Id$
  *
  * Adaptation for MPC-BE (C) 2012 Sergey "Exodus8" (rusguy6@gmail.com)
  *
@@ -156,26 +155,22 @@ CBasePin *CAMRSplitter::GetPin(int n)
 
 HRESULT CAMRSplitter::CheckConnect(PIN_DIRECTION Dir, IPin *pPin)
 {
-	return NOERROR;
+	return S_OK;
 }
 
 HRESULT CAMRSplitter::CheckInputType(const CMediaType* mtIn)
 {
 	if (mtIn->majortype == MEDIATYPE_Stream) {
-		// we are sure we can accept this type
-		if (mtIn->subtype == MEDIASUBTYPE_AMR_Stream) return NOERROR;
-
-		// and we may accept unknown type as well
 		if (mtIn->subtype == MEDIASUBTYPE_None ||
-			mtIn->subtype == MEDIASUBTYPE_NULL ||
-			mtIn->subtype == GUID_NULL
-			) return NOERROR;
-	} else if (mtIn->majortype == GUID_NULL) {
-		return NOERROR;
+			mtIn->subtype == MEDIASUBTYPE_NULL) {
+			return S_OK;
+		}
+	} else if (mtIn->majortype == MEDIASUBTYPE_NULL) {
+		return S_OK;
 	}
 
 	// sorry.. nothing else
-	return E_FAIL;
+	return VFW_E_TYPE_NOT_ACCEPTED;
 }
 
 HRESULT CAMRSplitter::CompleteConnect(PIN_DIRECTION Dir, CBasePin *pCaller, IPin *pReceivePin)

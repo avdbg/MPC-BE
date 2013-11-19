@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -205,45 +203,56 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 
 	// TODO: wrap these graph objects into a class to make it look cleaner
 
-	CComPtr<IGraphBuilder2> pGB;
-	CComQIPtr<IMediaControl> pMC;
-	CComQIPtr<IMediaEventEx> pME;
+	CComPtr<IGraphBuilder2>         m_pGB;
+	CComQIPtr<IMediaControl>        m_pMC;
+	CComQIPtr<IMediaEventEx>        m_pME;
 
-	CComQIPtr<IVideoWindow> pVW;
-	CComQIPtr<IBasicVideo> pBV;
-	CComQIPtr<IBasicAudio> pBA;
-	CComQIPtr<IMediaSeeking> pMS;
-	CComQIPtr<IVideoFrameStep> pFS;
-	CComQIPtr<IQualProp, &IID_IQualProp> pQP;
-	CComQIPtr<IBufferInfo> pBI;
-	CComQIPtr<IAMOpenProgress> pAMOP;
+	CComQIPtr<IVideoWindow>         m_pVW;
+	CComQIPtr<IBasicVideo>          m_pBV;
+	CComQIPtr<IBasicAudio>          m_pBA;
+	CComQIPtr<IMediaSeeking>        m_pMS;
+	CComQIPtr<IVideoFrameStep>      m_pFS;
+	CComQIPtr<IQualProp, &IID_IQualProp> m_pQP;
+	CComQIPtr<IBufferInfo>          m_pBI;
+	CComQIPtr<IAMOpenProgress>      m_pAMOP;
 
-	CComQIPtr<IDvdControl2> pDVDC;
-	CComQIPtr<IDvdInfo2> pDVDI;
+	CComQIPtr<IDvdControl2>         m_pDVDC;
+	CComQIPtr<IDvdInfo2>            m_pDVDI;
 
 	// SmarkSeek
-	CComPtr<IGraphBuilder2> pGB2;
-	CComQIPtr<IMediaControl> pMC2;
-	CComQIPtr<IMediaEventEx> pME2;
-	CComQIPtr<IMediaSeeking> pMS2;
-	CComQIPtr<IVideoWindow> pVW2;
-	CComQIPtr<IBasicVideo> pBV2;
-	CComQIPtr<IVideoFrameStep> pFS2;
-	CComQIPtr<IDvdControl2> pDVDC2;
-	CComQIPtr<IDvdInfo2> pDVDI2; // VtX: поидеи не нужен, но в некоторых местах может понадобиться.
+	CComPtr<IGraphBuilder2>         m_pGB_preview;
+	CComQIPtr<IMediaControl>        m_pMC_preview;
+	CComQIPtr<IMediaEventEx>        m_pME_preview;
+	CComQIPtr<IMediaSeeking>        m_pMS_preview;
+	CComQIPtr<IVideoWindow>         m_pVW_preview;
+	CComQIPtr<IBasicVideo>          m_pBV_preview;
+	CComQIPtr<IVideoFrameStep>      m_pFS_preview;
+	CComQIPtr<IDvdControl2>         m_pDVDC_preview;
+	CComQIPtr<IDvdInfo2>            m_pDVDI_preview; // VtX: usually not necessary but may sometimes be necessary.
+	CComPtr<IMFVideoDisplayControl> m_pMFVDC_preview;
+	CComPtr<IMFVideoProcessor>      m_pMFVP_preview;
 	//
 
-	CComPtr<ICaptureGraphBuilder2> pCGB;
-	CStringW m_VidDispName, m_AudDispName;
-	CComPtr<IBaseFilter> pVidCap, pAudCap;
-	CComPtr<IAMVideoCompression> pAMVCCap, pAMVCPrev;
-	CComPtr<IAMStreamConfig> pAMVSCCap, pAMVSCPrev, pAMASC;
-	CComPtr<IAMCrossbar> pAMXBar;
-	CComPtr<IAMTVTuner> pAMTuner;
-	CComPtr<IAMDroppedFrames> pAMDF;
+	CComPtr<ICaptureGraphBuilder2>  pCGB;
+	CStringW                        m_VidDispName, m_AudDispName;
+	CComPtr<IBaseFilter>            pVidCap, pAudCap;
+	CComPtr<IAMVideoCompression>    pAMVCCap, pAMVCPrev;
+	CComPtr<IAMStreamConfig>        pAMVSCCap, pAMVSCPrev, pAMASC;
+	CComPtr<IAMCrossbar>            pAMXBar;
+	CComPtr<IAMTVTuner>             pAMTuner;
+	CComPtr<IAMDroppedFrames>       pAMDF;
 
-	CComPtr<ISubPicAllocatorPresenter> m_pCAP;
+	CComPtr<IVMRMixerControl9>      m_pVMRMC9;
+	CComPtr<IMFVideoDisplayControl> m_pMFVDC;
+	CComPtr<IMFVideoProcessor>      m_pMFVP;
+	CComPtr<IAMLine21Decoder_2>     m_pLN21;
+
+	CComPtr<ISubPicAllocatorPresenter>  m_pCAP;
 	CComPtr<ISubPicAllocatorPresenter2> m_pCAP2;
+
+	CComQIPtr<IBaseFilter> m_pMainSourceFilter;
+
+	CComQIPtr<IFileSourceFilter> m_pMainFSF;
 
 	void SetVolumeBoost(float fAudioBoost_dB);
 	void SetBalance(int balance);
@@ -290,7 +299,6 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 	void SetupRecentFilesSubMenu();
 	void SetupLanguageMenu();
 
-	IBaseFilter* FindSourceSelectableFilter();
 	IBaseFilter* FindSwitcherFilter();
 	void SetupNavStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSelGroup);
 	void OnNavStreamSelectSubMenu(UINT id, DWORD dwSelGroup);
@@ -352,14 +360,12 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 	void SubFlags(CString strname, bool* forced, bool* def);
 	size_t GetSubSelIdx();
 	int cntintsub;
-	int SelSub2;
+	int m_nSelSub2;
 	// chapters (file mode)
 	CComPtr<IDSMChapterBag> m_pCB;
 	void SetupChapters();
 
 	//
-
-	void SetupIViAudReg();
 
 	void AddTextPassThruFilter();
 
@@ -474,7 +480,9 @@ protected:
 	bool			m_fAudioOnly;
 
 	dispmode m_dmBeforeFullscreen;
-	CString m_LastOpenFile, m_LastOpenBDPath;
+	CString m_LastOpenFile;
+
+	CString m_LastOpenBDPath, m_BDLabel;
 	HMONITOR m_LastWindow_HM;
 
 	DVD_DOMAIN m_iDVDDomain;
@@ -528,7 +536,7 @@ protected:
 	DWORD	m_nLastRunTicket;
 
 public:
-	void OpenCurPlaylistItem(REFERENCE_TIME rtStart = INVALID_TIME);
+	BOOL OpenCurPlaylistItem(REFERENCE_TIME rtStart = INVALID_TIME);
 	void OpenMedia(CAutoPtr<OpenMediaData> pOMD);
 	void PlayFavoriteFile(CString fav);
 	void PlayFavoriteDVD(CString fav);
@@ -1030,7 +1038,7 @@ public:
 	CPlayerListCtrl		m_wndListCtrl;
 	CPlayerPlaylistBar	m_wndPlaylistBar;
 	CFlyBar				m_wndFlyBar;
-	CPreView			m_wndView2; // SmartSeek
+	CPreView			m_wndPreView; // SmartSeek
 
 	bool			IsMadVRExclusiveMode;
 
@@ -1048,12 +1056,6 @@ public:
 
 	SIZE			m_fullWndSize;
 	CFullscreenWnd*	m_pFullscreenWnd;
-	CComPtr<IVMRMixerControl9>		m_pMC;
-	CComPtr<IMFVideoDisplayControl>	m_pMFVDC;
-	CComPtr<IMFVideoProcessor>		m_pMFVP;
-	CComPtr<IMFVideoDisplayControl>	m_pMFVDC2;
-	CComPtr<IMFVideoProcessor>		m_pMFVP2;
-	CComPtr<IAMLine21Decoder_2>		m_pLN21;
 	CVMROSD		m_OSD;
 
 	bool		m_bRemainingTime;
@@ -1128,7 +1130,7 @@ public:
 	void		CreateCaptureWindow();
 	MPCPngImage	m_InternalImage, m_InternalImageSmall;
 	bool		m_bInternalImageRes;
-	
+
 	HBITMAP		m_ThumbCashedBitmap;
 	CSize		m_ThumbCashedSize;
 
@@ -1144,27 +1146,44 @@ protected:
 	DWORD m_nMenuHideTick;
 	UINT m_nSeekDirection;
 
-	int		previous_renderer; // MadVR + DVD fix.
-
 	bool	m_fValidDVDOpen;
-
-	IBaseFilter*	GetVSFilter();
-	bool			b_UseVSFilter;
 
 	CComPtr<IBaseFilter> m_pBFmadVR;
 
 	HMODULE			m_hWtsLib;
+
+	CDebugMonitor	m_DebugMonitor;
+
+	static DWORD WINAPI		NotifyRenderThreadEntryPoint(LPVOID lpParameter);
+	DWORD					NotifyRenderThread();
+
+	CStringArray			m_ExtSubFiles;
+	CAtlArray<CTime>		m_ExtSubFilesTime;
+	CStringArray			m_ExtSubPaths;
+	CAtlArray<HANDLE>		m_ExtSubPathsHandles;
+	HANDLE					m_hNotifyRenderThread;
+	HANDLE					m_hStopNotifyRenderThreadEvent;
+	HANDLE					m_hRefreshNotifyRenderThreadEvent;
+
 public:
+#if (_MSC_VER < 1800)
 	afx_msg UINT OnPowerBroadcast(UINT nPowerEvent, UINT nEventData);
+#else
+	afx_msg UINT OnPowerBroadcast(UINT nPowerEvent, LPARAM nEventData);
+#endif
 	afx_msg void OnSessionChange(UINT nSessionState, UINT nId);
 
 	void EnableShaders1(bool enable);
 	void EnableShaders2(bool enable);
 
 	CHdmvClipInfo::CPlaylist m_MPLSPlaylist;
-	bool m_bIsBDPlay;
-	bool OpenBD(CString Path);
+	BOOL m_bIsBDPlay;
+	BOOL OpenBD(CString Path, REFERENCE_TIME rtStart = INVALID_TIME);
 
+	IBaseFilter*	GetVSFilter();
+	bool			b_UseVSFilter;
+
+	bool			b_UseReclock;
 private:
 	typedef enum TH_STATE {TH_START, TH_WORK, TH_CLOSE};
 	TH_STATE	m_fYoutubeThreadWork;
@@ -1188,4 +1207,20 @@ private:
 
 public:
 	UINT		YoutubeThreadProc();
+
+private:
+	int			GetStreamCount(DWORD dwSelGroup);
+
+	DWORD_PTR	m_nMainFilterId;
+
+public:
+	BOOL		CheckMainFilter(IBaseFilter* pBF);
+
+	void		AddSubtitlePathsAddons(CString FileName);
+	void		AddAudioPathsAddons(CString FileName);
+
+	void		MakeBDLabel(CString path, CString& label, CString* pBDlabel = NULL);
+	void		MakeDVDLabel(CString& label, CString* pDVDlabel = NULL);
+
+	CString		GetCurFileName();
 };

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -26,7 +24,6 @@
 #include "../../filters/InternalPropertyPage.h"
 #include "IMpeg2DecFilter.h"
 #include "resource.h"
-#include <afxcmn.h>
 
 class __declspec(uuid("E5FB6957-65E6-491B-BB37-B25C9FE3BEA7"))
 	CMpeg2DecSettingsWnd : public CInternalPropertyPageWnd

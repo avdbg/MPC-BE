@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -21,6 +19,8 @@
  */
 
 #pragma once
+
+#include "../../DSUtil/HdmvClipInfo.h"
 
 #define FORMAT_VERSION_0			0
 #define FORMAT_VERSION_1			1

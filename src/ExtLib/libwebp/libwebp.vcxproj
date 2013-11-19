@@ -22,8 +22,10 @@
     <ProjectGuid>{46068841-6391-408F-9573-988ADD619379}</ProjectGuid>
     <RootNamespace>libwebp</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <ProjectName>libwebp</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="..\..\platform.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
@@ -61,7 +63,6 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -105,12 +106,15 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="dec\alphai.h" />
     <ClInclude Include="dsp\dsp.h" />
     <ClInclude Include="enc\cost.h" />
     <ClInclude Include="enc\vp8enci.h" />
+    <ClInclude Include="utils\alpha_processing.h" />
     <ClInclude Include="utils\bit_reader.h" />
     <ClInclude Include="utils\bit_writer.h" />
     <ClInclude Include="utils\quant_levels_dec.h" />
+    <ClInclude Include="utils\random.h" />
     <ClInclude Include="webp\decode.h" />
     <ClInclude Include="webp\encode.h" />
     <ClInclude Include="webp\mux_types.h" />
@@ -184,6 +188,7 @@
     <ClCompile Include="enc\tree.c" />
     <ClCompile Include="enc\vp8l.c" />
     <ClCompile Include="enc\webpenc.c" />
+    <ClCompile Include="utils\alpha_processing.c" />
     <ClCompile Include="utils\bit_reader.c" />
     <ClCompile Include="utils\bit_writer.c" />
     <ClCompile Include="utils\color_cache.c" />
@@ -192,6 +197,7 @@
     <ClCompile Include="utils\huffman_encode.c" />
     <ClCompile Include="utils\quant_levels.c" />
     <ClCompile Include="utils\quant_levels_dec.c" />
+    <ClCompile Include="utils\random.c" />
     <ClCompile Include="utils\rescaler.c" />
     <ClCompile Include="utils\thread.c" />
     <ClCompile Include="utils\utils.c" />

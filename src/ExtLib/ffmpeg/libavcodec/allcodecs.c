@@ -48,6 +48,7 @@ void avcodec_register_all(void)
     initialized = 1;
 
     /* video codecs */
+    REGISTER_DECODER (AIC, aic);
     REGISTER_DECODER (AMV, amv);
     REGISTER_DECODER (BINK, bink);
     REGISTER_DECODER (CINEPAK, cinepak);
@@ -59,8 +60,10 @@ void avcodec_register_all(void)
     REGISTER_DECODER (FLASHSV2, flashsv2);
     REGISTER_DECODER (FLV, flv);
     REGISTER_DECODER (FRAPS, fraps);
+    REGISTER_DECODER (G2M, g2m);
     REGISTER_DECODER (H263, h263);
     REGISTER_DECODER (H264, h264);
+    REGISTER_DECODER (HEVC, hevc);
     REGISTER_DECODER (INDEO3, indeo3);
     REGISTER_DECODER (INDEO4, indeo4);
     REGISTER_DECODER (INDEO5, indeo5);
@@ -76,6 +79,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (MSMPEG4V3, msmpeg4v3);
     REGISTER_DECODER (MSS1, mss1);
     REGISTER_DECODER (MSS2, mss2);
+    REGISTER_DECODER (MSVIDEO1, msvideo1);
     REGISTER_DECODER (MTS2, mts2);
     REGISTER_DECODER (QTRLE, qtrle);
     REGISTER_DECODER (PNG, png);
@@ -97,6 +101,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (VP6A, vp6a);
     REGISTER_DECODER (VP6F, vp6f);
     REGISTER_DECODER (VP8, vp8);
+/*  REGISTER_DECODER (VP9, vp9); */
     REGISTER_DECODER (WMV1, wmv1);
     REGISTER_DECODER (WMV2, wmv2);
     REGISTER_DECODER (WMV3, wmv3);
@@ -140,6 +145,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (WMAV2, wmav2);
     REGISTER_DECODER (WMAVOICE, wmavoice);
     REGISTER_DECODER (TTA, tta);
+    REGISTER_DECODER(TAK, tak);
 
     REGISTER_ENCDEC  (AC3, ac3);
     REGISTER_ENCDEC  (EAC3, eac3);
@@ -164,16 +170,19 @@ void avcodec_register_all(void)
     REGISTER_DECODER (ADPCM_YAMAHA, adpcm_yamaha);
 
     /* parsers */
-    REGISTER_PARSER  (AAC_LATM, aac_latm);
-    REGISTER_PARSER  (AC3, ac3);
-    REGISTER_PARSER  (DCA, dca);
-    REGISTER_PARSER  (MLP, mlp);
-    REGISTER_PARSER  (MPEGAUDIO, mpegaudio);
-    REGISTER_PARSER  (H264, h264);
-    REGISTER_PARSER  (MPEGVIDEO, mpegvideo);
+    REGISTER_PARSER (AAC_LATM, aac_latm);
+    REGISTER_PARSER (AC3, ac3);
+    REGISTER_PARSER (DCA, dca);
+    REGISTER_PARSER (MLP, mlp);
+    REGISTER_PARSER (MPEGAUDIO, mpegaudio);
+    REGISTER_PARSER (H264, h264);
+    REGISTER_PARSER(HEVC, hevc);
+    REGISTER_PARSER (MPEGVIDEO, mpegvideo);
+    REGISTER_PARSER (TAK, tak);
 
     /* external libraries */
     REGISTER_DECODER (LIBOPENJPEG, libopenjpeg);
     REGISTER_DECODER (LIBOPUS, libopus);
     REGISTER_DECODER (LIBSPEEX, libspeex);
+    REGISTER_DECODER (LIBVPX_VP9, libvpx_vp9);
 }

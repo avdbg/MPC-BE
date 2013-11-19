@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,10 +21,11 @@
 
 #pragma once
 
-#define AudioSwitcherName L"MPC AudioSwitcher"
-#define AS_MAX_CHANNELS 18
-
 #include "StreamSwitcher.h"
+
+#define AudioSwitcherName L"MPC AudioSwitcher"
+
+#define AS_MAX_CHANNELS 18
 
 interface __declspec(uuid("CEDB2890-53AE-4231-91A3-B0AAFCD1DBDE"))
 IAudioSwitcherFilter :

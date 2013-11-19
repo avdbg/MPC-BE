@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -83,6 +81,7 @@ public:
 
 	CButton m_btnAviCfg;
 	CButton m_btnMpegCfg;
+	CButton m_btnMatroskaCfg;
 	CButton m_btnVideoCfg;
 	CButton m_btnMPEG2Cfg;
 	CButton m_btnAudioCfg;
@@ -104,6 +103,7 @@ public:
 	afx_msg void OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnAviSplitterConfig();
 	afx_msg void OnMpegSplitterConfig();
+	afx_msg void OnMatroskaSplitterConfig();
 	afx_msg void OnVideoDecConfig();
 	afx_msg void OnMPEG2DecConfig();
 	afx_msg void OnAudioDecConfig();

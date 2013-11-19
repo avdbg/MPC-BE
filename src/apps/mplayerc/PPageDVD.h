@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -50,10 +48,8 @@ public:
 	LCID m_idAudioLang;
 	LCID m_idSubtitlesLang;
 
-	BOOL m_fAutoSpeakerConf;
 	BOOL m_fClosedCaptions;
 	BOOL m_fStartMainTitle;
-	BOOL m_fmadVRchange;
 
 	enum { IDD = IDD_PPAGEDVD};
 

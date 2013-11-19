@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -138,7 +136,7 @@ BOOL CSaveImageDialog::OnFileNameOK()
 				m_levelPNG = level;
 			}
 			CoTaskMemFree(result);
-	
+
 			pfdc->Release();
 		}
 	} else {

@@ -1,5 +1,4 @@
 /*
- * $Id$
  *
  * Adaptation for MPC-BE (C) 2012 Dmitry "Vortex" Koteroff (vortex@light-alloy.ru, http://light-alloy.ru)
  *
@@ -184,23 +183,16 @@ HRESULT CMusePackSplitter::CheckInputType(const CMediaType* mtIn)
 
 		// and we may accept unknown type as well
 		if (mtIn->subtype == MEDIASUBTYPE_None ||
-			mtIn->subtype == MEDIASUBTYPE_NULL ||
-			mtIn->subtype == GUID_NULL) {
+			mtIn->subtype == MEDIASUBTYPE_NULL) {
 			return S_OK;
 		}
-	} else if (mtIn->majortype == GUID_NULL) {
+	} else if (mtIn->majortype == MEDIASUBTYPE_NULL) {
 		return S_OK;
 	}
 
 	// sorry.. nothing else
 	return VFW_E_TYPE_NOT_ACCEPTED;
 }
-
-#define APE_TAG_FOOTER_BYTES			32
-#define APE_TAG_VERSION					2000
-
-#define APE_TAG_FLAG_IS_HEADER			(1 << 29)
-#define APE_TAG_FLAG_IS_BINARY			(1 << 1)
 
 HRESULT CMusePackSplitter::CompleteConnect(PIN_DIRECTION Dir, CBasePin *pCaller, IPin *pReceivePin)
 {
@@ -240,61 +232,8 @@ HRESULT CMusePackSplitter::CompleteConnect(PIN_DIRECTION Dir, CBasePin *pCaller,
 					size_t tag_size = APETag->GetTagSize();
 					reader->Seek(file_size - tag_size);
 					BYTE *p = DNew BYTE[tag_size];
-					if (reader->Read(p, tag_size) >= 0) {
-						if (APETag->ReadTags(p, tag_size)) {
-							POSITION pos = APETag->TagItems.GetHeadPosition();
-							while (pos) {
-								CApeTagItem* item = APETag->TagItems.GetAt(pos);
-								CString TagKey = item->GetKey();
-								TagKey.MakeLower();
-
-								if (item->GetType() == CApeTagItem::APE_TYPE_BINARY) {
-									m_CoverMime = _T("");
-									if (!TagKey.IsEmpty()) {
-										CString ext = TagKey.Mid(TagKey.ReverseFind('.')+1);
-										if (ext == _T("jpeg") || ext == _T("jpg")) {
-											m_CoverMime = _T("image/jpeg");
-										} else if (ext == _T("png")) {
-											m_CoverMime = _T("image/png");
-										}
-									}
-
-									if (!m_Cover.GetCount() && !m_CoverMime.IsEmpty()) {
-										m_CoverFileName = TagKey;
-										m_Cover.SetCount(tag_size);
-										memcpy(m_Cover.GetData(), item->GetData(), item->GetDataLen());
-									}
-							
-								} else {
-									CString TagValue = item->GetValue();
-									if (TagKey == _T("cuesheet")) {
-										CAtlList<Chapters> ChaptersList;
-										if (ParseCUESheet(TagValue, ChaptersList)) {
-											ChapRemoveAll();
-											while (ChaptersList.GetCount()) {
-												Chapters cp = ChaptersList.RemoveHead();
-												ChapAppend(cp.rt, cp.name);
-											}
-										}
-									}
-
-									if (TagKey == _T("artist")) {
-										SetProperty(L"AUTH", TagValue);
-									} else if (TagKey == _T("comment")) {
-										SetProperty(L"DESC", TagValue);
-									} else if (TagKey == _T("title")) {
-										SetProperty(L"TITL", TagValue);
-									} else if (TagKey == _T("year")) {
-										SetProperty(L"YEAR", TagValue);
-									} else if (TagKey == _T("album")) {
-										SetProperty(L"ALBUM", TagValue);
-									}
-							
-								}
-
-								APETag->TagItems.GetNext(pos);
-							}
-						}
+					if (reader->Read(p, tag_size) >= 0 && APETag->ReadTags(p, tag_size)) {
+						APETag->ParseTags(this);
 					}
 
 					delete [] p;
@@ -310,7 +249,6 @@ HRESULT CMusePackSplitter::CompleteConnect(PIN_DIRECTION Dir, CBasePin *pCaller,
 		CMusePackOutputPin *opin = DNew CMusePackOutputPin(_T("Outpin"), this, &hr, L"Out", 5);
 		ConfigureMediaType(opin);
 		AddOutputPin(opin);
-
 	}
 
 	return S_OK;
@@ -730,50 +668,6 @@ DWORD CMusePackSplitter::ThreadProc()
 				break;
 		}
 	}
-	return S_OK;
-}
-
-// IDSMResourceBag
-STDMETHODIMP_(DWORD) CMusePackSplitter::ResGetCount()
-{
-	return input ? (m_Cover.IsEmpty() ? 0 : 1) : 0;
-}
-
-STDMETHODIMP CMusePackSplitter::ResGet(DWORD iIndex, BSTR* ppName, BSTR* ppDesc, BSTR* ppMime, BYTE** ppData, DWORD* pDataLen, DWORD_PTR* pTag)
-{
-	if (ppData) {
-		CheckPointer(pDataLen, E_POINTER);
-	}
-
-	if (iIndex) {
-		return E_INVALIDARG;
-	}
-
-	CheckPointer(input, E_NOTIMPL);
-
-	if (m_Cover.IsEmpty()) {
-		return E_NOTIMPL;
-	}
-
-	if (ppName) {
-		*ppName = m_CoverFileName.AllocSysString();
-	}
-	if (ppDesc) {
-		CString str = _T("cover");
-		*ppDesc = str.AllocSysString();
-	}
-	if (ppMime) {
-		CString str = m_CoverMime;
-		*ppMime = str.AllocSysString();
-	}
-	if (ppData) {
-		*pDataLen = (DWORD)m_Cover.GetCount();
-		memcpy(*ppData = (BYTE*)CoTaskMemAlloc(*pDataLen), m_Cover.GetData(), *pDataLen);
-	}
-	if (pTag) {
-		*pTag = 0;
-	}
-
 	return S_OK;
 }
 

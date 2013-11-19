@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,7 +23,7 @@
 
 #include "SettingsDefines.h"
 #include "FilterEnum.h"
-#include "RenderersSettings.h"
+#include "../../filters/renderer/VideoRenderers/RenderersSettings.h"
 #include "../../Subtitles/STS.h"
 #include "MediaFormats.h"
 #include "DVBChannel.h"
@@ -207,7 +205,7 @@ typedef struct {
 	int appcmd;
 	int remcmd;
 	int repcnt;
-}	AccelTbl; 
+}	AccelTbl;
 
 #pragma pack(pop)
 
@@ -441,7 +439,7 @@ public:
 	ULONG				lDVDChapter;
 	DVD_HMSF_TIMECODE	DVDPosition;
 	bool				fStartMainTitle;
-	bool				fmadVRchange;
+	bool				fNormalStartDVD;
 
 	CSize sizeFixedWindow;
 	bool HasFixedWindowSize() const { return sizeFixedWindow.cx > 0 || sizeFixedWindow.cy > 0; }
@@ -482,6 +480,8 @@ public:
 	// Formats
 	CMediaFormats	m_Formats;
 	bool			fAssociatedWithIcons;
+	engine_t		iRtspHandler;
+	bool			fRtspFileExtFirst;
 
 	// Keys
 	CList<wmcmd>	wmcmds;
@@ -528,14 +528,11 @@ public:
 	bool			fReportFailedPins;
 	bool			fAutoloadAudio;
 	CString			strAudioPaths;
-	bool			fAutoloadSubtitles;
-	bool			fBlockVSFilter;
 
 	// DVD/OGM
 	bool			fUseDVDPath;
 	CString			strDVDPath;
 	LCID			idMenuLang, idAudioLang, idSubtitlesLang;
-	bool			fAutoSpeakerConf;
 	bool			fClosedCaptions;
 
 	// Output
@@ -544,7 +541,10 @@ public:
 	int				iRMVideoRendererType;
 	int				iQTVideoRendererType;
 
-	CStringW		strAudioRendererDisplayName;
+	bool			fDualAudioOutput;
+	CString			strAudioRendererDisplayName;
+	CString			strSecondAudioRendererDisplayName;
+
 	bool			fD3DFullscreen;
 	bool			fIsFSWindow;
 
@@ -604,18 +604,21 @@ public:
 	CAutoPtrList<FilterOverride> m_filters;
 
 	// Subtitles
+	bool			fAutoloadSubtitles;
+	bool			fBlockVSFilter;
+	CString			strSubtitlePaths;
+	bool			fPrioritizeExternalSubtitles;
+	bool			fDisableInternalSubtitles;
+	bool			fAutoReloadExtSubtitles;
+	CString			strISDb;
+
+	// Subtitles - Rendering
 	bool			fOverridePlacement;
 	int				nHorPos, nVerPos;
 	int				nSubDelayInterval;
 
-	// Default Style
+	// Subtitles - Default Style
 	STSStyle		subdefstyle;
-
-	// Misc
-	bool			fPrioritizeExternalSubtitles;
-	bool			fDisableInternalSubtitles;
-	CString			strSubtitlePaths;
-	CString			strISDb;
 
 	// Interface
 	bool			fDisableXPToolbars;
@@ -642,6 +645,7 @@ public:
 	bool			fUseWin7TaskBar;
 	int				nOSDSize;
 	CString			strOSDFont;
+	double			scalefont;
 
 	int				iDlgPropX;
 	int				iDlgPropY;
@@ -752,10 +756,11 @@ public:
 	CAtlList<CString> slTMPFilesList;
 
 	CString			strLastOpenFilterDir;
-	CString			strLastOpenSubDir;
 
 	int				iYoutubeTag;
 	int				iYoutubeSource;
+
+	DWORD			nLastFileInfoPage;
 
 private :
 	DVD_POSITION	DvdPosition[MAX_DVD_POSITION];
@@ -788,6 +793,12 @@ public:
 	CDVBChannel*	FindChannelByPref(int nPrefNumber);
 
 	int				GetMultiInst();
+
+	engine_t		GetRtspHandler(bool& lookext);
+	void			SetRtspHandler(engine_t e, bool lookext);
+	bool			IsUsingRtspEngine(CString path, engine_t e);
+	engine_t		GetRtspEngine(CString path);
+
 private:
 	void			UpdateRenderersData(bool fSave);
 	friend	void	CRenderersSettings::UpdateData(bool bSave);
@@ -796,4 +807,6 @@ public:
 	CPerfomanceSettings			PerfomanceSettings;
 	CFiltersPrioritySettings	FiltersPrioritySettings;
 
+	CAtlList<CString>			slSubtitlePathsAddons;
+	CAtlList<CString>			slAudioPathsAddons;
 };

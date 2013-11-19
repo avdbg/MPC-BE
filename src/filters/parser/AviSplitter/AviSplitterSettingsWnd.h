@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.
@@ -25,7 +23,6 @@
 #include "../../filters/InternalPropertyPage.h"
 #include "IAviSplitter.h"
 #include "resource.h"
-#include <afxcmn.h>
 
 class __declspec(uuid("299503E5-F29B-4C63-92B4-EB5CF67BBDA0"))
 	CAviSplitterSettingsWnd : public CInternalPropertyPageWnd

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -38,7 +36,6 @@ static filter_t s_filters[] = {
 	{_T("DTS AudioCD"),           SOURCE_FILTER,  SOURCE, SRC_DTS,        IDS_SRC_DTS},
 	{_T("DTS/AC3"),               SOURCE_FILTER,  SOURCE, SRC_DTSAC3,     0},
 	{_T("DVD Video Title Set"),   SOURCE_FILTER,  SOURCE, SRC_VTS,        IDS_SRC_VTS},
-	{_T("DVD2AVI Project File"),  SOURCE_FILTER,  SOURCE, SRC_D2V,        0},
 	{_T("FLI/FLC"),               SOURCE_FILTER,  SOURCE, SRC_FLIC,       0},
 	{_T("FLAC"),                  SOURCE_FILTER,  SOURCE, SRC_FLAC,       0},
 	{_T("FLV"),                   SOURCE_FILTER,  SOURCE, SRC_FLV,        0},
@@ -48,11 +45,14 @@ static filter_t s_filters[] = {
 	{_T("MPEG PS/TS/PVA"),        SOURCE_FILTER,  SOURCE, SRC_MPEG,       0},
 	{_T("MusePack"),              SOURCE_FILTER,  SOURCE, SRC_MPAC,       0},
 	{_T("Ogg/Opus/Speex"),        SOURCE_FILTER,  SOURCE, SRC_OGG,        0},
+	{_T("RAW Video"),             SOURCE_FILTER,  SOURCE, SRC_RAWVIDEO,   0},
 	{_T("RealMedia"),             SOURCE_FILTER,  SOURCE, SRC_REALMEDIA,  IDS_SRC_REALMEDIA},
 	{_T("RoQ"),                   SOURCE_FILTER,  SOURCE, SRC_ROQ,        IDS_SRC_ROQ},
 	{_T("SHOUTcast"),             SOURCE_FILTER,  SOURCE, SRC_SHOUTCAST,  0},
+	{_T("TAK"),                   SOURCE_FILTER,  SOURCE, SRC_TAK,        0},
 	{_T("TTA"),                   SOURCE_FILTER,  SOURCE, SRC_TTA,        0},
 	{_T("WavPack"),               SOURCE_FILTER,  SOURCE, SRC_WPAC,       0},
+	{_T("UDP/HTTP"),              SOURCE_FILTER,  SOURCE, SRC_UDP,        0},
 
 	// Audio decoder
 	{_T("AAC"),                   FFMPEG_DECODER, AUDIO,  FFM_AAC,        IDS_TRA_FFMPEG,},
@@ -75,6 +75,7 @@ static filter_t s_filters[] = {
 	{_T("QDesign Music Codec 2"), FFMPEG_DECODER, AUDIO,  FFM_QDM2,       IDS_TRA_FFMPEG,},
 	{_T("RealAudio"),             DECODER,        AUDIO,  TRA_RA,         IDS_TRA_RA},
 	{_T("Speex"),                 FFMPEG_DECODER, AUDIO,  FFM_SPEEX,      IDS_TRA_FFMPEG,},
+	{_T("TAK"),                   FFMPEG_DECODER, AUDIO,  FFM_TAK,        IDS_TRA_FFMPEG,},
 	{_T("TTA"),                   FFMPEG_DECODER, AUDIO,  FFM_TTA,        IDS_TRA_FFMPEG,},
 	{_T("Vorbis"),                FFMPEG_DECODER, AUDIO,  FFM_VORBIS,     IDS_TRA_FFMPEG,},
 	{_T("WavPack lossless audio"),FFMPEG_DECODER, AUDIO,  FFM_WPAC,       IDS_TRA_FFMPEG,},
@@ -101,6 +102,7 @@ static filter_t s_filters[] = {
 	{_T("FLV1/4"),                FFMPEG_DECODER, VIDEO,  FFM_FLV4,       IDS_TRA_FFMPEG},
 	{_T("H263"),                  FFMPEG_DECODER, VIDEO,  FFM_H263,       IDS_TRA_FFMPEG},
 	{_T("H264/AVC (FFmpeg)"),     FFMPEG_DECODER, VIDEO,  FFM_H264,       IDS_TRA_FFMPEG},
+	{_T("HEVC (experimental)"),   FFMPEG_DECODER, VIDEO,  FFM_HEVC,       IDS_TRA_FFMPEG},
 	{_T("Indeo 3/4/5"),           FFMPEG_DECODER, VIDEO,  FFM_INDEO,      IDS_TRA_FFMPEG},
 	{_T("Lagarith"),              FFMPEG_DECODER, VIDEO,  FFM_LAGARITH,   IDS_TRA_FFMPEG},
 	{_T("MJPEG"),                 FFMPEG_DECODER, VIDEO,  FFM_MJPEG,      IDS_TRA_FFMPEG},
@@ -116,7 +118,7 @@ static filter_t s_filters[] = {
 	{_T("Ut Video"),              FFMPEG_DECODER, VIDEO,  FFM_UTVD,       IDS_TRA_FFMPEG},
 	{_T("VC1 (FFmpeg)"),          FFMPEG_DECODER, VIDEO,  FFM_VC1,        IDS_TRA_FFMPEG},
 	{_T("VP3/5/6"),               FFMPEG_DECODER, VIDEO,  FFM_VP356,      IDS_TRA_FFMPEG},
-	{_T("VP8"),                   FFMPEG_DECODER, VIDEO,  FFM_VP8,        IDS_TRA_FFMPEG},
+	{_T("VP8/9"),                 FFMPEG_DECODER, VIDEO,  FFM_VP8,        IDS_TRA_FFMPEG},
 	{_T("WMV1/2/3"),              FFMPEG_DECODER, VIDEO,  FFM_WMV,        IDS_TRA_FFMPEG},
 	{_T("Xvid/MPEG-4"),           FFMPEG_DECODER, VIDEO,  FFM_XVID,       IDS_TRA_FFMPEG},
 	{_T("RealVideo"),             FFMPEG_DECODER, VIDEO,  FFM_RV,         IDS_TRA_RV},
@@ -366,6 +368,7 @@ void CPPageInternalFilters::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_TAB1, m_Tab);
 	DDX_Control(pDX, IDC_BUTTON5, m_btnAviCfg);
 	DDX_Control(pDX, IDC_BUTTON1, m_btnMpegCfg);
+	DDX_Control(pDX, IDC_BUTTON6, m_btnMatroskaCfg);
 	DDX_Control(pDX, IDC_BUTTON2, m_btnVideoCfg);
 	DDX_Control(pDX, IDC_BUTTON3, m_btnMPEG2Cfg);
 	DDX_Control(pDX, IDC_BUTTON4, m_btnAudioCfg);
@@ -381,6 +384,7 @@ BEGIN_MESSAGE_MAP(CPPageInternalFilters, CPPageBase)
 	ON_NOTIFY(TCN_SELCHANGE, IDC_TAB1, &CPPageInternalFilters::OnTcnSelchangeTab1)
 	ON_BN_CLICKED(IDC_BUTTON5, OnAviSplitterConfig)
 	ON_BN_CLICKED(IDC_BUTTON1, OnMpegSplitterConfig)
+	ON_BN_CLICKED(IDC_BUTTON6, OnMatroskaSplitterConfig)
 	ON_BN_CLICKED(IDC_BUTTON2, OnVideoDecConfig)
 	ON_BN_CLICKED(IDC_BUTTON3, OnMPEG2DecConfig)
 	ON_BN_CLICKED(IDC_BUTTON4, OnAudioDecConfig)
@@ -454,10 +458,12 @@ BOOL CPPageInternalFilters::OnInitDialog()
 
 	SendMessage (WM_NOTIFY, m_Tab.GetDlgCtrlID(), (LPARAM)&hdr);
 
-	SetClassLongPtr(GetDlgItem(IDC_BUTTON1)->m_hWnd, GCLP_HCURSOR, (long) AfxGetApp()->LoadStandardCursor(IDC_HAND));
-	SetClassLongPtr(GetDlgItem(IDC_BUTTON2)->m_hWnd, GCLP_HCURSOR, (long) AfxGetApp()->LoadStandardCursor(IDC_HAND));
-	SetClassLongPtr(GetDlgItem(IDC_BUTTON3)->m_hWnd, GCLP_HCURSOR, (long) AfxGetApp()->LoadStandardCursor(IDC_HAND));
-	SetClassLongPtr(GetDlgItem(IDC_BUTTON4)->m_hWnd, GCLP_HCURSOR, (long) AfxGetApp()->LoadStandardCursor(IDC_HAND));
+	SetHandCursor(m_hWnd, IDC_BUTTON1);
+	SetHandCursor(m_hWnd, IDC_BUTTON2);
+	SetHandCursor(m_hWnd, IDC_BUTTON3);
+	SetHandCursor(m_hWnd, IDC_BUTTON4);
+	SetHandCursor(m_hWnd, IDC_BUTTON5);
+	SetHandCursor(m_hWnd, IDC_BUTTON6);
 
 	UpdateData(FALSE);
 
@@ -545,6 +551,7 @@ void CPPageInternalFilters::OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult)
 
 			m_btnAviCfg.ShowWindow(SW_SHOW);
 			m_btnMpegCfg.ShowWindow(SW_SHOW);
+			m_btnMatroskaCfg.ShowWindow(SW_SHOW);
 			m_btnVideoCfg.ShowWindow(SW_HIDE);
 			m_btnMPEG2Cfg.ShowWindow(SW_HIDE);
 			m_btnAudioCfg.ShowWindow(SW_HIDE);
@@ -556,6 +563,7 @@ void CPPageInternalFilters::OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult)
 
 			m_btnAviCfg.ShowWindow(SW_HIDE);
 			m_btnMpegCfg.ShowWindow(SW_HIDE);
+			m_btnMatroskaCfg.ShowWindow(SW_HIDE);
 			m_btnVideoCfg.ShowWindow(SW_SHOW);
 			m_btnMPEG2Cfg.ShowWindow(SW_SHOW);
 			m_btnAudioCfg.ShowWindow(SW_HIDE);
@@ -567,6 +575,7 @@ void CPPageInternalFilters::OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult)
 
 			m_btnAviCfg.ShowWindow(SW_HIDE);
 			m_btnMpegCfg.ShowWindow(SW_HIDE);
+			m_btnMatroskaCfg.ShowWindow(SW_HIDE);
 			m_btnVideoCfg.ShowWindow(SW_HIDE);
 			m_btnMPEG2Cfg.ShowWindow(SW_HIDE);
 			m_btnAudioCfg.ShowWindow(SW_SHOW);
@@ -586,6 +595,11 @@ void CPPageInternalFilters::OnAviSplitterConfig()
 void CPPageInternalFilters::OnMpegSplitterConfig()
 {
 	ShowPPage(CreateInstance<CMpegSplitterFilter>);
+}
+
+void CPPageInternalFilters::OnMatroskaSplitterConfig()
+{
+	ShowPPage(CreateInstance<CMatroskaSplitterFilter>);
 }
 
 void CPPageInternalFilters::OnVideoDecConfig()

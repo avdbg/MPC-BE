@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,9 +23,10 @@
 #include <afxwin.h>
 #include "MainFrm.h"
 #include "SubtitleDlDlg.h"
+#include "../../filters/transform/VSFilter/IDirectVobSub.h"
 
-#define UWM_PARSE (WM_USER + 100)
-#define UWM_FAILED (WM_USER + 101)
+#define UWM_PARSE	(WM_USER + 100)
+#define UWM_FAILED	(WM_USER + 101)
 
 CSubtitleDlDlg::CSubtitleDlDlg(CWnd* pParent, const CStringA& url)
 	: CResizableDialog(CSubtitleDlDlg::IDD, pParent),
@@ -127,13 +126,13 @@ bool CSubtitleDlDlg::Parse()
 
 		CStringA titlesA = Implode(m.titles, '|');
 		titlesA.Replace("|", ", ");
-		p.titles = UTF8To16(titlesA);
+		p.titles = UTF8ToString(titlesA);
 		p.checked = false;
 
 		POSITION pos2 = m.subs.GetHeadPosition();
 		while (pos2) {
 			const isdb_subtitle& s = m.subs.GetNext(pos2);
-			p.name = UTF8To16(s.name);
+			p.name = UTF8ToString(s.name);
 			p.language = s.language;
 			p.format = s.format;
 			p.disc.Format(_T("%d/%d"), s.disc_no, s.discs);
@@ -271,10 +270,41 @@ void CSubtitleDlDlg::OnOK()
 		CInternetSession is;
 		CStringA url = "http://" + s.strISDb + "/dl.php?";
 		CStringA args, ticket, str;
-		args.Format("id=%d&ticket=%s", sub.id, UrlEncode(ticket), true);
+		args.Format("id=%d&ticket=%s", sub.id, UrlEncode(ticket));
 		url.Append(args);
 
 		if (OpenUrl(is, CString(url), str)) {
+
+			if (pMF->b_UseVSFilter) {
+				if (CComQIPtr<IDirectVobSub> pDVS = pMF->GetVSFilter()) {
+					TCHAR lpszTempPath[_MAX_PATH] = { 0 };
+					if (::GetTempPath(_MAX_PATH, lpszTempPath)) {
+						CString subFileName(lpszTempPath);
+						subFileName.Append(CString(sub.name));
+						if (::PathFileExists(subFileName)) {
+							::DeleteFile(subFileName);
+						}
+
+						CFile cf;
+						if (cf.Open(subFileName, CFile::modeCreate|CFile::modeWrite|CFile::shareDenyNone)) {
+							cf.Write(str.GetString(), str.GetLength());
+							cf.Close();
+
+							if (SUCCEEDED(pDVS->put_FileName((LPWSTR)(LPCWSTR)subFileName))) {
+								pDVS->put_SelectedLanguage(0);
+								pDVS->put_HideSubtitles(true);
+								pDVS->put_HideSubtitles(false);
+							}
+
+							::DeleteFile(subFileName);
+						}
+					}
+
+					__super::OnOK();
+					return;
+				}
+			}
+
 			CAutoPtr<CRenderedTextSubtitle> pRTS(DNew CRenderedTextSubtitle(&pMF->m_csSubLock, &s.subdefstyle, s.fUseDefaultSubtitlesStyle));
 			if (pRTS && pRTS->Open((BYTE*)(LPCSTR)str, str.GetLength(), DEFAULT_CHARSET, CString(sub.name)) && pRTS->GetStreamCount() > 0) {
 				CComPtr<ISubStream> pSubStream = pRTS.Detach();
@@ -289,6 +319,8 @@ void CSubtitleDlDlg::OnOK()
 
 	if (pSubStreamToSet) {
 		pMF->SetSubtitle(pSubStreamToSet);
+
+		AfxGetAppSettings().fEnableSubtitles = true;
 	}
 
 	__super::OnOK();

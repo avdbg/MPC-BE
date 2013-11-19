@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -115,7 +113,7 @@ STDMETHODIMP CQuicktimeGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPla
 			OSType aTrackType;
 			GetMediaHandlerDescription(aMedia, &aTrackType, 0, 0);
 			if (aTrackType == SoundMediaType) {
-				SampleDescriptionHandle aDesc = (SampleDescriptionHandle)NewHandle(sizeof(aDesc));
+				SampleDescriptionHandle aDesc = (SampleDescriptionHandle)NewHandle(sizeof(*aDesc));
 				GetMediaSampleDescription(aMedia, 1, aDesc);
 				if (GetMoviesError() == noErr) {
 					SoundDescription& desc = **(SoundDescriptionHandle)aDesc;

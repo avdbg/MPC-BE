@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Sergey "Exodus8" (rusguy6@gmail.com)
  *
  * This file is part of MPC-BE.
@@ -54,14 +52,15 @@ String mi_get_lang_file()
 		}
 	}
 
-	return (String)_T("  Config_Text_ColumnSize;30");
+	return _T("  Config_Text_ColumnSize;30");
 }
 
 // CPPageFileMediaInfo dialog
 
 IMPLEMENT_DYNAMIC(CPPageFileMediaInfo, CPropertyPage)
-CPPageFileMediaInfo::CPPageFileMediaInfo(CString fn, IFilterGraph* pFG)
+CPPageFileMediaInfo::CPPageFileMediaInfo(CString fn)
 	: CPropertyPage(CPPageFileMediaInfo::IDD, CPPageFileMediaInfo::IDD)
+	, m_fn(fn)
 	, m_pCFont(NULL)
 {
 }
@@ -118,7 +117,7 @@ BOOL CPPageFileMediaInfo::OnInitDialog()
 	MI.Option(_T("ParseSpeed"), _T("0"));
 	MI.Option(_T("Language"), mi_get_lang_file());
 	MI.Option(_T("Complete"));
-	MI.Open(((CMainFrame*)AfxGetMyApp()->GetMainWnd())->m_strFnFull.GetString());
+	MI.Open(m_fn.GetString());
 	MI_Text = MI.Inform().c_str();
 	MI.Close();
 
@@ -130,21 +129,25 @@ BOOL CPPageFileMediaInfo::OnInitDialog()
 	memset(&lf, 0, sizeof(lf));
 	lf.lfPitchAndFamily = DEFAULT_PITCH | FF_MODERN;
 
-	LPCTSTR fonts[] = { _T("Lucida Console"), _T("Courier New"), _T("") };
-	int fonts_size[] = { -10, -11, -11 };
+	LPCTSTR fonts[] = {_T("Consolas"), _T("Lucida Console"), _T("Courier New"), _T("") };
 
 	UINT i = 0;
 	BOOL success;
 
+	PAINTSTRUCT ps;
+	CDC* cDC = m_mediainfo.BeginPaint(&ps);
+
 	do {
 		_tcscpy_s(lf.lfFaceName, fonts[i]);
-		lf.lfHeight = fonts_size[i];
+		lf.lfHeight = -MulDiv(8, cDC->GetDeviceCaps(LOGPIXELSY), 72);
 		success = IsFontInstalled(fonts[i]) && m_pCFont->CreateFontIndirect(&lf);
 		i++;
 	} while (!success && i < _countof(fonts));
 
 	m_mediainfo.SetFont(m_pCFont);
 	m_mediainfo.SetWindowText(MI_Text);
+
+	m_mediainfo.EndPaint(&ps);
 
 	OldControlProc = (WNDPROC)SetWindowLongPtr(m_mediainfo.m_hWnd, GWLP_WNDPROC, (LONG_PTR)ControlProc);
 

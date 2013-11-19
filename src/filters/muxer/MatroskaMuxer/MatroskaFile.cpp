@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -121,7 +119,7 @@ MatroskaWriter::QWORD CUTF8::Size(bool fWithHeader)
 	}
 
 	MatroskaWriter::QWORD len = 0;
-	len += UTF16To8(*this).GetLength();
+	len += StringToUTF8(*this).GetLength();
 	if (fWithHeader) {
 		len += HeaderSize(len);
 	}
@@ -135,7 +133,7 @@ HRESULT CUTF8::Write(IStream* pStream)
 	}
 
 	HeaderWrite(pStream);
-	CStringA str = UTF16To8(*this);
+	CStringA str = StringToUTF8(*this);
 	return pStream->Write((BYTE*)(LPCSTR)str, str.GetLength(), NULL);
 }
 

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -35,7 +33,15 @@
 #include "../../../DSUtil/FontInstaller.h"
 #include "../apps/mplayerc/SettingsDefines.h"
 
-#define PACKET_PTS_DISCONTINUITY 0x0001
+#define MOVE_TO_H264_START_CODE(b, e)	while(b <= e-4 && !((*(DWORD *)b == 0x01000000) || ((*(DWORD *)b & 0x00FFFFFF) == 0x00010000))) b++; if((b <= e-4) && *(DWORD *)b == 0x01000000) b++;
+#define MOVE_TO_AC3_START_CODE(b, e)	while(b <= e-8 && (*(WORD*)b != 0x770b)) b++;
+#define BSWAP32(x)	((x >> 24) & 0x000000ff) | \
+					((x >>  8) & 0x0000ff00) | \
+					((x <<  8) & 0x00ff0000) | \
+					((x << 24) & 0xff000000);
+
+#define PACKET_PTS_DISCONTINUITY		0x0001
+#define PACKET_PTS_VALIDATE_POSITIVE	0x0002
 
 class Packet : public CAtlArray<BYTE>
 {
@@ -82,7 +88,7 @@ class CBaseSplitterInputPin
 	: public CBasePin
 {
 protected:
-	CComQIPtr<IAsyncReader> m_pAsyncReader;
+	CComQIPtr<IAsyncReader>		m_pAsyncReader;
 
 public:
 	CBaseSplitterInputPin(TCHAR* pName, CBaseSplitterFilter* pFilter, CCritSec* pLock, HRESULT* phr);
@@ -251,7 +257,8 @@ class CBaseSplitterFilter
 
 	CAutoPtrList<CBaseSplitterOutputPin> m_pRetiredOutputs;
 
-	CComQIPtr<ISyncReader> m_pSyncReader;
+	CComQIPtr<ISyncReader>		m_pSyncReader;
+	CHdmvClipInfo::CPlaylist	m_Items;
 
 protected:
 	CStringW m_fn;
@@ -415,4 +422,6 @@ public:
 	DWORD GetMaxQueuePackets() { return m_MaxQueuePackets; }
 
 	DWORD GetFlag() { return m_nFlag; }
+
+	__int64 SeekBD(REFERENCE_TIME rt);
 };

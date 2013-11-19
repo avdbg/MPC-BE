@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -22,27 +20,17 @@
  */
 
 #include "stdafx.h"
-
-#include <math.h>
 #include <MMReg.h>
 #include "AudioSwitcher.h"
 #include "../../../DSUtil/DSUtil.h"
 #include "../../../DSUtil/AudioTools.h"
+#include <math.h>
 
 #define NORMALIZATION_REGAIN_STEP      0.06 // +6%/s
 #define NORMALIZATION_REGAIN_THRESHOLD 0.75
 
 #ifdef REGISTER_FILTER
 
-extern "C" {
-	// Hack to use MinGW64 from 2.x branch
-	void __mingw_raise_matherr(int typ, const char *name, double a1, double a2, double rslt) {}
-	void __mingw_get_msvcrt_handle() {}
-}
-	void* __imp_time64 = _time64;
-#if defined(_WIN64)
-	void* __imp__aligned_malloc = _aligned_malloc;
-#endif
 #include <InitGuid.h>
 #endif
 #include <moreuuids.h>
@@ -123,12 +111,6 @@ STDMETHODIMP CAudioSwitcherFilter::NonDelegatingQueryInterface(REFIID riid, void
 
 HRESULT CAudioSwitcherFilter::CheckMediaType(const CMediaType* pmt)
 {
-	if (pmt->formattype == FORMAT_WaveFormatEx
-			&& ((WAVEFORMATEX*)pmt->pbFormat)->nChannels > 2
-			&& ((WAVEFORMATEX*)pmt->pbFormat)->wFormatTag != WAVE_FORMAT_EXTENSIBLE) {
-		return VFW_E_INVALIDMEDIATYPE;    // stupid iviaudio tries to fool us
-	}
-
 	return (pmt->majortype == MEDIATYPE_Audio
 			&& pmt->formattype == FORMAT_WaveFormatEx
 			&& (((WAVEFORMATEX*)pmt->pbFormat)->wBitsPerSample == 8
@@ -265,8 +247,8 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 	}
 
 	WORD tag = wfe->wFormatTag;
-	bool fPCM = tag == WAVE_FORMAT_PCM || tag == WAVE_FORMAT_EXTENSIBLE && wfex->SubFormat == KSDATAFORMAT_SUBTYPE_PCM;
-	bool fFloat = tag == WAVE_FORMAT_IEEE_FLOAT || tag == WAVE_FORMAT_EXTENSIBLE && wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+	bool fPCM = tag == WAVE_FORMAT_PCM || (tag == WAVE_FORMAT_EXTENSIBLE && wfex->SubFormat == KSDATAFORMAT_SUBTYPE_PCM);
+	bool fFloat = tag == WAVE_FORMAT_IEEE_FLOAT || (tag == WAVE_FORMAT_EXTENSIBLE && wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
 	if (!fPCM && !fFloat) {
 		return __super::Transform(pIn, pOut);
 	}
@@ -340,17 +322,17 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 				}
 			}
 		} else {
-			BYTE* pDataOut = NULL;
-			HRESULT hr;
-			if (FAILED(hr = pOut->GetPointer(&pDataOut)) || !pDataOut) {
-				return hr;
+			BYTE* pDataOut2 = NULL;
+			HRESULT hr2;
+			if (FAILED(hr2 = pOut->GetPointer(&pDataOut2)) || !pDataOut2) {
+				return hr2;
 			}
-			memset(pDataOut, 0, pOut->GetSize());
+			memset(pDataOut2, 0, pOut->GetSize());
 		}
 	} else {
-		HRESULT hr;
-		if (S_OK != (hr = __super::Transform(pIn, pOut))) {
-			return hr;
+		HRESULT hr2;
+		if (S_OK != (hr2 = __super::Transform(pIn, pOut))) {
+			return hr2;
 		}
 	}
 
@@ -359,36 +341,64 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 		double sample_mul = 1.0;
 
 		if (m_fNormalize) {
+			double sample_max = 0.0;
+
 			// calculate max peak
-			double sample_max = 0;
-			for (size_t i = 0; i < samples; i++) {
-				double sample = 0;
-				if (fPCM) {
-					if (wfe->wBitsPerSample == 8) {
-						sample = (double)(int8_t)(pDataOut[i] ^ 0x80) / INT8_MAX;
-					} else if(wfe->wBitsPerSample == 16) {
-						sample = (double)((int16_t*)pDataOut)[i] / INT16_MAX;
-					} else if(wfe->wBitsPerSample == 24) {
-						int32_t i32 = 0;
-						BYTE* p = (BYTE*)(&i32);
+			if (fPCM) {
+				int32_t maxpeak = 0;
+				if (wfe->wBitsPerSample == 8) {
+					for (size_t i = 0; i < samples; i++) {
+						int32_t peak = abs((int8_t)(pDataOut[i] ^ 0x80));
+						if (peak > maxpeak) {
+							maxpeak = peak;
+						}
+					}
+					sample_max = (double)maxpeak / INT8_MAX;
+				} else if (wfe->wBitsPerSample == 16) {
+					for (size_t i = 0; i < samples; i++) {
+						int32_t peak = abs(((int16_t*)pDataOut)[i]);
+						if (peak > maxpeak) {
+							maxpeak = peak;
+						}
+					}
+					sample_max = (double)maxpeak / INT16_MAX;
+				} else if (wfe->wBitsPerSample == 24) {
+					for (size_t i = 0; i < samples; i++) {
+						int32_t peak = 0;
+						BYTE* p = (BYTE*)(&peak);
 						p[1] = pDataOut[i * 3];
 						p[2] = pDataOut[i * 3 + 1];
 						p[3] = pDataOut[i * 3 + 2];
-						sample = (double)i32 / INT32_MAX;
-					} else if(wfe->wBitsPerSample == 32) {
-						sample = (double)((int32_t*)pDataOut)[i] / INT32_MAX;
+						peak = abs(peak);
+						if (peak > maxpeak) {
+							maxpeak = peak;
+						}
 					}
-				} else if (fFloat) {
-					if (wfe->wBitsPerSample == 32) {
-						sample = (double)((float*)pDataOut)[i];
-					} else if(wfe->wBitsPerSample == 64) {
-						sample = ((double*)pDataOut)[i];
+					sample_max = (double)maxpeak / INT32_MAX;
+				} else if (wfe->wBitsPerSample == 32) {
+					for (size_t i = 0; i < samples; i++) {
+						int32_t peak = abs(((int32_t*)pDataOut)[i]);
+						if (peak > maxpeak) {
+							maxpeak = peak;
+						}
 					}
+					sample_max = (double)maxpeak / INT32_MAX;
 				}
-
-				sample = abs(sample);
-				if (sample > sample_max) {
-					sample_max = sample;
+			} else if (fFloat) {
+				if (wfe->wBitsPerSample == 32) {
+					for (size_t i = 0; i < samples; i++) {
+						double sample = (double)abs(((float*)pDataOut)[i]);
+						if (sample > sample_max) {
+							sample_max = sample;
+						}
+					}
+				} else if (wfe->wBitsPerSample == 64) {
+					for (size_t i = 0; i < samples; i++) {
+						double sample = (double)abs(((double*)pDataOut)[i]);
+						if (sample > sample_max) {
+							sample_max = sample;
+						}
+					}
 				}
 			}
 
@@ -481,12 +491,14 @@ CMediaType CAudioSwitcherFilter::CreateNewOutputMediaType(CMediaType mt, long& c
 		}
 	}
 
+	CorrectWaveFormatEx(&mt);
+
 	WAVEFORMATEX* wfeout = (WAVEFORMATEX*)mt.pbFormat;
 
-	int bps = wfe->wBitsPerSample>>3;
-	int len = cbBuffer / (bps*wfe->nChannels);
-	int lenout = (UINT64)len * wfeout->nSamplesPerSec / wfe->nSamplesPerSec;
-	cbBuffer = lenout*bps*wfeout->nChannels;
+	int bps		= wfe->wBitsPerSample>>3;
+	int len		= cbBuffer / (bps*wfe->nChannels);
+	int lenout	= (UINT64)len * wfeout->nSamplesPerSec / wfe->nSamplesPerSec;
+	cbBuffer	= lenout*bps*wfeout->nChannels;
 
 	//	mt.lSampleSize = (ULONG)max(mt.lSampleSize, wfe->nAvgBytesPerSec * rtLen / 10000000i64);
 	//	mt.lSampleSize = (mt.lSampleSize + (wfe->nBlockAlign-1)) & ~(wfe->nBlockAlign-1);

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,7 +21,6 @@
 
 #include "stdafx.h"
 #include <string.h>
-#include <math.h>
 #include <vector>
 #include <algorithm>
 #include <xmmintrin.h>
@@ -1692,7 +1689,7 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
 {
 	CRect bbox(0, 0, 0, 0);
 
-	if (!switchpts || !fBody && !fBorder) {
+	if (!switchpts || (!fBody && !fBorder)) {
 		return bbox;
 	}
 

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -68,6 +66,7 @@
 #define IDS_RS_FORCEDSUBTITLES				_T("ForcedSubtitles")
 #define IDS_RS_PRIORITIZEEXTERNALSUBTITLES	_T("PrioritizeExternalSubtitles")
 #define IDS_RS_DISABLEINTERNALSUBTITLES		_T("DisableInternalSubtitles")
+#define IDS_RS_AUTORELOADEXTSUBTITLES		_T("AutoReloadExtSubtitles")
 #define IDS_RS_SUBTITLEPATHS				_T("SubtitlePaths")
 #define IDS_RS_USEDEFAULTSUBTITLESSTYLE		_T("UseDefaultsubtitlesStyle")
 #define IDS_RS_MPEGINTERLACED				_T("MPEGInterlaced")
@@ -82,7 +81,6 @@
 #define IDS_RS_COLOR_SATURATION				_T("VideoSaturation")
 #define IDS_RS_SHADERLIST					_T("Shaders List")
 #define IDS_RS_TITLEBARTEXTTITLE			_T("TitleBarTextTitle")
-#define IDS_RS_VMR9MIXERYUV					_T("VMRMixerYUV")
 #define IDS_RS_AUDIONORMALIZERECOVER		_T("AudioNormalizeRecover")
 #define IDS_RS_LOOPNUM						_T("LoopNum")
 #define IDS_RS_REWIND						_T("Rewind")
@@ -123,6 +121,8 @@
 #define IDS_RS_REMEMBERWINDOWPOS			_T("RememberWindowPos")
 #define IDS_RS_LASTWINDOWRECT				_T("LastWindowRect")
 #define IDS_RS_AUDIORENDERERTYPE			_T("AudioRendererType")
+#define IDS_RS_SECONDAUDIORENDERER			_T("SecondAudioRenderer")
+#define IDS_RS_DUALAUDIOOUTPUT				_T("DualAudioOtput")
 #define IDS_RS_SPEAKERTOCHANNELMAPPING		_T("SpeakerToChannelMapping")
 #define IDS_RS_SPEAKERCHANNELS				_T("SpeakerChannels")
 #define IDS_RS_CUSTOMCHANNELMAPPING			_T("CustomChannelMapping")
@@ -162,6 +162,8 @@
 #define IDS_RS_JUMPDISTM					_T("JumpDistM")
 #define IDS_RS_JUMPDISTL					_T("JumpDistL")
 #define IDS_RS_REPORTFAILEDPINS				_T("ReportFailedPins")
+#define IDS_RS_RTSPHANDLER					_T("RtspHandler")
+#define IDS_RS_RTSPFILEEXTFIRST				_T("RtspFileExtFirst")
 #define IDS_RS_SRCFILTERS					_T("SrcFilters")
 #define IDS_RS_KEEPHISTORY					_T("KeepHistory")
 #define IDS_RS_LOGOID						_T("LogoID2")
@@ -215,7 +217,8 @@
 #define IDS_RS_WEBDEFINDEX					_T("WebDefIndex")
 #define IDS_RS_LIMITWINDOWPROPORTIONS		_T("LimitWindowProportions")
 #define IDS_RS_LASTUSEDPAGE					_T("LastUsedPage")
-#define IDS_RS_VMR9MIXERMODE				_T("VMR9MixerMode")
+#define IDS_RS_VMRMIXERMODE					_T("VMRMixerMode")
+#define IDS_RS_VMRMIXERYUV					_T("VMRMixerYUV")
 #define IDS_RS_THUMBROWS					_T("ThumbRows")
 #define IDS_RS_THUMBCOLS					_T("ThumbCols")
 #define IDS_RS_THUMBQUALITY					_T("ThumbQuality")
@@ -282,7 +285,6 @@
 #define IDS_RS_USE_FLYBAR_ONTOP				_T("UseFlybarOnTop")
 
 #define IDS_RS_LAST_OPEN_FILTER_DIR			_T("LastOpenFilterDir")
-#define IDS_RS_LAST_OPEN_SUB_DIR			_T("LastOpenSubDir")
 
 #define IDS_RS_YOUTUBE_TAG					_T("YoutubeTag")
 #define IDS_RS_YOUTUBE_SOURCE				_T("YoutubeSourceType")
@@ -295,3 +297,5 @@
 #define IDS_RS_PERFOMANCE_MAXQUEUEPACKETS	_T("MaxQueuePackets")
 
 #define IDS_R_FILTERS_PRIORITY				_T("\\Filters Priority")
+
+#define IDS_RS_LASTFILEINFOPAGE				_T("LastFileInfoPage")

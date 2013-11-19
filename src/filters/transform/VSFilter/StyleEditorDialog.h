@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -24,7 +22,6 @@
 #pragma once
 #include "resource.h"
 #include <afxwin.h>
-#include <afxcmn.h>
 #include "../../../Subtitles/STS.h"
 
 // CColorStatic dialog

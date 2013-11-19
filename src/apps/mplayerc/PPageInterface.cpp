@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -193,26 +191,27 @@ BOOL CPPageInterface::OnApply()
 
 	AppSettings& s = AfxGetAppSettings();
 
-	s.clrFaceABGR		= m_clrFaceABGR;
-	s.clrOutlineABGR	= m_clrOutlineABGR;
-	s.clrFontABGR		= m_clrFontABGR;
-	s.clrGrad1ABGR		= m_clrGrad1ABGR;
-	s.clrGrad2ABGR		= m_clrGrad2ABGR;
-	s.nThemeBrightness	= m_nThemeBrightness;
-	s.nThemeRed			= m_nThemeRed;
-	s.nThemeGreen		= m_nThemeGreen;
-	s.nThemeBlue		= m_nThemeBlue;
-	s.nOSDTransparent	= m_nOSDTransparent;
-	s.fFileNameOnSeekBar = !!m_fFileNameOnSeekBar;
-	s.nOSDBorder = m_OSDBorder;
-	HWND WndToolBar = ((CMainFrame*)AfxGetMainWnd())->m_hWnd_toolbar;
+	s.clrFaceABGR			= m_clrFaceABGR;
+	s.clrOutlineABGR		= m_clrOutlineABGR;
+	s.clrFontABGR			= m_clrFontABGR;
+	s.clrGrad1ABGR			= m_clrGrad1ABGR;
+	s.clrGrad2ABGR			= m_clrGrad2ABGR;
+	s.nThemeBrightness		= m_nThemeBrightness;
+	s.nThemeRed				= m_nThemeRed;
+	s.nThemeGreen			= m_nThemeGreen;
+	s.nThemeBlue			= m_nThemeBlue;
+	s.nOSDTransparent		= m_nOSDTransparent;
+	s.fFileNameOnSeekBar	= !!m_fFileNameOnSeekBar;
+	s.nOSDBorder			= m_OSDBorder;
 
-	if (::IsWindow(WndToolBar) && (s.fDisableXPToolbars != !!m_fDisableXPToolbars)) {
+	HWND WndToolBar			= ((CMainFrame*)AfxGetMainWnd())->m_hWnd_toolbar;
+	BOOL fDisableXPToolbars	= s.fDisableXPToolbars;
+	s.fDisableXPToolbars	= !!m_fDisableXPToolbars;
+	if (::IsWindow(WndToolBar) && (s.fDisableXPToolbars != !!fDisableXPToolbars)) {
 		::PostMessage(WndToolBar,								WM_SIZE, s.nLastWindowType, MAKELPARAM(s.rcLastWindowPos.Width(), s.rcLastWindowPos.Height()));
 		::PostMessage(((CMainFrame*)AfxGetMainWnd())->m_hWnd,	WM_SIZE, s.nLastWindowType, MAKELPARAM(s.rcLastWindowPos.Width(), s.rcLastWindowPos.Height()));
 	}
 
-	s.fDisableXPToolbars	= !!m_fDisableXPToolbars;
 	s.fUseWin7TaskBar		= !!m_fUseWin7TaskBar;
 	s.fUseTimeTooltip		= !!m_fUseTimeTooltip;
 	s.nTimeTooltipPosition	= m_TimeTooltipPosition.GetCurSel();
@@ -220,17 +219,17 @@ BOOL CPPageInterface::OnApply()
 
 	m_FontType.GetLBText(m_FontType.GetCurSel(),s.strOSDFont);
 
-	s.fSmartSeek		= !!m_fSmartSeek;
-	s.fChapterMarker	= !!m_fChapterMarker;
-	s.fFlybar			= !!m_fFlybar;
-	s.fFontShadow		= !!m_fFontShadow;
-	s.fFontAA			= !!m_fFontAA;
+	s.fSmartSeek			= !!m_fSmartSeek;
+	s.fChapterMarker		= !!m_fChapterMarker;
+	s.fFlybar				= !!m_fFlybar;
+	s.fFontShadow			= !!m_fFontShadow;
+	s.fFontAA				= !!m_fFontAA;
 
 	CMainFrame* pFrame = ((CMainFrame*)GetParentFrame());
 
 	if (s.fFlybar && !pFrame->m_wndFlyBar) {
 		pFrame->CreateFlyBar();
-		
+
 	} else if (!s.fFlybar && pFrame->m_wndFlyBar){
 		pFrame->DestroyFlyBar();
 	}
@@ -250,11 +249,11 @@ void CPPageInterface::OnCancel()
 
 	s.nThemeBrightness	= m_nThemeBrightness_Old;
 	s.nThemeRed			= m_nThemeRed_Old;
-	s.nThemeGreen			= m_nThemeGreen_Old;
-	s.nThemeBlue			= m_nThemeBlue_Old;
+	s.nThemeGreen		= m_nThemeGreen_Old;
+	s.nThemeBlue		= m_nThemeBlue_Old;
 	s.nOSDTransparent	= m_nOSDTransparent_Old;
-	s.nOSDBorder = m_OSDBorder_Old;
-	s.fFontShadow = !!m_fFontShadow_Old;
+	s.nOSDBorder		= m_OSDBorder_Old;
+	s.fFontShadow		= !!m_fFontShadow_Old;
 
 	OnThemeChange();
 }
@@ -369,7 +368,7 @@ void CPPageInterface::OnClickClrDefault()
 
 void CPPageInterface::OnClickClrFace()
 {
-	CColorDialog clrpicker;	
+	CColorDialog clrpicker;
 	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrFaceABGR;
 
@@ -384,7 +383,7 @@ void CPPageInterface::OnClickClrFace()
 
 void CPPageInterface::OnClickClrOutline()
 {
-	CColorDialog clrpicker;	
+	CColorDialog clrpicker;
 	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrOutlineABGR;
 
@@ -399,7 +398,7 @@ void CPPageInterface::OnClickClrOutline()
 
 void CPPageInterface::OnClickClrFont()
 {
-	CColorDialog clrpicker;	
+	CColorDialog clrpicker;
 	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrFontABGR;
 
@@ -414,7 +413,7 @@ void CPPageInterface::OnClickClrFont()
 
 void CPPageInterface::OnClickClrGrad1()
 {
-	CColorDialog clrpicker;	
+	CColorDialog clrpicker;
 	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrGrad1ABGR;
 
@@ -429,7 +428,7 @@ void CPPageInterface::OnClickClrGrad1()
 
 void CPPageInterface::OnClickClrGrad2()
 {
-	CColorDialog clrpicker;	
+	CColorDialog clrpicker;
 	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrGrad2ABGR;
 
@@ -461,11 +460,11 @@ void CPPageInterface::OnCustomDrawBtns(NMHDR *pNMHDR, LRESULT *pResult)
 			CPen penFrDisabled (PS_SOLID, 0, GetSysColor(COLOR_BTNSHADOW));
 			CPen *penOld = dc.SelectObject(&penFrEnabled);
 
-			if (CDIS_HOT == pNMCD->uItemState || CDIS_HOT + CDIS_FOCUS == pNMCD->uItemState || CDIS_DISABLED == pNMCD->uItemState) { 
+			if (CDIS_HOT == pNMCD->uItemState || CDIS_HOT + CDIS_FOCUS == pNMCD->uItemState || CDIS_DISABLED == pNMCD->uItemState) {
 				dc.SelectObject(&penFrDisabled);
 			}
 
-			dc.RoundRect(r.left, r.top, r.right, r.bottom, 6, 4);		
+			dc.RoundRect(r.left, r.top, r.right, r.bottom, 6, 4);
 			r.DeflateRect(2,2,2,2);
 			if (pNMCD->dwItemSpec == IDC_BUTTON_CLRFACE) {
 				dc.FillSolidRect(&r, m_clrFaceABGR);
@@ -545,7 +544,7 @@ void CPPageInterface::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 		s.nOSDTransparent	= m_nOSDTransparent;
 		OnChngOSDCombo();
 	}
-	
+
 	SetModified();
 
 	__super::OnHScroll(nSBCode, nPos, pScrollBar);

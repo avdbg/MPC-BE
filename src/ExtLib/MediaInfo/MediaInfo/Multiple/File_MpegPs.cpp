@@ -357,6 +357,10 @@ void File_MpegPs::Streams_Fill_PerStream(size_t StreamID, ps_stream &Temp, kindo
         }
         else
             Count=Merge(*Temp.Parsers[0]);
+
+        Ztring LawRating=Temp.Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+        if (!LawRating.empty())
+            Fill(Stream_General, 0, General_LawRating, LawRating, true);
     }
 
     //By the TS stream_type
@@ -485,6 +489,25 @@ void File_MpegPs::Streams_Fill_PerStream(size_t StreamID, ps_stream &Temp, kindo
                 FrameInfo.PTS+=BitRate; //Saving global BitRate
         }
     }
+}
+
+//---------------------------------------------------------------------------
+void File_MpegPs::Streams_Update()
+{
+    //For each Streams
+    for (size_t StreamID=0; StreamID<0x100; StreamID++)
+        for (size_t Pos=0; Pos<Streams[StreamID].Parsers.size(); Pos++)
+            Streams[StreamID].Parsers[Pos]->Open_Buffer_Update();
+
+    //For each private Streams
+    for (size_t StreamID=0; StreamID<0x100; StreamID++)
+        for (size_t Pos=0; Pos<Streams_Private1[StreamID].Parsers.size(); Pos++)
+            Streams_Private1[StreamID].Parsers[Pos]->Open_Buffer_Update();
+
+    //For each extension Streams
+    for (size_t StreamID=0; StreamID<0x100; StreamID++)
+        for (size_t Pos=0; Pos<Streams_Extension[StreamID].Parsers.size(); Pos++)
+            Streams_Extension[StreamID].Parsers[Pos]->Open_Buffer_Update();
 }
 
 //---------------------------------------------------------------------------
@@ -658,6 +681,11 @@ void File_MpegPs::Streams_Finish_PerStream(size_t StreamID, ps_stream &Temp, kin
             StreamKind_Last=Temp.StreamKind;
             StreamPos_Last=Temp.StreamPos;
         }
+
+        //Law rating
+        Ztring LawRating=Temp.Parsers[0]->Retrieve(Stream_General, 0, General_LawRating);
+        if (!LawRating.empty())
+            Fill(Stream_General, 0, General_LawRating, LawRating, true);
     }
 
     //Duration if it is missing from the parser
@@ -1281,7 +1309,6 @@ void File_MpegPs::Header_Parse()
 {
     PES_FirstByte_IsAvailable=true;
     PES_FirstByte_Value=true;
-    HasCcis=false;
 
     //Reinit
     FrameInfo.PTS=(int64u)-1;
@@ -1990,23 +2017,33 @@ void File_MpegPs::Header_Parse_PES_packet_MPEG2(int8u stream_id)
 
         if (PES_private_data_flag)
         {
-            Element_Begin1("PES_private_data_flag");
+            Element_Begin1("PES_private_data");
             int32u Code;
             Peek_B4(Code);
             if (Code==0x43434953) // "CCIS"
             {
-                Skip_C4(                                        "CCIS_code");
-                Skip_B1(                                        "Caption_conversion_type");
-                BS_Begin();
-                Skip_S1(2,                                      "DRCS_conversion_type");
-                Skip_S1(6,                                      "reserved");
-                BS_End();
-                BS_End();
-                Skip_B2(                                        "reserved");
-                Skip_B8(                                        "reserved");
+                if (Streams_Private1[private_stream_1_ID].Parsers.size()>1)
+                {
+                    //Should not happen, this is only in case the previous packet was without CCIS
+                    Streams_Private1[private_stream_1_ID].Parsers.clear();
+                    Streams_Private1[private_stream_1_ID].StreamIsRegistred=false;
+                }
+                if (!Streams_Private1[private_stream_1_ID].StreamIsRegistred)
+                {
+                    Streams_Private1[private_stream_1_ID].Parsers.push_back(ChooseParser_AribStdB24B37(true));
+                    Open_Buffer_Init(Streams_Private1[private_stream_1_ID].Parsers[0]);
+                    Streams_Private1[private_stream_1_ID].StreamIsRegistred=true;
+                }
 
-                HasCcis=true;
-            }
+                if (Streams_Private1[private_stream_1_ID].Parsers.size()==1)
+                {
+                    File_AribStdB24B37* Parser=(File_AribStdB24B37*)Streams_Private1[private_stream_1_ID].Parsers[0];
+                    Parser->ParseCcis=true;
+                    Parser->Open_Buffer_Continue(Buffer+Buffer_Offset+(size_t)Element_Offset, 16);
+                }
+                else
+                    Skip_B16(                                   "PES_private_data");
+           }
             else
                 Skip_B16(                                       "PES_private_data");
             Element_End0();
@@ -4549,7 +4586,7 @@ File__Analyze* File_MpegPs::ChooseParser_RLE()
 }
 
 //---------------------------------------------------------------------------
-File__Analyze* File_MpegPs::ChooseParser_AribStdB24B37()
+File__Analyze* File_MpegPs::ChooseParser_AribStdB24B37(bool HasCcis)
 {
     //Filling
     #if defined(MEDIAINFO_ARIBSTDB24B37_YES)

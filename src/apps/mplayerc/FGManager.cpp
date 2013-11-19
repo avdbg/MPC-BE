@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -50,6 +48,7 @@ CFGManager::CFGManager(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, bool IsPreview)
 	, m_dwRegister(0)
 	, m_hWnd(hWnd)
 	, m_IsPreview(IsPreview)
+	, bOnlySub(FALSE)
 {
 	m_pUnkInner.CoCreateInstance(CLSID_FilterGraph, GetOwner());
 	m_pFM.CoCreateInstance(CLSID_FilterMapper2);
@@ -81,6 +80,7 @@ STDMETHODIMP CFGManager::NonDelegatingQueryInterface(REFIID riid, void** ppv)
 		QI(IFilterGraph2)
 		QI(IGraphBuilder2)
 		QI(IGraphBuilderDeadEnd)
+		QI(IGraphBuilderSub)
 		m_pUnkInner && (riid != IID_IUnknown && SUCCEEDED(m_pUnkInner->QueryInterface(riid, ppv))) ? S_OK :
 		__super::NonDelegatingQueryInterface(riid, ppv);
 }
@@ -274,17 +274,6 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 		while (pos) {
 			CFGFilter* pFGF = m_override.GetNext(pos);
 			if (pFGF->GetMerit() >= MERIT64_ABOVE_DSHOW) { // FilterOverride::PREFERRED
-				/*
-				if (ext == _T(".avi")) {
-					CLSID clsid = pFGF->GetCLSID();
-					if (clsid == GUIDFromCString(_T("{55DA30FC-F16B-49FC-BAA5-AE59FC65F82D}")) || clsid == GUIDFromCString(_T("{564FD788-86C9-4444-971E-CC4A243DA150}"))) {
-						// skip Haali Source for .avi files
-						TRACE(_T("FGM: EnumSourceFilters() : skip '%ws' on file '%ws'\n"), CStringFromGUID(pFGF->GetCLSID()), lpcwstrFileName);
-						continue;
-					}
-				}
-				*/
-
 				fl.Insert(pFGF, 0, false, false);
 			}
 		}
@@ -292,7 +281,7 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 
 	{
 		// Filters Priority
-		AppSettings& s = AfxGetAppSettings();	
+		AppSettings& s = AfxGetAppSettings();
 		CMediaFormatCategory* mfc = AfxGetAppSettings().m_Formats.FindMediaByExt(ext);
 		if (mfc) {
 			CString type = mfc->GetLabel();
@@ -329,6 +318,25 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 					}
 				}
 			}
+		}
+	}
+
+	// hack for StreamBufferSource - we need override merit from registry.
+	if (ext == _T(".dvr-ms") || ext == _T(".wtv")) {
+		BOOL bIsBlocked = FALSE;
+		POSITION pos = m_override.GetHeadPosition();
+		while (pos) {
+			CFGFilter* pFGF = m_override.GetNext(pos);
+			if (pFGF->GetCLSID() == CLSID_StreamBufferSource && pFGF->GetMerit() == MERIT64_DO_NOT_USE) {
+				bIsBlocked = TRUE;
+				break;
+			}
+		}
+
+		if (!bIsBlocked) {
+			CFGFilter* pFGF = LookupFilterRegistry(CLSID_StreamBufferSource, m_override);
+			pFGF->SetMerit(MERIT64_DO_USE);
+			fl.Insert(pFGF, 9);
 		}
 	}
 
@@ -412,7 +420,7 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 				ULONG len = _countof(buff);
 				memset(buff, 0, sizeof(buff));
 				LONG ret = key.QueryStringValue(_T("Source Filter"), buff, &len); // QueryStringValue can return ERROR_INVALID_DATA on bogus strings (radlight mpc v1003, fixed in v1004)
-				if (ERROR_SUCCESS == ret || ERROR_INVALID_DATA == ret && GUIDFromCString(buff) != GUID_NULL) {
+				if (ERROR_SUCCESS == ret || (ERROR_INVALID_DATA == ret && GUIDFromCString(buff) != GUID_NULL)) {
 					GUID clsid = GUIDFromCString(buff);
 					GUID majortype = GUID_NULL;
 					GUID subtype = GUID_NULL;
@@ -448,8 +456,6 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 		CFGFilter* pFGF = LookupFilterRegistry(CLSID_AsyncReader, m_override, MERIT64_ABOVE_DSHOW - 1);
 		pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_NULL);
 		fl.Insert(pFGF, 3);
-	} else if (ext == _T(".dvr-ms") || ext == _T(".wtv")) {
-		fl.Insert(LookupFilterRegistry(CLSID_StreamBufferSource, m_override, MERIT64_PREFERRED), 9);
 	} else {
 		CFGFilter* pFGF = LookupFilterRegistry(CLSID_AsyncReader, m_override);
 		pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_NULL);
@@ -461,7 +467,7 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 
 HRESULT CFGManager::AddSourceFilter(CFGFilter* pFGF, LPCWSTR lpcwstrFileName, LPCWSTR lpcwstrFilterName, IBaseFilter** ppBF)
 {
-	TRACE(_T("FGM: AddSourceFilter() trying '%ws'\n"), CStringFromGUID(pFGF->GetCLSID()));
+	DbgLog((LOG_TRACE, 3, L"FGM: AddSourceFilter() trying '%s'", CStringFromGUID(pFGF->GetCLSID())));
 
 	CheckPointer(lpcwstrFileName, E_POINTER);
 	CheckPointer(ppBF, E_POINTER);
@@ -696,6 +702,15 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 	}
 	EndEnumMediaTypes(pmt)
 
+	if (bOnlySub) {
+		BeginEnumMediaTypes(pPinOut, pEM, pmt) {
+			if (!CMediaTypeEx(*pmt).ValidateSubtitle()) {
+				return S_FALSE;
+			}
+		}
+		EndEnumMediaTypes(pmt)
+	}
+
 	bool fDeadEnd = true;
 
 	if (pPinIn) {
@@ -841,7 +856,7 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 				if (!fname.IsEmpty()) {
 					CComPtr<IBaseFilter> pBFVR;
 					if (SUCCEEDED(FindFilterByName(fname, &pBFVR)) && pBFVR) {
-						TRACE(_T("FGM: Skip '%s' - already in graph\n"), pFGF->GetName());
+						DbgLog((LOG_TRACE, 3, L"FGM: Skip '%s' - already in graph", pFGF->GetName()));
 						continue;
 					}
 				}
@@ -854,7 +869,7 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 				pFGF = pMadVRAllocatorPresenter;
 			}
 
-			TRACE(_T("FGM: Connecting '%s'\n"), pFGF->GetName());
+			DbgLog((LOG_TRACE, 3, L"FGM: Connecting '%s'", pFGF->GetName()));
 
 			CComPtr<IBaseFilter> pBF;
 			CInterfaceList<IUnknown, &IID_IUnknown> pUnks;
@@ -913,30 +928,6 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 
 			hr = ConnectFilterDirect(pPinOut, pBF, NULL);
 
-			if (FAILED(hr)) {
-				if (pFGF->GetMerit() == MERIT64_PRIORITY) {
-					TRACE(_T("FGM: Connecting priority filter '%s' FAILED!\n"), pFGF->GetName());
-					return 0xDEAD;
-				}
-			}
-
-			/*
-			if (FAILED(hr))
-			{
-				if (types.GetCount() >= 2 && types[0] == MEDIATYPE_Stream && types[1] != GUID_NULL)
-				{
-					CMediaType mt;
-
-					mt.majortype = types[0];
-					mt.subtype = types[1];
-					mt.formattype = FORMAT_None;
-					if (FAILED(hr)) hr = ConnectFilterDirect(pPinOut, pBF, &mt);
-
-					mt.formattype = GUID_NULL;
-					if (FAILED(hr)) hr = ConnectFilterDirect(pPinOut, pBF, &mt);
-				}
-			}
-			*/
 			if (SUCCEEDED(hr)) {
 				if (!IsStreamEnd(pBF)) {
 					fDeadEnd = false;
@@ -966,8 +957,8 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 						pARC->SetAspectRatioMode(VMR_ARMODE_NONE);
 					}
 
-					if (CComQIPtr<IVMRMixerControl9> pMC = pBF) {
-						m_pUnks.AddTail (pMC);
+					if (CComQIPtr<IVMRMixerControl9> pVMRMC9 = pBF) {
+						m_pUnks.AddTail (pVMRMC9);
 					}
 
 					if (CComQIPtr<IVMRMixerBitmap9> pMB = pBF) {
@@ -1038,15 +1029,36 @@ HRESULT CFGManager::Connect(IPin* pPinOut, IPin* pPinIn, bool bContinueRender)
 
 					}
 
-					TRACE(_T("FGM: '%s' Successfully connected\n"), pFGF->GetName());
+					DbgLog((LOG_TRACE, 3, L"FGM: '%s' Successfully connected", pFGF->GetName()));
+
+#if DBOXVersion
+					if (IsAudioWaveRenderer(pBF)) {
+						POSITION pos = m_transform.Find(pFGF);
+						if (pos != NULL) {
+							m_transform.MoveToTail(pos);
+							delete m_transform.RemoveTail();
+						}
+					}
+#endif
 
 					return hr;
 				}
 			}
 
+			BOOL bIsEnd = FALSE;
+			if (pFGF->GetMerit() == MERIT64_PRIORITY) {
+				DbgLog((LOG_TRACE, 3, L"FGM: Connecting priority filter '%s' FAILED!", pFGF->GetName()));
+				bIsEnd = TRUE;
+			} else {
+				DbgLog((LOG_TRACE, 3, L"FGM: Connecting '%s' FAILED!", pFGF->GetName()));
+			}
+
 			EXECUTE_ASSERT(SUCCEEDED(RemoveFilter(pBF)));
-			TRACE(_T("FGM: Connecting '%s' FAILED!\n"), pFGF->GetName());
 			pBF.Release();
+
+			if (bIsEnd) {
+				return 0xDEAD;
+			}
 		}
 	}
 
@@ -1078,7 +1090,7 @@ STDMETHODIMP CFGManager::Render(IPin* pPinOut)
 
 STDMETHODIMP CFGManager::RenderFile(LPCWSTR lpcwstrFileName, LPCWSTR lpcwstrPlayList)
 {
-	TRACE("--> CFGManager::RenderFile on thread: %d\n", GetCurrentThreadId());
+	DbgLog((LOG_TRACE, 3, L"--> CFGManager::RenderFile on thread: %d", GetCurrentThreadId()));
 	CAutoLock cAutoLock(this);
 
 	m_streampath.RemoveAll();
@@ -1116,7 +1128,7 @@ STDMETHODIMP CFGManager::RenderFile(LPCWSTR lpcwstrFileName, LPCWSTR lpcwstrPlay
 			if (hr == 0xDEAD) {
 				; // TODO
 			} else if (SUCCEEDED(hr)) {
-				return hr;			
+				return hr;
 			}
 
 			NukeDownstream(pBF);
@@ -1294,6 +1306,32 @@ static bool FindMT(IPin* pPin, const GUID majortype)
 	return false;
 }
 
+HRESULT CFGManager::ConnectFilterDirect(IPin* pPinOut, CFGFilter* pFGF)
+{
+	HRESULT hr = S_OK;
+
+	CComPtr<IBaseFilter> pBF;
+	CInterfaceList<IUnknown, &IID_IUnknown> pUnks;
+	if (FAILED(hr = pFGF->Create(&pBF, pUnks))) {
+		return hr;
+	}
+
+	if (FAILED(hr = AddFilter(pBF, pFGF->GetName()))) {
+		pBF.Release();
+		return hr;
+	}
+
+	hr = ConnectFilterDirect(pPinOut, pBF, NULL);
+
+	if (FAILED(hr)) {
+		EXECUTE_ASSERT(SUCCEEDED(RemoveFilter(pBF)));
+		DbgLog((LOG_TRACE, 3, L"FGM: Connecting '%s' FAILED!", pFGF->GetName()));
+		pBF.Release();
+	}
+
+	return hr;
+}
+
 STDMETHODIMP CFGManager::ConnectFilter(IBaseFilter* pBF, IPin* pPinIn)
 {
 	CAutoLock cAutoLock(this);
@@ -1328,7 +1366,7 @@ STDMETHODIMP CFGManager::ConnectFilter(IBaseFilter* pBF, IPin* pPinIn)
 			// Disable MEDIATYPE_AUXLine21Data - prevent connect Line 21 Decoder
 			if (GetPinName(pPin)[0] == '~' && FindMT(pPin, MEDIATYPE_AUXLine21Data)) {
 				if ((clsid == CLSID_CMPEG2VidDecoderDS && (s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM || s.iDSVideoRendererType == VIDRNDT_DS_SYNC))
-					|| clsid == __uuidof(CMpeg2DecFilter) 
+					|| clsid == __uuidof(CMpeg2DecFilter)
 					|| clsid == CLSID_NvidiaVideoDecoder
 					|| clsid == CLSID_SonicCinemasterVideoDecoder) {
 
@@ -1358,10 +1396,137 @@ STDMETHODIMP CFGManager::ConnectFilter(IBaseFilter* pBF, IPin* pPinIn)
 			*/
 
 			m_streampath.Append(pBF, pPin);
+			HRESULT hr = S_OK;
 
-			HRESULT hr = Connect(pPin, pPinIn);
-			if (hr == 0xDEAD) {
-				return hr;
+			BOOL bInfPinTeeConnected = FALSE;
+			if (s.fDualAudioOutput) {
+#if DBOXVersion
+				// for D-Box users :)
+				if (clsid == CLSID_LAVSplitter || clsid == CLSID_LAVSource) {
+					BeginEnumMediaTypes(pPin, pEM, pmt) {
+						// Find the Audio out pin
+						if (pmt->majortype == MEDIATYPE_Audio && pPinIn == NULL) {
+							// Add infinite Pin Tee Filter
+							CComPtr<IBaseFilter> pInfPinTee;
+							pInfPinTee.CoCreateInstance(CLSID_InfTee);
+							AddFilter(pInfPinTee, L"Infinite Pin Tee");
+
+							hr = ConnectFilterDirect(pPin, pInfPinTee, NULL);
+							if (SUCCEEDED(hr)) {
+								bInfPinTeeConnected = TRUE;
+
+								for (int ar = 0; ar < 2; ar++) {
+									IPin *infTeeFilterOutPin = GetFirstDisconnectedPin(pInfPinTee, PINDIR_OUTPUT);
+									hr = Connect(infTeeFilterOutPin, pPinIn);
+									if(SUCCEEDED(hr)){
+										// do something
+									}
+								}
+							}
+
+							if (bInfPinTeeConnected) {
+								break;
+							}
+						}
+					}
+					EndEnumMediaTypes(pmt)
+				} else
+#endif
+				if (CComQIPtr<IAudioSwitcherFilter> pASF = pBF) {
+					BeginEnumMediaTypes(pPin, pEM, pmt) {
+						// Find the Audio out pin
+						if (pmt->majortype == MEDIATYPE_Audio && pPinIn == NULL) {
+							// Add infinite Pin Tee Filter
+							CComPtr<IBaseFilter> pInfPinTee;
+							pInfPinTee.CoCreateInstance(CLSID_InfTee);
+							AddFilter(pInfPinTee, L"Infinite Pin Tee");
+
+							hr = ConnectFilterDirect(pPin, pInfPinTee, NULL);
+							if (SUCCEEDED(hr)) {
+								bInfPinTeeConnected = TRUE;
+								CString SelAudioRenderer = s.SelectedAudioRenderer();
+								for (int ar = 0; ar < 2; ar++) {
+									IPin *infTeeFilterOutPin = GetFirstDisconnectedPin(pInfPinTee, PINDIR_OUTPUT);
+
+									BOOL bIsConnected = FALSE;
+
+									if (!SelAudioRenderer.IsEmpty()) {
+
+										// looking at the list of filters
+										POSITION pos = m_transform.GetHeadPosition();
+										while (pos) {
+											CFGFilter* pFGF = m_transform.GetNext(pos);
+											if (SelAudioRenderer == pFGF->GetName()) {
+												hr = ConnectFilterDirect(infTeeFilterOutPin, pFGF);
+												if (SUCCEEDED(hr)) {
+													DbgLog((LOG_TRACE, 3, L"FGM: Connect Direct to '%s'", pFGF->GetName()));
+													bIsConnected = TRUE;
+													break;
+												}
+											}
+										}
+
+										if (!bIsConnected) {
+
+											// looking at the list of AudioRenderer
+											BeginEnumSysDev(CLSID_AudioRendererCategory, pMoniker) {
+												CFGFilterRegistry f(pMoniker);
+
+												if (SelAudioRenderer == f.GetDisplayName()) {
+													hr = ConnectFilterDirect(infTeeFilterOutPin, &f);
+													if (SUCCEEDED(hr)) {
+														DbgLog((LOG_TRACE, 3, L"FGM: Connect Direct to '%s'", f.GetName()));
+														bIsConnected = TRUE;
+														break;
+													}
+												}
+											}
+											EndEnumSysDev
+										}
+									} else {
+
+										// connect to 'Default DirectSound Device'
+										CComPtr<IEnumMoniker> pEM;
+										GUID guids[] = {MEDIATYPE_Audio, MEDIASUBTYPE_NULL};
+
+										if (SUCCEEDED(m_pFM->EnumMatchingFilters(&pEM, 0, FALSE, MERIT_DO_NOT_USE+1,
+													  TRUE, 1, guids, NULL, NULL, TRUE, FALSE, 0, NULL, NULL, NULL))) {
+											for (CComPtr<IMoniker> pMoniker; S_OK == pEM->Next(1, &pMoniker, NULL); pMoniker = NULL) {
+												CFGFilterRegistry f(pMoniker);
+
+												if (f.GetName() == L"Default DirectSound Device") {
+													hr = ConnectFilterDirect(infTeeFilterOutPin, &f);
+													if (SUCCEEDED(hr)) {
+														DbgLog((LOG_TRACE, 3, L"FGM: Connect Direct to '%s'", f.GetName()));
+														bIsConnected = TRUE;
+														break;
+													}
+												}
+											}
+										}
+
+
+									}
+
+									if (!bIsConnected) {
+										hr = Connect(infTeeFilterOutPin, pPinIn);
+									}
+
+									SelAudioRenderer = s.strSecondAudioRendererDisplayName;
+								}
+							}
+							break;
+						}
+					}
+					EndEnumMediaTypes(pmt)
+				}
+			}
+
+			if (!bInfPinTeeConnected) {
+				hr = Connect(pPin, pPinIn);
+				if (hr == 0xDEAD) {
+					return hr;
+				}
 			}
 
 			if (SUCCEEDED(hr)) {
@@ -1578,6 +1743,35 @@ STDMETHODIMP CFGManager::GetDeadEnd(int iIndex, CAtlList<CStringW>& path, CAtlLi
 	return S_OK;
 }
 
+// IGraphBuilderSub
+
+STDMETHODIMP CFGManager::RenderSubFile(LPCWSTR lpcwstrFileName)
+{
+	DbgLog((LOG_TRACE, 3, L"--> CFGManager::RenderSubFile(%s) on thread: %d", lpcwstrFileName, GetCurrentThreadId()));
+	CAutoLock cAutoLock(this);
+
+	HRESULT hr = VFW_E_CANNOT_RENDER;
+	CAutoPtrArray<CStreamDeadEnd> deadends;
+
+	bOnlySub = TRUE;
+
+	// support only .mks - use internal MatroskaSource
+	CFGFilter* pFG = DNew CFGFilterInternal<CMatroskaSourceFilter>();
+
+	CComPtr<IBaseFilter> pBF;
+	if (SUCCEEDED(hr = AddSourceFilter(pFG, lpcwstrFileName, pFG->GetName(), &pBF))) {
+		m_streampath.RemoveAll();
+		m_deadends.RemoveAll();
+
+		hr = ConnectFilter(pBF, NULL);
+	}
+	bOnlySub = FALSE;
+
+	delete pFG;
+
+	return hr;
+}
+
 //
 // 	CFGManagerCustom
 //
@@ -1590,10 +1784,10 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	bool		bOverrideBroadcom = false;
 	CFGFilter*	pFGF;
 
-	bool *src = s.SrcFilters;
-	bool *tra = s.TraFilters;
-	bool *dxva_filters = s.DXVAFilters;
-	bool *ffmpeg_filters = s.FFmpegFilters;
+	bool *src				= s.SrcFilters;
+	bool *tra				= s.TraFilters;
+	bool *dxva_filters		= s.DXVAFilters;
+	bool *ffmpeg_filters	= s.FFmpegFilters;
 
 	// Source filters
 
@@ -1603,10 +1797,10 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_source.AddTail(pFGF);
 	}
 
-	// if (src[SRC_UDP])
-	if (!IsPreview) {
+	if (src[SRC_UDP] && !IsPreview) {
 		pFGF = DNew CFGFilterInternal<CUDPReader>();
 		pFGF->m_protocols.AddTail(_T("udp"));
+		pFGF->m_protocols.AddTail(_T("http"));
 		m_source.AddTail(pFGF);
 	}
 
@@ -1693,18 +1887,6 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_source.AddTail(pFGF);
 	}
 
-	// TODOX64 : fix DVSource internal filter
-#ifndef _WIN64
-	__if_exists(CD2VSource) {
-		if (src[SRC_D2V] || IsPreview) {
-			pFGF = DNew CFGFilterInternal<CD2VSource>();
-			pFGF->m_chkbytes.AddTail(_T("0,18,,4456443241564950726F6A65637446696C65"));
-			pFGF->m_extensions.AddTail(_T(".d2v"));
-			m_source.AddTail(pFGF);
-		}
-	}
-#endif
-
 	if (src[SRC_OGG] || IsPreview) {
 		pFGF = DNew CFGFilterInternal<COggSourceFilter>();
 		pFGF->m_chkbytes.AddTail(_T("0,4,,4F676753"));
@@ -1727,9 +1909,17 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		pFGF->m_chkbytes.AddTail(_T("0,2,,0B77"));                          // AC3, E-AC3
 		pFGF->m_chkbytes.AddTail(_T("0,4,,52494646,8,8,,57415645666D7420"));// RIFFxxxxWAVEfmt_ for DTSWAV
 		pFGF->m_chkbytes.AddTail(_T("4,4,,F8726FBB"));                      // MLP
+		pFGF->m_chkbytes.AddTail(_T("0,8,,4454534844484452"));              // DTSHDHDR
 		pFGF->m_extensions.AddTail(_T(".ac3"));
 		pFGF->m_extensions.AddTail(_T(".dts"));
+		pFGF->m_extensions.AddTail(_T(".dtshd"));
 		pFGF->m_extensions.AddTail(_T(".eac3"));
+		m_source.AddTail(pFGF);
+	}
+
+	if (src[SRC_TAK] && !IsPreview) {
+		pFGF = DNew CFGFilterInternal<CTAKSourceFilter>();
+		pFGF->m_chkbytes.AddTail(_T("0,4,,7442614B"));
 		m_source.AddTail(pFGF);
 	}
 
@@ -1751,10 +1941,39 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_source.AddTail(pFGF);
 	}
 
+	if (src[SRC_RAWVIDEO] || IsPreview) {
+		pFGF = DNew CFGFilterInternal<CRawVideoSourceFilter>();
+		// MPEG1/2
+		pFGF->m_chkbytes.AddTail(_T("0,4,,000001B3"));
+		pFGF->m_extensions.AddTail(_T(".mpeg"));
+		pFGF->m_extensions.AddTail(_T(".mpg"));
+		pFGF->m_extensions.AddTail(_T(".m2v"));
+		pFGF->m_extensions.AddTail(_T(".mpv"));
+		// H.264/AVC1
+		pFGF->m_chkbytes.AddTail(_T("0,5,,0000000109"));
+		pFGF->m_extensions.AddTail(_T(".h264"));
+		pFGF->m_extensions.AddTail(_T(".264"));
+		// VC-1
+		pFGF->m_chkbytes.AddTail(_T("0,4,,0000010F"));
+		pFGF->m_chkbytes.AddTail(_T("0,4,,0000010D"));
+		pFGF->m_extensions.AddTail(_T(".vc1"));
+		// H.265/HEVC
+		pFGF->m_chkbytes.AddTail(_T("0,5,,0000000140"));
+		pFGF->m_extensions.AddTail(_T(".h265"));
+		pFGF->m_extensions.AddTail(_T(".265"));
+		pFGF->m_extensions.AddTail(_T(".hm10"));
+		pFGF->m_extensions.AddTail(_T(".hevc"));
+#if ENABLE_YUV4MPEG2
+		// YUV4MPEG2
+		pFGF->m_chkbytes.AddTail(_T("0,9,,595556344D50454732"));
+#endif
+		m_source.AddTail(pFGF);
+	}
+
 	// hmmm, shouldn't there be an option in the GUI to enable/disable this filter?
 	pFGF = DNew CFGFilterInternal<CAVI2AC3Filter>(AVI2AC3FilterName, MERIT64(0x00680000)+1);
 	pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DOLBY_AC3);
-	pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DTS);
+	pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DTS2);
 	m_transform.AddTail(pFGF);
 
 	if (!IsPreview) {
@@ -1861,7 +2080,6 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	} else {
 		pFGF = DNew CFGFilterInternal<CAMRSplitter>(LowMerit(AMRSplitterName), MERIT64_DO_USE);
 	}
-	pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_AMR_Stream);
 	pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
 	m_transform.AddTail(pFGF);
 
@@ -1889,6 +2107,26 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		pFGF = DNew CFGFilterInternal<CFLVSplitterFilter>(LowMerit(FlvSplitterName), MERIT64_DO_USE);
 	}
 	pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_FLV);
+	pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+	m_transform.AddTail(pFGF);
+
+	if (!IsPreview) {
+		if (src[SRC_TAK]) {
+			pFGF = DNew CFGFilterInternal<CTAKSplitterFilter>(TAKSplitterName, MERIT64_ABOVE_DSHOW);
+		} else {
+			pFGF = DNew CFGFilterInternal<CTAKSplitterFilter>(LowMerit(TAKSplitterName), MERIT64_DO_USE);
+		}
+		pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_TAK_Stream);
+		pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+		m_transform.AddTail(pFGF);
+	}
+
+	if (src[SRC_RAWVIDEO] || IsPreview) {
+		pFGF = DNew CFGFilterInternal<CRawVideoSplitterFilter>(RawVideoSplitterName, MERIT64_ABOVE_DSHOW);
+	} else {
+		pFGF = DNew CFGFilterInternal<CRawVideoSplitterFilter>(LowMerit(RawVideoSplitterName), MERIT64_DO_USE);
+	}
+	pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG1Video);
 	pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
 	m_transform.AddTail(pFGF);
 
@@ -1970,15 +2208,15 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DTS);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DTS);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DTS);
-		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DTS);
+		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DTS2);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
 					(ffmpeg_filters[FFM_AAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
 					(ffmpeg_filters[FFM_AAC]) ? MERIT64_ABOVE_DSHOW+1 : MERIT64_DO_USE);
-		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_AAC);
-		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_AAC);
-		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_AAC);
+		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_RAW_AAC1);
+		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_RAW_AAC1);
+		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RAW_AAC1);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_LATM_AAC);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_AAC_ADTS);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MP4A);
@@ -2094,7 +2332,7 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		/* todo: this should not depend on PCM */
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_IMA4);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ADPCM_SWF);
-		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ADPCM_AMV);
+		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_IMA_AMV);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
@@ -2102,12 +2340,12 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 					(ffmpeg_filters[FFM_QDM2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_QDM2);
 		m_transform.AddTail(pFGF);
-	
+
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
 					(ffmpeg_filters[FFM_WPAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
 					(ffmpeg_filters[FFM_WPAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVPACK4);
-		m_transform.AddTail(pFGF);	
+		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
 					(ffmpeg_filters[FFM_MPAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
@@ -2121,6 +2359,13 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 					(ffmpeg_filters[FFM_APE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
 					(ffmpeg_filters[FFM_APE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_APE);
+		m_transform.AddTail(pFGF);
+
+		// TAK
+		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
+					(ffmpeg_filters[FFM_TAK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(ffmpeg_filters[FFM_TAK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_TAK);
 		m_transform.AddTail(pFGF);
 
 		// TTA
@@ -2208,15 +2453,35 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 	}
 
+	// Get supported MEDIASUBTYPE_ from decoder
+	CAtlList<SUPPORTED_FORMATS> fmts;
+	GetFormatList(fmts);
+
 	// High merit MPC Video Decoder
-	pFGF = DNew CFGFilterInternal<CMPCVideoDecFilter>(MPCVideoDecName, MERIT64_ABOVE_DSHOW + 1);
-	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NULL);
+	pFGF = DNew CFGFilterInternal<CMPCVideoDecFilter>(MPCVideoDecName, MERIT64_ABOVE_DSHOW);
+	{
+		POSITION pos = fmts.GetHeadPosition();
+		while (pos) {
+			SUPPORTED_FORMATS fmt = fmts.GetNext(pos);
+			if (IsPreview || ffmpeg_filters[fmt.FFMPEGCode] || dxva_filters[fmt.DXVACode]) {
+				pFGF->AddType(MEDIATYPE_Video, *fmt.clsMinorType);
+			}
+		}
+	}
 	m_transform.AddTail(pFGF);
 
 	// Low merit MPC Video Decoder
-	pFGF = DNew CFGFilterInternal<CMPCVideoDecFilter>(LowMerit(MPCVideoDecName), MERIT64_DO_USE + 1);
-	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NULL);
-	m_transform.AddTail(pFGF);
+	if (!IsPreview) { // do not need for Preview mode.
+		pFGF = DNew CFGFilterInternal<CMPCVideoDecFilter>(LowMerit(MPCVideoDecName), MERIT64_DO_USE);
+		{
+			POSITION pos = fmts.GetHeadPosition();
+			while (pos) {
+				SUPPORTED_FORMATS fmt = fmts.GetNext(pos);
+				pFGF->AddType(MEDIATYPE_Video, *fmt.clsMinorType);
+			}
+		}
+		m_transform.AddTail(pFGF);
+	}
 
 	// Keep software decoder after DXVA decoder !
 	pFGF = DNew CFGFilterInternal<CMpeg2DecFilter>(
@@ -2272,11 +2537,24 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	// mainconcept color space converter
 	m_transform.AddTail(DNew CFGFilterRegistry(GUIDFromCString(_T("{272D77A0-A852-4851-ADA4-9091FEAD4C86}")), MERIT64_DO_NOT_USE));
 
-	// Block VSFilter when internal subtitle renderer will get used
-	if (s.fAutoloadSubtitles && s.fBlockVSFilter) {
-		if (s.iDSVideoRendererType == VIDRNDT_DS_VMR7RENDERLESS || s.iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS || s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM || s.iDSVideoRendererType == VIDRNDT_DS_DXR || s.iDSVideoRendererType == VIDRNDT_DS_SYNC || s.iDSVideoRendererType == VIDRNDT_DS_MADVR) {
-			m_transform.AddTail(DNew CFGFilterRegistry(GUIDFromCString(_T("{9852A670-F845-491B-9BE6-EBD841B8A613}")), MERIT64_DO_NOT_USE));
+	if (s.fBlockVSFilter) {
+		if ((s.fAutoloadSubtitles
+				&& (s.iDSVideoRendererType == VIDRNDT_DS_VMR7RENDERLESS
+					|| s.iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS
+					|| s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM
+					|| s.iDSVideoRendererType == VIDRNDT_DS_DXR
+					|| s.iDSVideoRendererType == VIDRNDT_DS_SYNC
+					|| s.iDSVideoRendererType == VIDRNDT_DS_MADVR))
+				|| (IsCLSIDRegistered(CLSID_XySubFilter) && s.iDSVideoRendererType == VIDRNDT_DS_MADVR)) {
+				// Block VSFilter when internal subtitle renderer will get used or when XySubFilter is available + madVR
+			m_transform.AddTail(DNew CFGFilterRegistry(CLSID_VSFilter, MERIT64_DO_NOT_USE));
 		}
+
+		if (s.iDSVideoRendererType != VIDRNDT_DS_MADVR) {
+			// XySubFilter is available only with madVR ...
+			m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter, MERIT64_DO_NOT_USE));
+		}
+
 	}
 
 	// Blacklist Accusoft PICVideo M-JPEG Codec 2.1 since causes a DEP crash
@@ -2293,7 +2571,7 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 			bOverrideBroadcom = true;
 		}
 
-		if (fo->fDisabled || fo->type == FilterOverride::EXTERNAL && !CPath(MakeFullPath(fo->path)).FileExists()) {
+		if (fo->fDisabled || (fo->type == FilterOverride::EXTERNAL && !CPath(MakeFullPath(fo->path)).FileExists())) {
 			continue;
 		}
 
@@ -2303,7 +2581,9 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 			fo->iLoadType == FilterOverride::MERIT ? MERIT64(fo->dwMerit) :
 			MERIT64_DO_NOT_USE; // fo->iLoadType == FilterOverride::BLOCKED
 
-		merit += merit_low++;
+		if (merit != MERIT64_DO_NOT_USE) {
+			merit += merit_low++;
+		}
 
 		CFGFilter* pFGF = NULL;
 
@@ -2410,7 +2690,7 @@ CFGManagerPlayer::CFGManagerPlayer(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	, m_vrmerit(MERIT64(MERIT_PREFERRED))
 	, m_armerit(MERIT64(MERIT_PREFERRED))
 {
-	TRACE("--> CFGManagerPlayer::CFGManagerPlayer on thread: %d\n", GetCurrentThreadId());
+	DbgLog((LOG_TRACE, 3, L"--> CFGManagerPlayer::CFGManagerPlayer on thread: %d", GetCurrentThreadId()));
 	CFGFilter* pFGF;
 
 	AppSettings& s = AfxGetAppSettings();
@@ -2458,15 +2738,17 @@ CFGManagerPlayer::CFGManagerPlayer(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_armerit += 0x100;
 	}
 
+#if !DBOXVersion
 	// Switchers
 	if (s.fEnableAudioSwitcher && !m_IsPreview) {
-		pFGF = DNew CFGFilterInternal<CAudioSwitcherFilter>(L"Audio Switcher", m_armerit + 0x100);
+		pFGF = DNew CFGFilterInternal<CAudioSwitcherFilter>(L"Audio Switcher", m_armerit + 0x2000);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
 		m_transform.AddTail(pFGF);
 
 		// morgan stream switcher
 		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_MorganSwitcher, MERIT64_DO_NOT_USE));
 	}
+#endif
 
 	// Renderers
 	if (!m_IsPreview) {
@@ -2525,22 +2807,30 @@ CFGManagerPlayer::CFGManagerPlayer(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 
 	if (!m_IsPreview) {
 		CString SelAudioRenderer = s.SelectedAudioRenderer();
-		if (SelAudioRenderer == AUDRNDT_NULL_COMP) {
-			pFGF = DNew CFGFilterInternal<CNullAudioRenderer>(AUDRNDT_NULL_COMP, MERIT64_ABOVE_DSHOW+2);
-			pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
-			m_transform.AddTail(pFGF);
-		} else if (SelAudioRenderer == AUDRNDT_NULL_UNCOMP) {
-			pFGF = DNew CFGFilterInternal<CNullUAudioRenderer>(AUDRNDT_NULL_UNCOMP, MERIT64_ABOVE_DSHOW+2);
-			pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
-			m_transform.AddTail(pFGF);
-		} else if (SelAudioRenderer == AUDRNDT_MPC) {
-			pFGF = DNew CFGFilterInternal<CMpcAudioRenderer>(AUDRNDT_MPC, /*MERIT64_ABOVE_DSHOW+2*/m_armerit);
-			pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
-			m_transform.AddTail(pFGF);
-		} else if (SelAudioRenderer.GetLength() > 0) {
-			pFGF = DNew CFGFilterRegistry(SelAudioRenderer, m_armerit);
-			pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
-			m_transform.AddTail(pFGF);
+		m_armerit += 0x1000;
+
+		for (int ar = 0; ar < (s.fDualAudioOutput ? 2 : 1); ar++) {
+			if (SelAudioRenderer == AUDRNDT_NULL_COMP) {
+				pFGF = DNew CFGFilterInternal<CNullAudioRenderer>(AUDRNDT_NULL_COMP, m_armerit);
+				pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
+				m_transform.AddTail(pFGF);
+			} else if (SelAudioRenderer == AUDRNDT_NULL_UNCOMP) {
+				pFGF = DNew CFGFilterInternal<CNullUAudioRenderer>(AUDRNDT_NULL_UNCOMP, m_armerit);
+				pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
+				m_transform.AddTail(pFGF);
+			} else if (SelAudioRenderer == AUDRNDT_MPC && IsWinVistaOrLater()) {
+				pFGF = DNew CFGFilterInternal<CMpcAudioRenderer>(AUDRNDT_MPC, m_armerit);
+				pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM);
+				pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_IEEE_FLOAT);
+				m_transform.AddTail(pFGF);
+			} else if (SelAudioRenderer.GetLength() > 0) {
+				pFGF = DNew CFGFilterRegistry(SelAudioRenderer, m_armerit);
+				pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
+				m_transform.AddTail(pFGF);
+			}
+
+			SelAudioRenderer = s.strSecondAudioRendererDisplayName;
+			m_armerit -= 0x100;
 		}
 	}
 }

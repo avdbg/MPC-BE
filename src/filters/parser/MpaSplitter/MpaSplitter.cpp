@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -165,7 +163,7 @@ HRESULT CMpaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 		CString f_name = _T("cover");
 		if (m_pFile->m_CoverMime == _T("image/jpeg")) {
 			f_name.Append(_T(".jpg"));
-		} else if (m_pFile->m_CoverMime == _T("image/jpeg")) {
+		} else if (m_pFile->m_CoverMime == _T("image/png")) {
 			f_name.Append(_T(".png"));
 		}
 		ResAppend(f_name, _T("cover"), m_pFile->m_CoverMime, m_pFile->m_Cover.GetData(), (DWORD)m_pFile->m_Cover.GetCount());
@@ -200,7 +198,7 @@ bool CMpaSplitterFilter::DemuxInit()
 void CMpaSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 {
 	__int64 startpos = m_pFile->GetStartPos();
-	__int64 endpos = m_pFile->GetEndPos();
+	__int64 endpos = m_pFile->GetLength();
 
 	if (rt <= 0 || m_pFile->GetDuration() <= 0) {
 		m_pFile->Seek(startpos);
@@ -218,7 +216,7 @@ bool CMpaSplitterFilter::DemuxLoop()
 	int FrameSize;
 	REFERENCE_TIME rtDuration;
 
-	while (SUCCEEDED(hr) && !CheckRequest(NULL) && (m_pFile->GetPos() < m_pFile->GetEndPos() - 9 || m_pFile->IsStreaming())) {
+	while (SUCCEEDED(hr) && !CheckRequest(NULL) && (m_pFile->GetPos() < m_pFile->GetLength() - 9 || m_pFile->IsStreaming())) {
 		if (!m_pFile->Sync(FrameSize, rtDuration)) {
 			Sleep(1);
 			continue;

@@ -1,6 +1,4 @@
 /*
- * $Id: Filters.h 654 2012-07-07 22:53:41Z exodus8 $
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -38,9 +36,11 @@
 #include "parser/MpegSplitter/MpegSplitter.h"
 #include "parser/MusePackSplitter/MusePackSplitter.h"
 #include "parser/OggSplitter/OggSplitter.h"
+#include "parser/RawVideoSplitter/RawVideoSplitter.h"
 #include "parser/RealMediaSplitter/RealMediaSplitter.h"
 #include "parser/RoQSplitter/RoQSplitter.h"
 #include "parser/StreamDriveThru/StreamDriveThru.h"
+#include "parser/TAKSplitter/TAKSplitter.h"
 #include "parser/TTASplitter/TTASplitter.h"
 #include "parser/WVSplitter/WVSplitter.h"
 
@@ -52,7 +52,6 @@
 #include "renderer/MpcAudioRenderer/MpcAudioRenderer.h"
 #include "renderer/SyncClock/SyncClock.h"
 
-#include "source/D2VSource/D2VSource.h"
 #include "source/DTSAC3Source/DTSAC3Source.h"
 #include "source/FLACSource/FLACSource.h"
 #include "source/FLICSource/FLICSource.h"

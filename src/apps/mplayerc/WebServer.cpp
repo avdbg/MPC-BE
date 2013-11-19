@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -346,7 +344,7 @@ void CWebServer::OnRequest(CWebClientSocket* pClient, CStringA& hdr, CStringA& b
 
 	bool fHandled = false, fCGI = false;
 
-	if (!fHandled && m_webroot.IsDirectory()) {
+	if (m_webroot.IsDirectory()) {
 		CStringA tmphdr;
 		fHandled = fCGI = CallCGI(pClient, tmphdr, body, mime);
 

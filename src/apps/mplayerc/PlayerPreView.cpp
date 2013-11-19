@@ -1,6 +1,4 @@
 /*
- * $Id: PreView.cpp 807 2012-08-03 02:32:56Z Aleksoid $
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.
@@ -41,7 +39,7 @@ BOOL CPreView::SetWindowText(LPCWSTR lpString)
 	GetClientRect(r);
 
 	CRect rt = r;
-	rt.bottom = hc; 
+	rt.bottom = hc;
 	rt.left += 10;
 	rt.right -= 10;
 
@@ -267,7 +265,7 @@ void CPreView::OnPaint()
 	}
 
 	mdc.SetTextColor(RGB(r1,g1,b1));
-	
+
 	font.CreateFont(13, 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, DEFAULT_CHARSET,
 									OUT_RASTER_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, VARIABLE_PITCH | FF_MODERN,
 									_T("Tahoma"));

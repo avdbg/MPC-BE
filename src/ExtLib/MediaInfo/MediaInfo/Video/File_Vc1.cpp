@@ -37,6 +37,10 @@
     #include "MediaInfo/MediaInfo_Events.h"
     #include "MediaInfo/MediaInfo_Events_Internal.h"
 #endif //MEDIAINFO_EVENTS
+#if MEDIAINFO_DEMUX
+    #include <cstring>
+    #include "base64.h"
+#endif //MEDIAINFO_DEMUX
 using namespace std;
 using namespace ZenLib;
 //---------------------------------------------------------------------------
@@ -230,11 +234,34 @@ File_Vc1::File_Vc1()
     EntryPoint_Parsed=false;
     FrameRate=0;
     RefFramesCount=0;
+
+    #if MEDIAINFO_DEMUX
+        InitData_Buffer=NULL;
+        InitData_Buffer_Size=0;
+    #endif //MEDIAINFO_DEMUX
+}
+
+//---------------------------------------------------------------------------
+File_Vc1::~File_Vc1()
+{
+    #if MEDIAINFO_DEMUX
+        delete[] InitData_Buffer;
+    #endif //MEDIAINFO_DEMUX
 }
 
 //***************************************************************************
 // Streams management
 //***************************************************************************
+
+//---------------------------------------------------------------------------
+void File_Vc1::Streams_Accept()
+{
+    //Filling
+    Stream_Prepare(Stream_Video);
+    Fill(Stream_Video, 0, Video_Format, "VC-1");
+    Fill(Stream_Video, 0, Video_Codec, From_WMV3?"WMV3":"VC-1"); //For compatibility with the old reaction
+    Fill(Stream_Video, 0, Video_BitDepth, 8);
+}
 
 //---------------------------------------------------------------------------
 void File_Vc1::Streams_Fill()
@@ -248,12 +275,6 @@ void File_Vc1::Streams_Fill()
     else
         PixelAspectRatio=1; //Unknown
 
-    //Filling
-    Stream_Prepare(Stream_Video);
-    Fill(Stream_Video, 0, Video_Format, "VC-1");
-    Fill(Stream_Video, 0, Video_Codec, From_WMV3?"WMV3":"VC-1"); //For compatibility with the old reaction
-    Fill(Stream_Video, 0, Video_BitDepth, 8);
-
     Ztring Profile;
     if (profile!=(int8u)-1)
         Profile=Vc1_Profile[profile];
@@ -261,6 +282,7 @@ void File_Vc1::Streams_Fill()
         Profile+=__T("@L")+Ztring::ToZtring(level);
     Fill(Stream_Video, 0, Video_Format_Profile, Profile);
     Fill(Stream_Video, 0, Video_Codec_Profile, Profile);
+    Fill(Stream_Video, 0, Video_ColorSpace, "YUV");
     Fill(Stream_Video, 0, Video_Colorimetry, Vc1_ColorimetryFormat[colordiff_format]);
     if (coded_width && coded_height)
     {
@@ -420,7 +442,7 @@ void File_Vc1::Synched_Init()
     frameratecode_dr=0;
     profile=(int8u)-1;
     level=(int8u)-1;
-    colordiff_format=0;
+    colordiff_format=1; //Default is 4:2:0
     AspectRatio=0;
     AspectRatioX=0;
     AspectRatioY=0;
@@ -512,6 +534,40 @@ bool File_Vc1::Demux_UnpacketizeContainer_Test()
             if (Config->Demux_EventWasSent)
                 return false;
         }
+
+        //Demux
+        #if MEDIAINFO_DEMUX
+            if (InitData_Buffer_Size!=(size_t)-1 && Buffer[Buffer_Offset+3]==0x0F) //First SequenceHeader
+            {
+                //Searching begin of frame (after SequenceHeader/EntryPointHeader)
+                size_t Header_End=4;
+                for (; Header_End<Demux_Offset; Header_End++)
+                    if (Buffer[Header_End  ]==0x00
+                     && Buffer[Header_End+1]==0x00
+                     && Buffer[Header_End+2]==0x01
+                     && Buffer[Header_End+2]==0x0D)
+                    break;
+
+                switch (Config->Demux_InitData_Get())
+                {
+                    case 0 :    //In demux event
+                                break; //Will be done in the first demux event
+                    case 1 :    //In field
+                                {
+                                std::string Data_Raw((const char*)(Buffer+Buffer_Offset), (size_t)(Header_End-Buffer_Offset));
+                                std::string Data_Base64(Base64::encode(Data_Raw));
+                                Fill(Stream_Video, StreamPos_Last, "Demux_InitBytes", Data_Base64);
+                                (*Stream_More)[Stream_Video][StreamPos_Last](Ztring().From_Local("Demux_InitBytes"), Info_Options)=__T("N NT");
+                                }
+                                break;
+                    default :   ;
+                }
+
+                delete[] InitData_Buffer; InitData_Buffer=NULL;
+                InitData_Buffer_Size=(size_t)-1;
+            }
+        #endif //MEDIAINFO_DEMUX
+
         Demux_UnpacketizeContainer_Demux(Buffer[Buffer_Offset+3]==0x0F);
     }
 
@@ -956,6 +1012,34 @@ void File_Vc1::EntryPointHeader()
         EntryPoint_Parsed=true;
         if (!Status[IsAccepted])
             Accept("VC-1");
+
+        #if MEDIAINFO_DEMUX
+            if (InitData_Buffer_Size && InitData_Buffer_Size!=(size_t)-1)
+            {
+                size_t InitData_Buffer_Temp_Size=InitData_Buffer_Size+(size_t)(Header_Size+Element_Size);
+                int8u* InitData_Buffer_Temp=new int8u[InitData_Buffer_Temp_Size];
+                std::memcpy(InitData_Buffer_Temp, InitData_Buffer, InitData_Buffer_Size);
+                std::memcpy(InitData_Buffer_Temp+InitData_Buffer_Size, Buffer+Buffer_Offset-(size_t)Header_Size, (size_t)(Header_Size+Element_Size));
+
+                switch (Config->Demux_InitData_Get())
+                {
+                    case 0 :    //In demux event
+                                break; //Will be done in the first demux event
+                    case 1 :    //In field
+                                {
+                                std::string Data_Raw((char*)InitData_Buffer_Temp, InitData_Buffer_Temp_Size);
+                                std::string Data_Base64(Base64::encode(Data_Raw));
+                                Fill(Stream_Video, StreamPos_Last, "Demux_InitBytes", Data_Base64);
+                                (*Stream_More)[Stream_Video][StreamPos_Last](Ztring().From_Local("Demux_InitBytes"), Info_Options)=__T("N NT");
+                                }
+                                break;
+                    default :   ;
+                }
+
+                delete[] InitData_Buffer; InitData_Buffer=NULL;
+                InitData_Buffer_Size=(size_t)-1;
+            }
+        #endif //MEDIAINFO_DEMUX
     FILLING_END();
 }
 
@@ -1082,6 +1166,15 @@ void File_Vc1::SequenceHeader()
                 Accept("VC-1");
             Finish("VC-1");
         }
+
+        #if MEDIAINFO_DEMUX
+            if (InitData_Buffer_Size!=(size_t)-1)
+            {
+                InitData_Buffer_Size=(size_t)(Header_Size+Element_Size);
+                InitData_Buffer=new int8u[InitData_Buffer_Size];
+                std::memcpy(InitData_Buffer, Buffer+Buffer_Offset-(size_t)Header_Size, (size_t)(Header_Size+Element_Size));
+            }
+        #endif //MEDIAINFO_DEMUX
     FILLING_END();
 }
 

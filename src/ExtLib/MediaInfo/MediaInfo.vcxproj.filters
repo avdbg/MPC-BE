@@ -227,9 +227,6 @@
     <ClInclude Include="MediaInfo\Multiple\File_Cdxa.h">
       <Filter>Header Files\Multiple</Filter>
     </ClInclude>
-    <ClInclude Include="MediaInfo\Multiple\File_Dcp.h">
-      <Filter>Header Files\Multiple</Filter>
-    </ClInclude>
     <ClInclude Include="MediaInfo\Multiple\File_Dpg.h">
       <Filter>Header Files\Multiple</Filter>
     </ClInclude>
@@ -464,14 +461,14 @@
     <ClInclude Include="MediaInfo\Multiple\File_SequenceInfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MediaInfo\Video\File_ProRes.h">
+      <Filter>Header Files\Video</Filter>
+    </ClInclude>
     <ClInclude Include="MediaInfo\Image\File_Pcx.h">
       <Filter>Header Files\Image</Filter>
     </ClInclude>
     <ClInclude Include="MediaInfo\Image\File_Psd.h">
       <Filter>Header Files\Image</Filter>
-    </ClInclude>
-    <ClInclude Include="MediaInfo\Video\File_ProRes.h">
-      <Filter>Header Files\Video</Filter>
     </ClInclude>
     <ClInclude Include="MediaInfo\Audio\File_Aac.h">
       <Filter>Header Files\Audio</Filter>
@@ -617,6 +614,24 @@
     <ClInclude Include="MediaInfo\Multiple\File_Pmp.h">
       <Filter>Header Files\Multiple</Filter>
     </ClInclude>
+    <ClInclude Include="MediaInfo\Video\File_Canopus.h">
+      <Filter>Header Files\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo\Multiple\File_DashMpd.h">
+      <Filter>Header Files\Multiple</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo\Multiple\File_HdsF4m.h">
+      <Filter>Header Files\Multiple</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo\Multiple\File_DcpAm.h">
+      <Filter>Header Files\Multiple</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo\Multiple\File_DcpCpl.h">
+      <Filter>Header Files\Multiple</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo\Multiple\File_DcpPkl.h">
+      <Filter>Header Files\Multiple</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ThirdParty\tinyxml2\tinyxml2.cpp">
@@ -752,9 +767,6 @@
       <Filter>Source Files\Multiple</Filter>
     </ClCompile>
     <ClCompile Include="MediaInfo\Multiple\File_Cdxa.cpp">
-      <Filter>Source Files\Multiple</Filter>
-    </ClCompile>
-    <ClCompile Include="MediaInfo\Multiple\File_Dcp.cpp">
       <Filter>Source Files\Multiple</Filter>
     </ClCompile>
     <ClCompile Include="MediaInfo\Multiple\File_Dpg.cpp">
@@ -1018,14 +1030,14 @@
     <ClCompile Include="MediaInfo\Multiple\File_SequenceInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MediaInfo\Video\File_ProRes.cpp">
-      <Filter>Source Files\Video</Filter>
-    </ClCompile>
     <ClCompile Include="MediaInfo\Image\File_Pcx.cpp">
       <Filter>Source Files\Image</Filter>
     </ClCompile>
     <ClCompile Include="MediaInfo\Image\File_Psd.cpp">
       <Filter>Source Files\Image</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Video\File_ProRes.cpp">
+      <Filter>Source Files\Video</Filter>
     </ClCompile>
     <ClCompile Include="MediaInfo\Audio\File_Aac.cpp">
       <Filter>Source Files\Audio</Filter>
@@ -1175,6 +1187,24 @@
       <Filter>Source Files\Video</Filter>
     </ClCompile>
     <ClCompile Include="MediaInfo\Multiple\File_Pmp.cpp">
+      <Filter>Source Files\Multiple</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Video\File_Canopus.cpp">
+      <Filter>Source Files\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Multiple\File_DashMpd.cpp">
+      <Filter>Source Files\Multiple</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Multiple\File_HdsF4m.cpp">
+      <Filter>Source Files\Multiple</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Multiple\File_DcpAm.cpp">
+      <Filter>Source Files\Multiple</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Multiple\File_DcpCpl.cpp">
+      <Filter>Source Files\Multiple</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo\Multiple\File_DcpPkl.cpp">
       <Filter>Source Files\Multiple</Filter>
     </ClCompile>
   </ItemGroup>

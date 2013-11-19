@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -34,6 +32,7 @@
 #include "../../DSUtil/WinAPIUtils.h"
 #include "../../DSUtil/SysVersion.h"
 #include "../../DSUtil/MPCSocket.h"
+#include <moreuuids.h>
 #include <winddk/ntddcdvd.h>
 #include <detours/detours.h>
 #include <afxsock.h>
@@ -186,7 +185,7 @@ HICON LoadIcon(CString fn, bool fSmall)
 
 	SHFILEINFO sfi;
 	ZeroMemory(&sfi, sizeof(sfi));
-	
+
 	if (SUCCEEDED(SHGetFileInfo(buff, 0, &sfi, sizeof(sfi), (fSmall ? SHGFI_SMALLICON : SHGFI_LARGEICON) |SHGFI_ICON)) && sfi.hIcon) {
 		return sfi.hIcon;
 	}
@@ -434,23 +433,42 @@ HWND g_hWnd = NULL;
 
 bool CMPlayerCApp::StoreSettingsToIni()
 {
-	CString ini = GetIniPath();
-	/*
-		FILE* f;
-		if (!(f = _tfopen(ini, _T("r+"))) && !(f = _tfopen(ini, _T("w"))))
-			return StoreSettingsToRegistry();
-		fclose(f);
-	*/
 	free((void*)m_pszRegistryKey);
 	m_pszRegistryKey = NULL;
 	free((void*)m_pszProfileName);
-	m_pszProfileName = _tcsdup(ini);
+	m_pszProfileName = _tcsdup(GetIniPath());
+
+	// Validate .ini file
+	if (::PathFileExists(m_pszProfileName)) {
+		FILE* fp = _tfopen(m_pszProfileName, _T("r, ccs=UNICODE"));
+		if (fp) {
+			CStdioFile cf(fp);
+			CString str;
+			BOOL bIsValid = FALSE;
+			while (cf.ReadString(str)) {
+				str.Trim();
+				if (str.IsEmpty()) {
+					continue;
+				}
+				if (str.Find(L";") >= 0 || (str.Find(L"[") >= 0 && str.Find(L"]") > 0)) {
+					bIsValid = TRUE;
+					break;
+				}
+				break;
+			}
+
+			fclose(fp);
+			if (!bIsValid) {
+				::DeleteFile(m_pszProfileName);
+			}
+		}
+	}
 
 	// We can only use UTF16-LE for unicode ini files in windows. UTF8/UTF16-BE do not work.
 	// So to ensure we have correct encoding for ini files, create a file with right BOM first,
 	// then add some comments in first line to make sure it's not empty.
 	if (!::PathFileExists(m_pszProfileName)) { // don't overwrite existing ini file
-		LPTSTR pszComments = _T("; MPC-BE");
+		LPTSTR pszComments = L"; MPC-BE";
 		WORD wBOM = 0xFEFF; // UTF16-LE BOM (FFFE)
 		DWORD nBytes;
 
@@ -678,6 +696,16 @@ BOOL CMPlayerCApp::SendCommandLine(HWND hWnd)
 	cds.cbData = bufflen;
 	cds.lpData = (void*)(BYTE*)buff;
 	return SendMessage(hWnd, WM_COPYDATA, (WPARAM)NULL, (LPARAM)&cds);
+}
+
+typedef struct THREADCopyData {
+	CMPlayerCApp*	pMPlayerCApp;
+	HWND			hWND;
+} THREADCopyData, *PTHREADCopyData;
+
+UINT CMPlayerCApp::RunTHREADCopyData(LPVOID pParam) {
+	PTHREADCopyData pTCD = reinterpret_cast<PTHREADCopyData>(pParam);
+	return (BOOL)pTCD->pMPlayerCApp->SendCommandLine(pTCD->hWND);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1106,7 +1134,7 @@ BOOL CMPlayerCApp::InitInstance()
 				CPPageFormats::RegisterShellExt(GetModulePath(false) + _T("\\MPCBEShellExt64.dll"));
 			}
 
-			if (IsWinEight()) {
+			if (IsWinEightOrLater()) {
 				HRESULT hr = CPPageFormats::RegisterUI();
 				UNREFERENCED_PARAMETER(hr);
 			}
@@ -1140,7 +1168,7 @@ BOOL CMPlayerCApp::InitInstance()
 				}
 			}
 
-			if (IsWinEight()) {
+			if (IsWinEightOrLater()) {
 				HRESULT hr = CPPageFormats::RegisterUI();
 				UNREFERENCED_PARAMETER(hr);
 			}
@@ -1173,7 +1201,7 @@ BOOL CMPlayerCApp::InitInstance()
 
 	if ( GetLastError() == ERROR_ALREADY_EXISTS && !(m_s.nCLSwitches&CLSW_NEW) &&
 			(m_s.nCLSwitches&CLSW_ADD ||
-			m_s.GetMultiInst() == 1 && !m_cmdln.IsEmpty() ||
+			(m_s.GetMultiInst() == 1 && !m_cmdln.IsEmpty()) ||
 			m_s.GetMultiInst() == 0) ) {
 
 		DWORD res = WaitForSingleObject(m_mutexOneInstance.m_h, 5000);
@@ -1184,9 +1212,24 @@ BOOL CMPlayerCApp::InitInstance()
 				if (!(m_s.nCLSwitches&CLSW_MINIMIZED) && IsIconic(hWnd)) {
 					ShowWindow(hWnd, SW_RESTORE);
 				}
-				SendCommandLine(hWnd);
-				m_mutexOneInstance.Close();
-				return FALSE;
+				BOOL bDataIsSend = TRUE;
+
+				PTHREADCopyData pTCD	= DNew THREADCopyData;
+				pTCD->pMPlayerCApp		= this;
+				pTCD->hWND				= hWnd;
+
+				CWinThread*	pTHREADCopyData = AfxBeginThread(RunTHREADCopyData, static_cast<LPVOID>(pTCD));
+				if (WaitForSingleObject(pTHREADCopyData->m_hThread, 5000) == WAIT_TIMEOUT) {
+					TerminateThread(pTHREADCopyData->m_hThread, 0xDEAD);
+					bDataIsSend = FALSE;
+				}
+
+				delete pTCD;
+
+				if (bDataIsSend) {
+					m_mutexOneInstance.Close();
+					return FALSE;
+				}
 			}
 		}
 	}
@@ -1197,8 +1240,6 @@ BOOL CMPlayerCApp::InitInstance()
 	if (IsIniValid() && !IsIniUTF16LE()) {
 		ChangeSettingsLocation(true);
 	}
-
-	AfxGetMyApp()->m_AudioRendererDisplayName_CL = _T("");
 
 	if (!__super::InitInstance()) {
 		AfxMessageBox(_T("InitInstance failed!"));
@@ -1740,7 +1781,7 @@ void SetDispMode(dispmode& dm, CString& DisplayName)
 void SetAudioRenderer(int AudioDevNo)
 {
 	CStringArray m_AudioRendererDisplayNames;
-	AfxGetMyApp()->m_AudioRendererDisplayName_CL = _T("");
+	AfxGetMyApp()->m_AudioRendererDisplayName_CL.Empty();
 	m_AudioRendererDisplayNames.Add(_T(""));
 	int i=2;
 
@@ -1758,9 +1799,11 @@ void SetAudioRenderer(int AudioDevNo)
 
 	m_AudioRendererDisplayNames.Add(AUDRNDT_NULL_COMP);
 	m_AudioRendererDisplayNames.Add(AUDRNDT_NULL_UNCOMP);
-	m_AudioRendererDisplayNames.Add(AUDRNDT_MPC);
-	i+=3;
-	if (AudioDevNo>=1 && AudioDevNo<=i) {
+	if (IsWinVistaOrLater()) {
+		m_AudioRendererDisplayNames.Add(AUDRNDT_MPC);
+	}
+	i += 3;
+	if (AudioDevNo >= 1 && AudioDevNo <= i) {
 		AfxGetMyApp()->m_AudioRendererDisplayName_CL = m_AudioRendererDisplayNames[AudioDevNo-1];
 	}
 }
@@ -1804,7 +1847,30 @@ bool FindRedir(CUrl& src, CString ct, CString& body, CAtlList<CString>& urls, CA
 			}
 
 			CUrl dst;
-			dst.CrackUrl(CString(url));
+			dst.CrackUrl(url);
+
+			if (url.Find(L"://") < 0) {
+				DWORD dwUrlLen = src.GetUrlLength() + 1;
+				TCHAR* szUrl = new TCHAR[dwUrlLen];
+
+				// Retrieve the contents of the CUrl object
+				src.CreateUrl(szUrl, &dwUrlLen);
+				CString path(szUrl);
+				delete[] szUrl;
+
+				int pos = path.ReverseFind('/');
+				if (pos > 0) {
+					path.Delete(pos + 1, path.GetLength() - pos - 1);
+				}
+
+				if (url[0] == '/') {
+					path.Delete(path.GetLength() - 1, 1);
+				}
+
+				url = path + url;
+				dst.CrackUrl(url);
+			}
+
 			if (_tcsicmp(src.GetSchemeName(), dst.GetSchemeName())
 					|| _tcsicmp(src.GetHostName(), dst.GetHostName())
 					|| _tcsicmp(src.GetUrlPath(), dst.GetUrlPath())) {
@@ -1894,87 +1960,19 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 			return "video/x-ms-asf";
 		}
 
-		if (_tcsicmp(url.GetSchemeName(), _T("http")) != 0) {
+		if (url.GetScheme() != ATL_URL_SCHEME_HTTP) {
 			return "";
 		}
 
-		DWORD ProxyEnable = 0;
-		CString ProxyServer;
-		DWORD ProxyPort = 0;
-
-		ULONG len = 256+1;
-		CRegKey key;
-		if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"), KEY_READ)
-				&& ERROR_SUCCESS == key.QueryDWORDValue(_T("ProxyEnable"), ProxyEnable) && ProxyEnable
-				&& ERROR_SUCCESS == key.QueryStringValue(_T("ProxyServer"), ProxyServer.GetBufferSetLength(256), &len)) {
-			ProxyServer.ReleaseBufferSetLength(len);
-
-			CAtlList<CString> sl;
-			ProxyServer = Explode(ProxyServer, sl, ';');
-			if (sl.GetCount() > 1) {
-				POSITION pos = sl.GetHeadPosition();
-				while (pos) {
-					CAtlList<CString> sl2;
-					if (!Explode(sl.GetNext(pos), sl2, '=', 2).CompareNoCase(_T("http"))
-							&& sl2.GetCount() == 2) {
-						ProxyServer = sl2.GetTail();
-						break;
-					}
-				}
-			}
-
-			ProxyServer = Explode(ProxyServer, sl, ':');
-			if (sl.GetCount() > 1) {
-				ProxyPort = _tcstol(sl.GetTail(), NULL, 10);
-			}
-		}
-
 		CMPCSocket s;
-		s.Create();
-		s.SetTimeOut(3000);
-		if (s.Connect(
-					ProxyEnable ? ProxyServer : url.GetHostName(),
-					ProxyEnable ? ProxyPort : url.GetPortNumber())) {
-			s.KillTimeOut();
+		if (!s.Create()) {
+			return "";
+		}
+		s.SetTimeOut(3000, 3000);
+		if (s.Connect(url)) {
+			CStringA hdr = s.GetHeader();
 
-			CStringA host = CStringA(url.GetHostName());
-			CStringA path = CStringA(url.GetUrlPath()) + CStringA(url.GetExtraInfo());
-
-			if (ProxyEnable) {
-				path = "http://" + host + path;
-			}
-
-			CStringA hdr;
-			hdr.Format(
-				"GET %s HTTP/1.0\r\n"
-				"User-Agent: Media Player Classic\r\n"
-				"Host: %s\r\n"
-				"Accept: */*\r\n"
-				"\r\n", path, host);
-
-			// MessageBox(NULL, CString(hdr), _T("Sending..."), MB_OK);
-
-			if (s.Send((LPCSTR)hdr, hdr.GetLength()) < hdr.GetLength()) {
-				return "";
-			}
-
-			hdr.Empty();
-			for (;;) {
-				CStringA str;
-				str.ReleaseBuffer(s.Receive(str.GetBuffer(256), 256)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
-				if (str.IsEmpty()) {
-					break;
-				}
-				hdr += str;
-				int hdrend = hdr.Find("\r\n\r\n");
-				if (hdrend >= 0) {
-					body = hdr.Mid(hdrend+4);
-					hdr = hdr.Left(hdrend);
-					break;
-				}
-			}
-
-			// MessageBox(NULL, CString(hdr), _T("Received..."), MB_OK);
+			int ContentLength = 0;
 
 			CAtlList<CStringA> sl;
 			Explode(hdr, sl, '\n');
@@ -1989,6 +1987,11 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 				}
 				if (field == "content-type" && !sl2.IsEmpty()) {
 					ct = sl2.GetHead();
+				}
+
+				hdrline.MakeLower();
+				if (1 == sscanf_s(hdrline, "content-length:%d", &ContentLength)) {
+					ContentLength = ContentLength;
 				}
 			}
 
@@ -2005,16 +2008,25 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 					ct = _T("application/x-quicktimeplayer");
 				} else if (ext == _T(".mpcpl")) {
 					ct = _T("application/x-mpc-playlist");
+				} else if (ext == _T(".ram")) {
+					ct = _T("audio/x-pn-realaudio");
 				} else if (ext == _T(".bdmv")) {
 					ct = _T("application/x-bdmv-playlist");
 				} else if (ext == _T(".xspf")) {
 					ct = _T("application/xspf+xml");
-				}			
+				}
 			}
 
-			while (body.GetLength() < 256) {
+			int nMinSize = 256;
+			if (ContentLength) {
+				nMinSize = min(nMinSize, ContentLength);
+			}
+
+			while (body.GetLength() < nMinSize) {
 				CStringA str;
-				str.ReleaseBuffer(s.Receive(str.GetBuffer(256), 256)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
+				s.SetTimeOut(1500);
+				str.ReleaseBuffer(s.Receive(str.GetBuffer(nMinSize), nMinSize)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
+				s.KillTimeOut();
 				if (str.IsEmpty()) {
 					break;
 				}
@@ -2035,18 +2047,45 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 				if (!strncmp((LPCSTR)str+4, "moov", 4)) {
 					return "video/quicktime";
 				}
+				if ((ct.Find(L"text/plain") == 0 || ct.Find(L"application/vnd.apple.mpegurl") == 0) && str.Find("#EXTM3U") == 0) {
+					ct = L"audio/x-mpegurl";
+				}
 			}
 
 			if (redir && (ct == _T("audio/x-scpls") || ct == _T("audio/x-mpegurl") || ct == _T("application/xspf+xml"))) {
-				while (body.GetLength() < 16*1024) { // should be enough for a playlist...
+				int nMaxSize = 16*1024;
+				if (ContentLength) {
+					nMaxSize = min(ContentLength, nMaxSize);
+				}
+				
+				while (body.GetLength() < nMaxSize) { // should be enough for a playlist...
 					CStringA str;
-					str.ReleaseBuffer(s.Receive(str.GetBuffer(256), 256)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
+					s.SetTimeOut(1500);
+					str.ReleaseBuffer(s.Receive(str.GetBuffer(nMinSize), nMinSize)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
+					s.KillTimeOut();
 					if (str.IsEmpty()) {
 						break;
 					}
 					body += str;
 				}
 			}
+
+#if (SOCKET_DUMPLOGFILE)
+			{
+				if (body.GetLength() > 0) {
+					LOG2FILE(L"===");
+					LOG2FILE(L"%s", fn);
+					LOG2FILE(L"Body:");
+					CAtlList<CString> sl;
+					Explode(body, sl, '\n');
+					POSITION pos = sl.GetHeadPosition();
+					while (pos) {
+						CString& hdrline = sl.GetNext(pos);
+						LOG2FILE(L"%s", hdrline);
+					}
+				}
+			}
+#endif
 		}
 	} else if (!fn.IsEmpty()) {
 		CPath p(fn);
@@ -2061,6 +2100,8 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 			ct = _T("application/x-quicktimeplayer");
 		} else if (ext == _T(".mpcpl")) {
 			ct = _T("application/x-mpc-playlist");
+		} else if (ext == _T(".ram")) {
+			ct = _T("audio/x-pn-realaudio");
 		} else if (ext == _T(".bdmv")) {
 			ct = _T("application/x-bdmv-playlist");
 		} else if (ext == _T(".xspf")) {
@@ -2099,7 +2140,7 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 			}
 			// Ref#n= ...://...\n
 			re.Attach(DNew CAtlRegExpT());
-			if (re && REPARSE_ERROR_OK == re->Parse(_T("Ref\\z\\b*=\\b*[\"]*{([a-zA-Z]+://[^\n\"]+}"), FALSE)) {
+			if (re && REPARSE_ERROR_OK == re->Parse(_T("Ref\\z\\b*=\\b*[\"]*{[a-zA-Z]+://[^\n\"]+}"), FALSE)) {
 				res.AddTail(re);
 			}
 		} else if (ct == _T("audio/x-scpls")) {
@@ -2383,7 +2424,7 @@ void CMPlayerCApp::SetLanguage(int nLanguage)
 
 bool CMPlayerCApp::IsVSFilterInstalled()
 {
-	return IsCLSIDRegistered(_T("{9852A670-F845-491B-9BE6-EBD841B8A613}"));
+	return IsCLSIDRegistered(CLSID_VSFilter);
 }
 
 bool CMPlayerCApp::HasEVR()

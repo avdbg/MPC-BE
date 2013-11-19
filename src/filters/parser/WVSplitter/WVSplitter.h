@@ -1,5 +1,4 @@
 /*
- * $Id$
  *
  * Adaptation for MPC-BE (C) 2012 Dmitry "Vortex" Koteroff (vortex@light-alloy.ru, http://light-alloy.ru)
  *
@@ -75,10 +74,6 @@ public:
 	STDMETHODIMP EndFlush();
 
 	HRESULT DoSeeking(REFERENCE_TIME rtStart);
-
-	CAtlArray<BYTE>		m_Cover;
-	CString				m_CoverMime;
-	CString				m_CoverFileName;
 
 protected:
 	enum {CMD_EXIT, CMD_STOP, CMD_PAUSE, CMD_RUN};
@@ -170,10 +165,6 @@ public :
 
 	HRESULT BeginFlush();
 	HRESULT EndFlush();
-
-	// IDSMResourceBag
-	STDMETHODIMP_(DWORD) ResGetCount();
-	STDMETHODIMP ResGet(DWORD iIndex, BSTR* ppName, BSTR* ppDesc, BSTR* ppMime, BYTE** ppData, DWORD* pDataLen, DWORD_PTR* pTag);
 
 	// IDispatch
 	STDMETHODIMP GetTypeInfoCount(UINT* pctinfo) {return E_NOTIMPL;}

@@ -33,6 +33,9 @@
     <ClCompile Include="ComPropertyPage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CShockwaveFlash.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DeinterlacerFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -222,7 +225,7 @@
     <ClCompile Include="PPageSheet.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PPageSubMisc.cpp">
+    <ClCompile Include="PPageSubRend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PPageSubStyle.cpp">
@@ -303,18 +306,6 @@
     <ClCompile Include="WebServer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\ExtLib\mfc\afxctrlcontainer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\ExtLib\mfc\afxglobals.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\ExtLib\mfc\afxmaskededit.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\ExtLib\mfc\winmdi.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="vkCodes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -354,6 +345,9 @@
     <ClCompile Include="PPageFiltersPriority.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="WinDebugMonitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AppSettings.h">
@@ -366,6 +360,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ComPropertyPage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CShockwaveFlash.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DeinterlacerFilter.h">
@@ -563,7 +560,7 @@
     <ClInclude Include="PPageSheet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PPageSubMisc.h">
+    <ClInclude Include="PPageSubRend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PPageSubStyle.h">
@@ -671,9 +668,6 @@
     <ClInclude Include="AboutDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\ExtLib\mfc\afxmaskededit.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PPageInterface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -690,6 +684,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PPageFiltersPriority.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WinDebugMonitor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -718,10 +715,16 @@
     <None Include="res\mono.bmp">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="res\multi.ico">
+      <Filter>Resource Files</Filter>
+    </None>
     <None Include="res\noaudio.bmp">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\onoff.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\single.ico">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\stereo.bmp">
@@ -862,34 +865,91 @@
     <None Include="res\web\vbs.gif">
       <Filter>Resource Files\web</Filter>
     </None>
+    <None Include="res\shaders\BT601BT709.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\contour.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\deinterlace (blend).psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\denoise.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\EdgeSharpen.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\emboss.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\empty.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\final.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\grayscale.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\invert.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\letterbox.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\levels.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\levels2.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\levels3.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\nightvision.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\procamp.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\resizer.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\sharpen.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\SharpenComplex.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\SharpenComplex2.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\sphere.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\spotlight.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\wave.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\YV12ChromaUpsampling.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
+    <None Include="res\shaders\LCDAngleCorrection.psh">
+      <Filter>Resource Files\shaders</Filter>
+    </None>
     <None Include="res\toolbar.bmp">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\toolbar.png">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="res\Toolbarw7.png">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\gpu.png">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\empty.psh">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="res\final.psh">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
-    <None Include="res\resizer.psh">
-      <Filter>Resource Files\shaders</Filter>
-    </None>
     <None Include="res\flybar.png">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="res\ani_web.avi">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\audio.png">
+    <None Include="res\Toolbarw7.png">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
@@ -905,5 +965,10 @@
     <CustomBuildStep Include="res\mplayerc.rc2">
       <Filter>Resource Files</Filter>
     </CustomBuildStep>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\gpu.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

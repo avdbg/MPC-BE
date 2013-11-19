@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -122,8 +120,9 @@ public:
 
 	int			iAPSurfaceUsage;
 	int			iDX9Resizer;
-	bool		fVMR9MixerMode;
-	bool		fVMR9MixerYUV;
+	bool		fVMRMixerMode;
+	bool		fVMRMixerYUV;
+
 	int			iEvrBuffers;
 
 	int			nSPCSize;
@@ -155,7 +154,6 @@ public:
 
 	LONGLONG	GetPerfCounter();
 	HINSTANCE	GetD3X9Dll();
-	UINT		GetDXSdkRelease() {return m_nDXSdkRelease;};
 };
 
 extern CRenderersData*		GetRenderersData();

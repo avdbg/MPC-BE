@@ -1,6 +1,4 @@
 /*
- * $Id: PreView.h 807 2012-08-03 02:32:56Z Aleksoid $
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.

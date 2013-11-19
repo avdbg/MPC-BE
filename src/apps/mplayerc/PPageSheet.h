@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -41,7 +39,7 @@
 #include "PPageExternalFilters.h"
 #include "PPageSubtitles.h"
 #include "PPageSubStyle.h"
-#include "PPageSubMisc.h"
+#include "PPageSubRend.h"
 #include "PPageTweaks.h"
 #include "PPageInterface.h"
 #include "PPageMisc.h"
@@ -92,7 +90,7 @@ private:
 	CPPageExternalFilters m_externalfilters;
 	CPPageSubtitles m_subtitles;
 	CPPageSubStyle m_substyle;
-	CPPageSubMisc m_subMisc;
+	CPPageSubRend m_subMisc;
 	CPPageTweaks m_tweaks;
 	CPPageInterface m_interface;
 	CPPageMisc m_misc;

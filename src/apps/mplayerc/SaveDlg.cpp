@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -324,11 +322,11 @@ CSaveTaskDlg::CSaveTaskDlg(CString in, CString name, CString out)
 	if (m_hIcon != NULL) {
 		SetMainIcon(m_hIcon);
 	}
-	
+
 	SetProgressBarMarquee();
 	SetProgressBarRange(0, 100);
 	SetProgressBarPosition(0);
-	
+
 	SetDialogWidth(250);
 
 	InitFileCopy();
@@ -408,7 +406,7 @@ HRESULT CSaveTaskDlg::InitFileCopy()
 		CComPtr<IUnknown> pUnk;
 		pUnk.CoCreateInstance(CLSID_AsyncReader);
 
-		if (FAILED(hr) || !(pReader = pUnk) || FAILED(pReader->Load(fnw, NULL))) {
+		if (!(pReader = pUnk) || FAILED(pReader->Load(fnw, NULL))) {
 			pReader.Release();
 		}
 	}
@@ -421,7 +419,7 @@ HRESULT CSaveTaskDlg::InitFileCopy()
 		if (CComQIPtr<IBaseFilter> pSrc = pUnk) {
 			pGB->AddFilter(pSrc, fnw);
 
-			if (FAILED(hr) || !(pReader = pUnk) || FAILED(hr = pReader->Load(fnw, NULL))) {
+			if (!(pReader = pUnk) || FAILED(hr = pReader->Load(fnw, NULL))) {
 				pReader.Release();
 				pGB->RemoveFilter(pSrc);
 			}
@@ -539,7 +537,7 @@ HRESULT CSaveTaskDlg::OnTimer(_In_ long lTime)
 
 		if (dur && pos >= dur) {
 			::SendMessage(m_TaskDlgHwnd, TDM_CLICK_BUTTON, static_cast<WPARAM>(TDCBF_CANCEL_BUTTON), 0);
-			
+
 			return S_FALSE;
 		}
 	}

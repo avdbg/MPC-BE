@@ -121,7 +121,7 @@ png_read_info(png_structrp png_ptr, png_inforp info_ptr)
             png_chunk_error(png_ptr, "Missing PLTE before IDAT");
 
          else if (png_ptr->mode & PNG_AFTER_IDAT)
-            png_chunk_benign_error(png_ptr, "Too many IDATs found");
+            png_chunk_benign_error(png_ptr, "Too many IDATs found[s]");
 
          png_ptr->mode |= PNG_HAVE_IDAT;
       }
@@ -728,7 +728,7 @@ png_read_end(png_structrp png_ptr, png_inforp info_ptr)
          if (chunk_name == png_IDAT)
          {
             if ((length > 0) || (png_ptr->mode & PNG_HAVE_CHUNK_AFTER_IDAT))
-               png_benign_error(png_ptr, "Too many IDATs found");
+               png_benign_error(png_ptr, "Too many IDATs found(a1)");
          }
          png_handle_unknown(png_ptr, info_ptr, length, keep);
          if (chunk_name == png_PLTE)
@@ -742,7 +742,7 @@ png_read_end(png_structrp png_ptr, png_inforp info_ptr)
           * read, but not after other chunks have been read.
           */
          if ((length > 0) || (png_ptr->mode & PNG_HAVE_CHUNK_AFTER_IDAT))
-            png_benign_error(png_ptr, "Too many IDATs found");
+            png_benign_error(png_ptr, "Too many IDATs found(a2)");
 
          png_crc_finish(png_ptr, length);
       }
@@ -3285,7 +3285,7 @@ png_image_read_background(png_voidp argument)
 
       case 8:
          /* 8-bit sRGB gray values with an alpha channel; the alpha channel is
-          * to be removed by composing on a backgroundi: either the row if
+          * to be removed by composing on a background: either the row if
           * display->background is NULL or display->background->green if not.
           * Unlike the code above ALPHA_OPTIMIZED has *not* been done.
           */

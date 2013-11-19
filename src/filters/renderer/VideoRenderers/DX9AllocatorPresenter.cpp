@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -68,14 +66,11 @@ CDX9AllocatorPresenter::CDX9AllocatorPresenter(HWND hWnd, bool bFullscreen, HRES
 	, m_hVSyncThread(NULL)
 	, m_hEvtQuit(NULL)
 	, m_bIsFullscreen(bFullscreen)
-	, m_Decoder(_T(""))
-	, m_InputVCodec(_T(""))
 	, m_nRenderState(Undefined)
-	, m_MonitorName(_T(""))
 	, m_nMonitorHorRes(0), m_nMonitorVerRes(0)
 	, m_rcMonitor(0, 0, 0, 0)
 {
-	HINSTANCE		hDll;
+	HINSTANCE hDll;
 
 	if (FAILED(hr)) {
 		_Error += L"ISubPicAllocatorPresenterImpl failed\n";
@@ -791,8 +786,11 @@ HRESULT CDX9AllocatorPresenter::CreateDevice(CString &_Error)
 	// detect 10-bit textures support
 	renderersData->m_b10bitSupport = SUCCEEDED(m_pD3D->CheckDeviceFormat(m_CurrentAdapter, D3DDEVTYPE_HAL, D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_FILTER, D3DRTYPE_TEXTURE, D3DFMT_A2R10G10B10));
 
+	// detect 10-bit device support
+	bool bHighColorSupport = SUCCEEDED(m_pD3D->CheckDeviceType(m_CurrentAdapter, D3DDEVTYPE_HAL, D3DFMT_A2R10G10B10, D3DFMT_A2R10G10B10, FALSE));
+
 	// set settings that depend on hardware feature support
-	m_bForceInputHighColorResolution = s.m_AdvRendSets.iEVRForceInputHighColorResolution && m_bIsEVR && renderersData->m_b10bitSupport;
+	m_bForceInputHighColorResolution = s.m_AdvRendSets.iEVRForceInputHighColorResolution && m_bIsEVR && renderersData->m_b10bitSupport && bHighColorSupport;
 	m_bHighColorResolution = s.m_AdvRendSets.iEVRHighColorResolution && m_bIsEVR && renderersData->m_b10bitSupport;
 	m_bFullFloatingPointProcessing = s.m_AdvRendSets.iVMR9FullFloatingPointProcessing && renderersData->m_bFP16Support;
 	m_bHalfFloatingPointProcessing = s.m_AdvRendSets.iVMR9HalfFloatingPointProcessing && renderersData->m_bFP16Support && !m_bFullFloatingPointProcessing;
@@ -1456,11 +1454,11 @@ void CDX9AllocatorPresenter::UpdateAlphaBitmap()
 	m_VMR9AlphaBitmapData.Free();
 
 	if ((m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_DISABLE) == 0) {
-		HBITMAP			hBitmap = (HBITMAP)GetCurrentObject (m_VMR9AlphaBitmap.hdc, OBJ_BITMAP);
+		HBITMAP hBitmap = (HBITMAP)GetCurrentObject (m_VMR9AlphaBitmap.hdc, OBJ_BITMAP);
 		if (!hBitmap) {
 			return;
 		}
-		DIBSECTION		info = {0};
+		DIBSECTION info = {0};
 		if (!::GetObject(hBitmap, sizeof( DIBSECTION ), &info )) {
 			return;
 		}
@@ -1499,8 +1497,7 @@ STDMETHODIMP_(bool) CDX9AllocatorPresenter::Paint(bool fAll)
 	CAutoLock cRenderLock(&m_RenderLock);
 
 	if (m_WindowRect.right <= m_WindowRect.left || m_WindowRect.bottom <= m_WindowRect.top
-			|| m_NativeVideoSize.cx <= 0 || m_NativeVideoSize.cy <= 0
-			|| !m_pVideoSurface) {
+			|| m_NativeVideoSize.cx <= 0 || m_NativeVideoSize.cy <= 0) {
 		if (m_OrderedPaint) {
 			--m_OrderedPaint;
 		} else {
@@ -2038,20 +2035,20 @@ void CDX9AllocatorPresenter::DrawStats()
 	LONGLONG		llMinSyncOffset = m_MinSyncOffset;
 	RECT			rc = {40, 40, 0, 0 };
 
-	static UINT		TextHeight = 0;
+	static int		TextHeight = 0;
 	static CRect	WindowRect(0, 0, 0, 0);
 
 	if (WindowRect != m_WindowRect) {
-		m_pFont = NULL;	
+		m_pFont = NULL;
 	}
 	WindowRect = m_WindowRect;
 
 	if (!m_pFont && m_pD3DXCreateFont) {
-		UINT FontWidth	= m_WindowRect.Width()/130;
-		UINT FontHeight	= m_WindowRect.Height()/35;
+		int  FontHeight = max(m_WindowRect.Height()/35, 6); // must be equal to 5 or more
+		UINT FontWidth  = max(m_WindowRect.Width()/130, 4); // 0 = auto
 		UINT FontWeight = FW_BOLD;
 		if ((m_rcMonitor.Width() - m_WindowRect.Width()) > 100) {
-			FontWeight	= FW_NORMAL;
+			FontWeight  = FW_NORMAL;
 		}
 
 		TextHeight = FontHeight;
@@ -2195,9 +2192,6 @@ void CDX9AllocatorPresenter::DrawStats()
 			DrawText(rc, strText, 1);
 			OffsetRect (&rc, 0, TextHeight);
 
-		}
-
-		if (bDetailedStats > 1) {
 			strText.Format(L"Formats      : Surface %s    Backbuffer %s    Display %s     Device %s      D3DExError: %s", GetD3DFormatStr(m_SurfaceType), GetD3DFormatStr(m_BackbufferType), GetD3DFormatStr(m_DisplayType), m_pD3DDevEx ? L"D3DDevEx" : L"D3DDev", m_D3DDevExError.GetString());
 			DrawText(rc, strText, 1);
 			OffsetRect (&rc, 0, TextHeight);
@@ -2335,10 +2329,6 @@ void CDX9AllocatorPresenter::DrawStats()
 			DrawText(rc, strText, 1);
 			OffsetRect (&rc, 0, TextHeight);
 
-			strText.Format(L"DirectX SDK  : %u", GetRenderersData()->GetDXSdkRelease());
-			DrawText(rc, strText, 1);
-			OffsetRect (&rc, 0, TextHeight);
-
 			if (!m_D3D9Device.IsEmpty()) {
 				strText = "Render device: " + m_D3D9Device;
 				DrawText(rc, strText, 1);
@@ -2368,6 +2358,19 @@ void CDX9AllocatorPresenter::DrawStats()
 					DrawText(rc, m_strStatsMsg[i], 1);
 					OffsetRect (&rc, 0, TextHeight);
 				}
+			}
+
+			static DWORD lastTick	= 0;
+			static short cpuUsage		= 0;
+			if ((GetTickCount() - lastTick) >= 1000) {
+				cpuUsage = m_CpuUsage.GetUsage();
+				lastTick = GetTickCount();
+			}
+
+			{
+				strText.Format(L"CPU Usage    : %2d%%", cpuUsage);
+				DrawText(rc, strText, 1);
+				OffsetRect (&rc, 0, TextHeight);
 			}
 		}
 		m_pSprite->End();

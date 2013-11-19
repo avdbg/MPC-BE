@@ -1,4 +1,4 @@
-#include "wavpack\wputils.h"
+#include "wavpack/wputils.h"
 #include "wavpack_common.h"
 #include "wavpack_frame.h"
 #include "wavpack_parser.h"
@@ -153,20 +153,25 @@ int is_correction_block(uchar* blockbuff, uint32_t len)
 
 WavPack_parser* wavpack_parser_new(stream_reader* io, int is_correction)
 {
-	uint32_t bcount = 0;
-	int is_final_block = FALSE;
-    int striped_header_len = 0;
+    uint32_t bcount = 0;
+    int is_final_block = FALSE;
 
     WavPack_parser* wpp = wp_alloc(sizeof(WavPack_parser));
     if(!wpp)
-	{
+    {
         return NULL;
-	}
+    }
 
     wpp->io = io;
     wpp->is_correction = is_correction;
-	
-    // TODO :we could determinate if it's a correction file by parsing first block metadata
+
+    // ==> Start patch MPC
+	if (wpp->io->get_length(io) == 0)
+	{
+        wavpack_parser_free(wpp);
+        return NULL;
+    }
+    // ==> End patch MPC
 
     wpp->fb = frame_buffer_new();
     if(!wpp->fb)
@@ -175,38 +180,29 @@ WavPack_parser* wavpack_parser_new(stream_reader* io, int is_correction)
         return NULL;
     }
 
-	// ==> Start patch MPC
-	// check header ...
-	{
-		char ckID[4];
-		uint32_t curr_pos = wpp->io->get_pos(wpp->io);
-		if ((wpp->io->read_bytes (wpp->io, &ckID, sizeof(ckID)) != sizeof(ckID)) || (strncmp (ckID, "wvpk", 4))) {
-			wavpack_parser_free(wpp);
-			return NULL;
-		}
-		wpp->io->set_pos_abs(wpp->io, curr_pos);
-	}
-	// ==> End patch MPC
+    // ==> Start patch MPC
+    wpp->io->set_pos_abs(wpp->io, 0);
+    // ==> End patch MPC
 
-	// Read the first frame
-	do {
-		// Get next WavPack block info
-		bcount = get_wp_block(wpp, &is_final_block);
-		if(bcount == -1)
-		{
-			break;
-		}
+    // Read the first frame
+    do {
+        // Get next WavPack block info
+        bcount = get_wp_block(wpp, &is_final_block);
+        if(bcount == -1)
+        {
+            break;
+        }
 
-		// ==> Start patch MPC
-		// If found non audio block - skip it, instead of breaking
-		if(bcount == -2)
-		{
-			continue;
-		}
-		// ==> End patch MPC
+        // ==> Start patch MPC
+        // If found non audio block - skip it, instead of breaking
+        if(bcount == -2)
+        {
+            continue;
+        }
+        // ==> End patch MPC
 
-		if(wpp->fb->nb_block == 0)
-		{
+        if(wpp->fb->nb_block == 0)
+        {
             // Store the first header
             wpp->first_wphdr = wpp->wphdr;
             wpp->several_blocks = !is_final_block;
@@ -226,17 +222,17 @@ WavPack_parser* wavpack_parser_new(stream_reader* io, int is_correction)
                 uint32_t final_index = seek_final_index (wpp->io, wpp->io);
                 if (final_index != (uint32_t)-1)
                 {
-                    wpp->first_wphdr.total_samples = final_index;// - wpp->first_wphdr.block_index;
+                    wpp->first_wphdr.total_samples = final_index - wpp->first_wphdr.block_index;
                 }                
                 // restaure position
                 wpp->io->set_pos_abs(wpp->io, curr_pos);
             }
-		}
+        }
 
         wpp->channel_count += wpp->block_channel_count;
 
-        striped_header_len = strip_wavpack_block(wpp->fb, &wpp->wphdr, wpp->io, bcount,
-            !wpp->is_correction, wpp->several_blocks);
+        frame_append_data(wpp->fb, (char*)&wpp->wphdr, sizeof(wpp->wphdr));
+        frame_append_data2(wpp->fb, wpp->io, bcount);
 
         /*
         // check metadata to know if it's a correction block
@@ -249,22 +245,22 @@ WavPack_parser* wavpack_parser_new(stream_reader* io, int is_correction)
         }
         */
 
-	} while(is_final_block == FALSE);
+    } while((is_final_block == FALSE) && (wpp->io->get_pos(wpp->io) < 1024*1024));
     
-	if(wpp->fb->len > 0)
-	{
+    if(wpp->fb->len > 0)
+    {
         // Calculate the suggested buffer size, we use the size of the RAW
         // decoded data as reference and add 10% to be safer
         wpp->suggested_buffer_size = (int)(wpp->samples_per_block * 4 *
             wpp->channel_count * 1.1);        
         wpp->suggested_buffer_size += (sizeof(WavpackHeader) * wpp->fb->nb_block);
-		return wpp;
-	}
-	else
-	{
-		wavpack_parser_free(wpp);
-		return NULL;
-	}
+        return wpp;
+    }
+    else
+    {
+        wavpack_parser_free(wpp);
+        return NULL;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -281,8 +277,6 @@ unsigned long wavpack_parser_read_frame(
 
 	if(wpp->fb->len > 0)
 	{
-		*FrameIndex = wpp->wphdr.block_index;
-		*FrameLen = wpp->wphdr.block_samples;        
 		wp_memcpy(dst, wpp->fb->data, wpp->fb->len);
 	}
 	else
@@ -304,16 +298,17 @@ unsigned long wavpack_parser_read_frame(
 			}
 			// ==> End patch MPC
 
-            strip_wavpack_block(wpp->fb, &wpp->wphdr, wpp->io, bcount,
-                !wpp->is_correction,  wpp->several_blocks);
+			frame_append_data(wpp->fb, (char*)&wpp->wphdr, sizeof(wpp->wphdr));
+			frame_append_data2(wpp->fb, wpp->io, bcount);
 		} while(is_final_block == FALSE);
 
-		*FrameIndex = wpp->wphdr.block_index;
-		*FrameLen = wpp->wphdr.block_samples;
 		wp_memcpy(dst, wpp->fb->data, wpp->fb->len);
 	}
 
 	frame_len_bytes = wpp->fb->len;
+
+	*FrameIndex = wpp->wphdr.block_index;
+	*FrameLen = wpp->fb->len;
 
     frame_reset(wpp->fb);
 
@@ -325,7 +320,7 @@ unsigned long wavpack_parser_read_frame(
 
 void wavpack_parser_seek(WavPack_parser* wpp, uint64 seek_pos_100ns)
 {
-    uint32_t sample_pos = (uint32_t)((seek_pos_100ns / 10000000.0) * wpp->sample_rate);
+    uint32_t sample_pos = (uint32_t)((seek_pos_100ns / 10000000.0) * wpp->sample_rate) + wpp->first_wphdr.block_index;
     uint32_t newpos = find_sample(wpp, 0, sample_pos);
 
     if(wpp->io->set_pos_abs(wpp->io, newpos) == 0)

@@ -1,6 +1,4 @@
 /*
- * $Id: PPageFileInfoRes.cpp 779 2012-07-31 17:52:09Z exodus8 $
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -31,8 +29,35 @@ CPPageFileInfoRes::CPPageFileInfoRes(CString fn, IFilterGraph* pFG)
 	: CPPageBase(CPPageFileInfoRes::IDD, CPPageFileInfoRes::IDD)
 	, m_fn(fn)
 	, m_hIcon(NULL)
-	, m_pFG(pFG)
 {
+	m_fn.TrimRight('/');
+	int i = max(m_fn.ReverseFind('\\'), m_fn.ReverseFind('/'));
+
+	if (i >= 0 && i < m_fn.GetLength() - 1) {
+		m_fn = m_fn.Mid(i + 1);
+	}
+
+	BeginEnumFilters(pFG, pEF, pBF) {
+		if (CComQIPtr<IDSMResourceBag> pRB = pBF)
+		if (pRB && pRB->ResGetCount() > 0) {
+			for (DWORD i = 0; i < pRB->ResGetCount(); i++) {
+				CComBSTR name, desc, mime;
+				BYTE* pData = NULL;
+				DWORD len = 0;
+				if (SUCCEEDED(pRB->ResGet(i, &name, &desc, &mime, &pData, &len, NULL))) {
+					CDSMResource r;
+					r.name = name;
+					r.desc = desc;
+					r.mime = mime;
+					r.data.SetCount(len);
+					memcpy(r.data.GetData(), pData, r.data.GetCount());
+					CoTaskMemFree(pData);
+					m_res.AddTail(r);
+				}
+			}
+		}
+	}
+	EndEnumFilters;
 }
 
 CPPageFileInfoRes::~CPPageFileInfoRes()
@@ -51,10 +76,12 @@ void CPPageFileInfoRes::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_LIST1, m_list);
 }
 
+#define SETPAGEFOCUS WM_APP+252 // arbitrary number, can be changed if necessary
 BEGIN_MESSAGE_MAP(CPPageFileInfoRes, CPPageBase)
 	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_BUTTON1, OnSaveAs)
 	ON_UPDATE_COMMAND_UI(IDC_BUTTON1, OnUpdateSaveAs)
+	ON_MESSAGE(SETPAGEFOCUS, OnSetPageFocus)
 END_MESSAGE_MAP()
 
 // CPPageFileInfoRes message handlers
@@ -68,42 +95,19 @@ BOOL CPPageFileInfoRes::OnInitDialog()
 		m_icon.SetIcon(m_hIcon);
 	}
 
-	m_fn.TrimRight('/');
-	int i = max(m_fn.ReverseFind('\\'), m_fn.ReverseFind('/'));
-
-	if (i >= 0 && i < m_fn.GetLength()-1) {
-		m_fn = m_fn.Mid(i+1);
-	}
-
 	m_list.SetExtendedStyle(m_list.GetExtendedStyle()|LVS_EX_FULLROWSELECT);
 
 	m_list.InsertColumn(0, _T("Name"), LVCFMT_LEFT, 187);
 	m_list.InsertColumn(1, _T("Mime Type"), LVCFMT_LEFT, 127);
 
-	BeginEnumFilters(m_pFG, pEF, pBF) {
-		if (CComQIPtr<IDSMResourceBag> pRB = pBF)
-			if (pRB && pRB->ResGetCount() > 0) {
-				for (DWORD i = 0; i < pRB->ResGetCount(); i++) {
-					CComBSTR name, desc, mime;
-					BYTE* pData = NULL;
-					DWORD len = 0;
-					if (SUCCEEDED(pRB->ResGet(i, &name, &desc, &mime, &pData, &len, NULL))) {
-						CDSMResource r;
-						r.name = name;
-						r.desc = desc;
-						r.mime = mime;
-						r.data.SetCount(len);
-						memcpy(r.data.GetData(), pData, r.data.GetCount());
-						CoTaskMemFree(pData);
-						POSITION pos = m_res.AddTail(r);
-						int iItem = m_list.InsertItem(m_list.GetItemCount(), CString(name));
-						m_list.SetItemText(iItem, 1, CString(mime));
-						m_list.SetItemData(iItem, (DWORD_PTR)pos);
-					}
-				}
-			}
+	POSITION pos = m_res.GetHeadPosition();
+	while (pos) {
+		CDSMResource res = m_res.GetNext(pos);
+
+		int iItem = m_list.InsertItem(m_list.GetItemCount(), res.name);
+		m_list.SetItemText(iItem, 1, res.mime);
+		m_list.SetItemData(iItem, iItem);
 	}
-	EndEnumFilters;
 
 	UpdateData(FALSE);
 
@@ -178,17 +182,35 @@ void CPPageFileInfoRes::OnSize(UINT nType, int cx, int cy)
 	HDWP hDWP = ::BeginDeferWindowPos(1);
 	for (CWnd *pChild = GetWindow(GW_CHILD); pChild != NULL; pChild = pChild->GetWindow(GW_HWNDNEXT)) {
 		if (pChild->SendMessage(WM_GETDLGCODE) & DLGC_BUTTON) {
-			pChild->GetWindowRect(&r); 
-			ScreenToClient(&r); 
-			r.top += dy; 
-			r.bottom += dy; 
+			pChild->GetWindowRect(&r);
+			ScreenToClient(&r);
+			r.top += dy;
+			r.bottom += dy;
 			::DeferWindowPos(hDWP, pChild->m_hWnd, NULL, r.left, r.top, 0, 0, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOZORDER);
 		} else if (pChild != GetDlgItem(IDC_LIST1) && pChild != GetDlgItem(IDC_DEFAULTICON)) {
-			pChild->GetWindowRect(&r); 
-			ScreenToClient(&r); 
+			pChild->GetWindowRect(&r);
+			ScreenToClient(&r);
 			r.right += dx;
 			::DeferWindowPos(hDWP, pChild->m_hWnd, NULL, 0, 0, r.Width(), r.Height(), SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOZORDER);
 		}
 	}
 	::EndDeferWindowPos(hDWP);
+}
+
+BOOL CPPageFileInfoRes::OnSetActive()
+{
+	BOOL ret = __super::OnSetActive();
+	PostMessage(SETPAGEFOCUS, 0, 0L);
+
+	return ret;
+}
+
+LRESULT CPPageFileInfoRes::OnSetPageFocus(WPARAM wParam, LPARAM lParam)
+{
+	CPropertySheet* psheet = (CPropertySheet*) GetParent();
+	psheet->GetTabControl()->SetFocus();
+
+	SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, 0, 1);
+
+	return 0;
 }

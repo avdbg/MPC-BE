@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -125,6 +123,14 @@ public:
 
 		int nSamplesPerSec, FrameSize, nBytesPerSec;
 		REFERENCE_TIME rtDuration;
+
+		bool operator == (const struct mpahdr& h) const {
+			return (sync == h.sync
+					&& version == h.version
+					&& layer == h.layer
+					&& freq == h.freq
+					&& channels == h.channels);
+		}
 	};
 
 	struct aachdr
@@ -150,12 +156,25 @@ public:
 
 		int FrameSize, nBytesPerSec;
 		REFERENCE_TIME rtDuration;
+
+		bool operator == (const struct aachdr& h) const {
+			return (sync == h.sync
+					&& version == h.version
+					&& profile == h.profile
+					&& freq == h.freq
+					&& channels == h.channels);
+		}
 	};
 
 	struct latm_aachdr
 	{
 		int samplerate;
 		int channels;
+
+		bool operator == (const struct latm_aachdr& h) const {
+			return (samplerate == h.samplerate
+					&& channels == h.channels);
+		}
 	};
 
 	struct ac3hdr
@@ -180,6 +199,14 @@ public:
 		BYTE sr_code;
 		BYTE num_blocks;
 		// the rest is unimportant for us
+
+		bool operator == (const struct ac3hdr& h) const {
+			return (frame_size == h.frame_size
+					&& fscod == h.fscod
+					&& frmsizecod == h.frmsizecod
+					&& acmod == h.acmod
+					&& lfeon == h.lfeon);
+		}
 	};
 
 	struct dtshdr
@@ -401,13 +428,16 @@ public:
 	struct dvbsub {
 	};
 
+	struct hevchdr {
+	};
+
 #pragma pack(pop)
 
 	bool Read(pshdr& h);
 	bool Read(pssyshdr& h);
 	bool Read(peshdr& h, BYTE code);
-	bool Read(seqhdr& h, int len, CMediaType* pmt = NULL);
-	bool Read(mpahdr& h, int len, bool fAllowV25, CMediaType* pmt = NULL);
+	bool Read(seqhdr& h, int len, CMediaType* pmt = NULL, bool find_sync = true);
+	bool Read(mpahdr& h, int len, CMediaType* pmt = NULL, bool fAllowV25 = false);
 	bool Read(aachdr& h, int len, CMediaType* pmt = NULL, bool find_sync = true);
 	bool Read(latm_aachdr& h, int len, CMediaType* pmt = NULL);
 	bool Read(ac3hdr& h, int len, CMediaType* pmt = NULL, bool find_sync = true, bool AC3CoreOnly = true);
@@ -430,7 +460,5 @@ public:
 	bool Read(dirachdr& h, int len, CMediaType* pmt = NULL);
 	bool Read(dvbsub& h, int len, CMediaType* pmt = NULL);
 	bool Read(avchdr& h, spsppsindex index);
-
-	int  HrdParameters(CGolombBuffer& gb);
-	void RemoveMpegEscapeCode(BYTE* dst, BYTE* src, int length);
+	bool Read(hevchdr& h, int len, CMediaType* pmt = NULL, bool find_sync = true);
 };

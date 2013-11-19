@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -169,10 +167,12 @@ class CShoutcastStream : public CSourceStream
 
 	public:
 		CShoutcastSocket() {
-			m_metaint = m_bitrate = m_freq = m_channels = 0;
-			m_nBytesRead = 0;
-			m_Format = AUDIO_NONE;
+			SetTimeOut(3000, 3000);
+			m_metaint		= m_bitrate = m_freq = m_channels = 0;
+			m_nBytesRead	= 0;
+			m_Format		= AUDIO_NONE;
 		}
+
 		int Receive(void* lpBuf, int nBufLen, int nFlags = 0);
 
 		DWORD m_metaint, m_bitrate, m_freq, m_channels;

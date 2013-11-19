@@ -12,24 +12,24 @@
 * libavcodec/error_resilience.c
 * libavcodec/h264.c
 * libavcodec/h264.h
+* libavcodec/h264_ps.c
 * libavcodec/internal.h
 * libavcodec/mpeg12.h
 * libavcodec/mpeg12dec.c
 * libavcodec/mpegvideo.c
 * libavcodec/options.c
-* libavcodec/pthread.c
 * libavcodec/utils.c
+* libavcodec/vc1.h
 * libavcodec/vc1dec.c
 * libavcodec/vorbis.c
-* libavcodec/vorbisdec.c
 
 * libavresample/x86/audio_mix_init.c
 
-* libavutil/attributes.h
 * libavutil/common.h
+* libavutil/eval.c
+* libavutil/file_open.c
 * libavutil/frame.c
 * libavutil/frame.h
-* libavutil/eval.c
 * libavutil/internal.h
 * libavutil/mathematics.h
 * libavutil/utils.c
@@ -38,4 +38,8 @@
 The following files are available only in MPC-BE (compared with ffmpeg):
 
 * config.c
-* libavcodec/vc1_dxva.h
+
+======
+Следующие файлы остаются как есть, без последних изменений из ffmpeg:
+
+* vc1dec.c

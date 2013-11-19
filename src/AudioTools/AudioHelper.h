@@ -1,4 +1,5 @@
 /*
+ * 
  * (C) 2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -20,14 +21,11 @@
 
 #pragma once
 
-#pragma warning(disable: 4005 4244)
-extern "C" {
-	#include "ffmpeg/libavutil/samplefmt.h"
-}
-#pragma warning(default: 4005 4244)
-
-#define INT24_MAX       8388607i32
-#define INT24_MIN     (-8388607i32 - 1)
+#pragma warning(push)
+#pragma warning(disable: 4005)
+#include <stdint.h>
+#pragma warning(pop)
+#include "SampleFormat.h"
 
 #ifdef _MSC_VER
 #define bswap_16(x) _byteswap_ushort((unsigned short)(x))
@@ -49,12 +47,12 @@ extern "C" {
                      (uint64_t)(x) << 56)
 #endif
 
-HRESULT convert_to_int16(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, int16_t* pOut);
-HRESULT convert_to_int24(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, BYTE* pOut);
-HRESULT convert_to_int32(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, int32_t* pOut);
-HRESULT convert_to_float(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut);
+HRESULT convert_to_int16(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, int16_t* pOut);
+HRESULT convert_to_int24(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, BYTE* pOut);
+HRESULT convert_to_int32(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, int32_t* pOut);
+HRESULT convert_to_float(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut);
 
-HRESULT convert_to_planar_float(enum AVSampleFormat avsf, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut);
+HRESULT convert_to_planar_float(SampleFormat sfmt, WORD nChannels, DWORD nSamples, BYTE* pIn, float* pOut);
 
 inline void convert_int24_to_int32(size_t allsamples, BYTE* pIn, int32_t* pOut)
 {
@@ -62,5 +60,50 @@ inline void convert_int24_to_int32(size_t allsamples, BYTE* pIn, int32_t* pOut)
         pOut[i] = (uint32_t)pIn[3 * i]     << 8  |
                   (uint32_t)pIn[3 * i + 1] << 16 |
                   (uint32_t)pIn[3 * i + 2] << 24;
+    }
+}
+
+//inline void convert_int24_to_int32(size_t allsamples, BYTE* pIn, int32_t* pOut)
+//{
+//    for (size_t i = 0; i < allsamples; ++i) {
+//        BYTE* p = (BYTE*)&pOut[i];
+//        p[0] = 0;
+//        p[1] = *pIn++;
+//        p[2] = *pIn++;
+//        p[3] = *pIn++;
+//    }
+//}
+//need perfomance tests
+
+inline void convert_int32_to_int24(size_t allsamples, int32_t* pIn, BYTE* pOut)
+{
+    for (size_t i = 0; i < allsamples; ++i) {
+        BYTE* p = (BYTE*)&pIn[i];
+        *pOut++ = p[1];
+        *pOut++ = p[2];
+        *pOut++ = p[3];
+    }
+}
+
+inline void convert_int24_to_float(size_t allsamples, BYTE* pIn, float* pOut)
+{
+    for (size_t i = 0; i < allsamples; ++i) {
+        int32_t i32 = (uint32_t)pIn[3 * i]     << 8  |
+                      (uint32_t)pIn[3 * i + 1] << 16 |
+                      (uint32_t)pIn[3 * i + 2] << 24;
+        pOut[i] = (float)((double)i32 / INT32_MAX);
+    }
+}
+
+inline void convert_float_to_int24(size_t allsamples, float* pIn, BYTE* pOut)
+{
+    for (size_t i = 0; i < allsamples; ++i) {
+        double d = (double)pIn[i] * INT32_MAX;
+        if (d < INT32_MIN) { d = INT32_MIN; } else if (d > INT32_MAX) { d = INT32_MAX; }
+        int32_t i32 = (int32_t)d;
+        BYTE* p = (BYTE*)i32;
+        *pOut++ = p[1];
+        *pOut++ = p[2];
+        *pOut++ = p[3];
     }
 }

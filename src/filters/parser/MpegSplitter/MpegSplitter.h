@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -26,6 +24,7 @@
 #include "../BaseSplitter/BaseSplitter.h"
 #include "MpegSplitterFile.h"
 #include "MpegSplitterSettingsWnd.h"
+#include "../../../DSUtil/AudioParser.h"
 #include <ITrackInfo.h>
 
 #define MpegSplitterName L"MPC MPEG Splitter"
@@ -77,6 +76,7 @@ protected:
 	HRESULT DemuxNextPacket(REFERENCE_TIME rtStartOffset);
 
 	REFERENCE_TIME m_rtPlaylistDuration;
+	REFERENCE_TIME m_rtMin, m_rtMax;
 
 private:
 	CString m_csAudioLanguageOrder, m_csSubtitlesLanguageOrder;
@@ -163,8 +163,8 @@ class CMpegSplitterOutputPin : public CBaseSplitterOutputPin, protected CCritSec
 
 	int		m_hdmvLPCM_samplerate, m_hdmvLPCM_channels, m_hdmvLPCM_packetsize;
 
-	int				m_AC3_size;
-	unsigned int	m_AC3_count;
+	audioframe_t	m_AC3_frame;
+	UINT			m_AC3_count;
 
 protected:
 	HRESULT DeliverPacket(CAutoPtr<Packet> p);

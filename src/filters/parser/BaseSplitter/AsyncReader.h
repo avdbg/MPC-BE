@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -39,6 +37,7 @@ IFileHandle :
 public IUnknown {
 	STDMETHOD_(HANDLE, GetFileHandle)() = 0;
 	STDMETHOD_(LPCTSTR, GetFileName)() = 0;
+	STDMETHOD_(bool, IsValidFilename)() = 0;	
 };
 
 class CAsyncFileReader : public CUnknown, public CMultiFiles, public IAsyncReader, public ISyncReader, public IFileHandle
@@ -97,22 +96,5 @@ public:
 
 	STDMETHODIMP_(HANDLE) GetFileHandle();
 	STDMETHODIMP_(LPCTSTR) GetFileName();
-
-};
-
-class CAsyncUrlReader : public CAsyncFileReader, protected CAMThread
-{
-	CString m_url, m_fn;
-
-protected:
-	enum {CMD_EXIT, CMD_INIT};
-	DWORD ThreadProc();
-
-public:
-	CAsyncUrlReader(CString url, HRESULT& hr);
-	virtual ~CAsyncUrlReader();
-
-	// IAsyncReader
-
-	STDMETHODIMP Length(LONGLONG* pTotal, LONGLONG* pAvailable);
+	STDMETHODIMP_(bool) IsValidFilename();
 };

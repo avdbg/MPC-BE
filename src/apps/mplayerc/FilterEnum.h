@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2010-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -35,7 +33,6 @@ enum SOURCE_FILTER {
 	SRC_CDXA,
 	SRC_VTS,
 	SRC_FLIC,
-	SRC_D2V,
 	SRC_DTS,
 	SRC_DTSAC3,
 	SRC_MATROSKA,
@@ -55,6 +52,9 @@ enum SOURCE_FILTER {
 	SRC_MPAC,
 	SRC_AMR,
 	SRC_TTA,
+	SRC_UDP,
+	SRC_TAK,
+	SRC_RAWVIDEO,
 
 	SRC_LAST
 };
@@ -114,6 +114,7 @@ enum FFMPEG_DECODER {
 	FFM_MPAC,
 	FFM_QDM2,
 	FFM_APE,
+	FFM_TAK,
 	FFM_TTA,
 	FFM_PRORES,
 	FFM_TRUESPEECH,
@@ -132,5 +133,6 @@ enum FFMPEG_DECODER {
 	FFM_V210,
 	FFM_MPEG2,
 	FFM_MPEG1,
+	FFM_HEVC,
 	FFM_LAST
 };

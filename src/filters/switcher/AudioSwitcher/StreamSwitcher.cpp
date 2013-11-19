@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,7 +21,6 @@
 
 #include "stdafx.h"
 #include "StreamSwitcher.h"
-
 #include "../../../DSUtil/DSUtil.h"
 
 #ifdef REGISTER_FILTER
@@ -797,8 +794,6 @@ STDMETHODIMP CStreamSwitcherInputPin::Receive(IMediaSample* pSample)
 		}
 #endif
 
-		TRACE(_T("&^$#@ : a stupid fix for this stupid problem\n"));
-		//Sleep(32);
 		return E_FAIL; // a stupid fix for this stupid problem
 	}
 
@@ -1040,7 +1035,7 @@ HRESULT CStreamSwitcherOutputPin::CheckConnect(IPin* pPin)
 	CComPtr<IBaseFilter> pBF = GetFilterFromPin(pPin);
 
 	return
-		IsAudioWaveRenderer(pBF) || GetCLSID(pBF) == __uuidof(MatrixMixer)
+		IsAudioWaveRenderer(pBF) || GetCLSID(pBF) == __uuidof(MatrixMixer) || GetCLSID(pBF) == CLSID_InfTee
 		? __super::CheckConnect(pPin)
 		: E_FAIL;
 
@@ -1088,6 +1083,9 @@ HRESULT CStreamSwitcherOutputPin::GetMediaType(int iPosition, CMediaType* pmt)
 
 	CopyMediaType(pmt, tmp);
 	DeleteMediaType(tmp);
+
+	CorrectWaveFormatEx(pmt);
+
 	/*
 		if(iPosition < 0) return E_INVALIDARG;
 	    if(iPosition > 0) return VFW_S_NO_MORE_ITEMS;
@@ -1291,12 +1289,12 @@ HRESULT CStreamSwitcherFilter::CompleteConnect(PIN_DIRECTION dir, CBasePin* pPin
 			name.Format(L"Channel %d", ++m_PinVersion);
 
 			HRESULT hr = S_OK;
-			CStreamSwitcherInputPin* pPin = DNew CStreamSwitcherInputPin(this, &hr, name);
-			if (!pPin || FAILED(hr)) {
-				delete pPin;
+			CStreamSwitcherInputPin* pInputPin = DNew CStreamSwitcherInputPin(this, &hr, name);
+			if (!pInputPin || FAILED(hr)) {
+				delete pInputPin;
 				return E_FAIL;
 			}
-			m_pInputs.AddTail(pPin);
+			m_pInputs.AddTail(pInputPin);
 		}
 	}
 

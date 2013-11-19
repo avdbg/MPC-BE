@@ -1,8 +1,10 @@
 // Copyright 2012 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 // Author: Jyrki Alakuijala (jyrki@google.com)
@@ -88,12 +90,10 @@ void VP8LHistogramAddSinglePixOrCopy(VP8LHistogram* const histo,
     int literal_ix = 256 + NUM_LENGTH_CODES + PixOrCopyCacheIdx(v);
     ++histo->literal_[literal_ix];
   } else {
-    int code, extra_bits_count, extra_bits_value;
-    PrefixEncode(PixOrCopyLength(v),
-                 &code, &extra_bits_count, &extra_bits_value);
+    int code, extra_bits;
+    VP8LPrefixEncodeBits(PixOrCopyLength(v), &code, &extra_bits);
     ++histo->literal_[256 + code];
-    PrefixEncode(PixOrCopyDistance(v),
-                 &code, &extra_bits_count, &extra_bits_value);
+    VP8LPrefixEncodeBits(PixOrCopyDistance(v), &code, &extra_bits);
     ++histo->distance_[code];
   }
 }

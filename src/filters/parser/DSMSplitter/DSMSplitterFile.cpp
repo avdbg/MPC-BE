@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -302,7 +300,7 @@ __int64 CDSMSplitterFile::Read(__int64 len, CStringW& str)
 	while (i++ < len && (c = (char)BitRead(8)) != 0) {
 		s += c;
 	}
-	str = UTF8To16(s);
+	str = UTF8ToString(s);
 	return i;
 }
 

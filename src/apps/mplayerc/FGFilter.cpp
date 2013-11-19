@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -433,7 +431,7 @@ CFGFilterVideoRenderer::CFGFilterVideoRenderer(HWND hWnd, const CLSID& clsid, CS
 
 HRESULT CFGFilterVideoRenderer::Create(IBaseFilter** ppBF, CInterfaceList<IUnknown, &IID_IUnknown>& pUnks)
 {
-	TRACE("--> CFGFilterVideoRenderer::Create on thread: %d\n", GetCurrentThreadId());
+	DbgLog((LOG_TRACE, 3, L"--> CFGFilterVideoRenderer::Create on thread: %d", GetCurrentThreadId()));
 	CheckPointer(ppBF, E_POINTER);
 
 	HRESULT hr = S_OK;
@@ -460,11 +458,10 @@ HRESULT CFGFilterVideoRenderer::Create(IBaseFilter** ppBF, CInterfaceList<IUnkno
 					if (CComQIPtr<ISubPicAllocatorPresenter2> pCAP2 = pCAP) {
 						pUnks.AddTail(pCAP2);
 					}
-					
-					// madVR supports calling IVideoWindow::put_Owner before the pins are connected - from MPC-HC				
+
+					// madVR supports calling IVideoWindow::put_Owner before the pins are connected - from MPC-HC
 					if (CComQIPtr<IVideoWindow> pVW = pCAP) {
 						HRESULT hrVR = pVW->put_Owner((OAHWND)m_hWnd);
-						TRACE(_T("FGF: IVideoWindow->put_Owner() = 0x%08x\n"), hrVR);
 					}
 				}
 			}
@@ -491,6 +488,44 @@ HRESULT CFGFilterVideoRenderer::Create(IBaseFilter** ppBF, CInterfaceList<IUnkno
 
 	if (!*ppBF) {
 		hr = E_FAIL;
+	}
+
+	CRenderersSettings& s = GetRenderersSettings();
+	if (s.fVMRMixerMode) {
+		// VMR9
+		if (CComQIPtr<IVMRFilterConfig9> pConfig = *ppBF) {
+			pConfig->SetNumberOfStreams(m_clsid == CLSID_VMR9AllocatorPresenter ? 1 : 4);
+
+			if (CComQIPtr<IVMRMixerControl9> pVMRMC9 = *ppBF) {
+				DWORD dwPrefs;
+				pVMRMC9->GetMixingPrefs(&dwPrefs);
+
+				// See http://msdn.microsoft.com/en-us/library/dd390928(VS.85).aspx
+				dwPrefs |= MixerPref9_NonSquareMixing;
+				dwPrefs |= MixerPref9_NoDecimation;
+				if (s.fVMRMixerYUV) {
+					dwPrefs &= ~MixerPref9_RenderTargetMask;
+					dwPrefs |= MixerPref9_RenderTargetYUV;
+				}
+				pVMRMC9->SetMixingPrefs(dwPrefs);
+			}
+		}
+		// VMR7
+		else if (CComQIPtr<IVMRFilterConfig> pConfig = *ppBF) {
+			pConfig->SetNumberOfStreams(1);
+
+			if (CComQIPtr<IVMRMixerControl> pVMRMC = *ppBF) {
+				DWORD dwPrefs;
+				pVMRMC->GetMixingPrefs(&dwPrefs);
+
+				dwPrefs |= MixerPref_NoDecimation;
+				if (s.fVMRMixerYUV) {
+					dwPrefs &= ~MixerPref_RenderTargetMask;
+					dwPrefs |= MixerPref_RenderTargetYUV;
+				}
+				pVMRMC->SetMixingPrefs(dwPrefs);
+			}
+		}
 	}
 
 	return hr;
@@ -535,9 +570,9 @@ void CFGFilterList::Insert(CFGFilter* pFGF, int group, bool exactmatch, bool aut
 			if (CFGFilterRegistry* f2r = dynamic_cast<CFGFilterRegistry*>(f2.pFGF)) {
 				if (f1r->GetMoniker() && f2r->GetMoniker() && S_OK == f1r->GetMoniker()->IsEqual(f2r->GetMoniker())
 						|| f1r->GetCLSID() != GUID_NULL && f1r->GetCLSID() == f2r->GetCLSID()) {
-					TRACE(_T("FGM: Inserting %d %d %016I64x '%s' NOT!\n"),
+					DbgLog((LOG_TRACE, 3, L"FGM: Inserting %d %d %016I64x '%s' NOT!",
 						  group, exactmatch, pFGF->GetMerit(),
-						  pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()));
+						  pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName())));
 
 					if (autodelete) {
 						delete pFGF;
@@ -562,10 +597,10 @@ void CFGFilterList::Insert(CFGFilter* pFGF, int group, bool exactmatch, bool aut
 				}
 			}
 
-			TRACE(_T("FGM: Inserting %d %d %016I64x '%s', type = '%s' DUP!\n"),
+			DbgLog((LOG_TRACE, 3, L"FGM: Inserting %d %d %016I64x '%s', type = '%s' DUP!",
 				  group, exactmatch, pFGF->GetMerit(),
 				  pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()),
-				  pFGF->GetType());
+				  pFGF->GetType()));
 
 			if (autodelete) {
 				delete pFGF;
@@ -574,10 +609,10 @@ void CFGFilterList::Insert(CFGFilter* pFGF, int group, bool exactmatch, bool aut
 		}
 	}
 
-	TRACE(_T("FGM: Inserting %d %d %016I64x '%s', type = '%s'\n"),
+	DbgLog((LOG_TRACE, 3, L"FGM: Inserting %d %d %016I64x '%s', type = '%s'",
 		  group, exactmatch, pFGF->GetMerit(),
 		  pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()),
-		  pFGF->GetType());
+		  pFGF->GetType()));
 
 	filter_t f = {m_filters.GetCount(), pFGF, group, exactmatch, autodelete};
 	m_filters.AddTail(f);
@@ -602,12 +637,12 @@ POSITION CFGFilterList::GetHeadPosition()
 	}
 
 #ifdef _DEBUG
-	TRACE(_T("FGM: Sorting filters\n"));
+	DbgLog((LOG_TRACE, 3, L"FGM: Sorting filters"));
 
 	POSITION pos = m_sortedfilters.GetHeadPosition();
 	while (pos) {
 		CFGFilter* pFGF = m_sortedfilters.GetNext(pos);
-		TRACE(_T("FGM: - %016I64x '%s', type = '%s'\n"), pFGF->GetMerit(), pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()), pFGF->GetType());
+		DbgLog((LOG_TRACE, 3, L"FGM: - %016I64x '%s', type = '%s'", pFGF->GetMerit(), pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()), pFGF->GetType()));
 	}
 #endif
 

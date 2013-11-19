@@ -1,6 +1,4 @@
 /*
- * $Id: RenderedHdmvSubtitle.h 1474 2012-10-31 01:40:32Z aleksoid $
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.

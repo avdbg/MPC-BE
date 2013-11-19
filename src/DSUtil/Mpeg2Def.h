@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -69,7 +67,8 @@ enum PES_STREAM_TYPE {
 	SECONDARY_AUDIO_AC3_PLUS			= 0xA1,
 	SECONDARY_AUDIO_DTS_HD				= 0xA2,
 	VIDEO_STREAM_DIRAC					= 0xD1,
-	VIDEO_STREAM_VC1					= 0xEA
+	VIDEO_STREAM_VC1					= 0xEA,
+	VIDEO_STREAM_HEVC					= 0x24
 };
 
 enum MPEG2_PID {

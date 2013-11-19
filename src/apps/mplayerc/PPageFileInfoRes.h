@@ -1,6 +1,4 @@
 /*
- * $Id: PPageFileInfoRes.h 779 2012-07-31 17:52:09Z exodus8 $
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -36,9 +34,12 @@ class CPPageFileInfoRes : public CPPageBase
 	DECLARE_DYNAMIC(CPPageFileInfoRes)
 
 private:
-	CComPtr<IFilterGraph> m_pFG;
-	HICON m_hIcon;
-	CAtlList<CDSMResource> m_res;
+	HICON					m_hIcon;
+	CAtlList<CDSMResource>	m_res;
+
+	CStatic		m_icon;
+	CString		m_fn;
+	CListCtrl	m_list;
 
 public:
 	CPPageFileInfoRes(CString fn, IFilterGraph* pFG);
@@ -46,14 +47,13 @@ public:
 
 	enum { IDD = IDD_FILEPROPRES };
 
-	CStatic m_icon;
-	CString m_fn;
-	CListCtrl m_list;
-
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	virtual BOOL OnSetActive();
+	virtual LRESULT OnSetPageFocus(WPARAM wParam, LPARAM lParam);
+
 	DECLARE_MESSAGE_MAP()
 	CRect  m_rCrt;
 public:

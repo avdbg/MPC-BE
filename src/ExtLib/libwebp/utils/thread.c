@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 // Multi-threaded worker
@@ -124,14 +126,14 @@ static int pthread_cond_wait(pthread_cond_t* const condition,
   return !ok;
 }
 
-#else  // _WIN32
+#else  // !_WIN32
 # define THREADFN void*
 # define THREAD_RETURN(val) val
-#endif
+#endif  // _WIN32
 
 //------------------------------------------------------------------------------
 
-static THREADFN WebPWorkerThreadLoop(void *ptr) {    // thread loop
+static THREADFN ThreadLoop(void* ptr) {
   WebPWorker* const worker = (WebPWorker*)ptr;
   int done = 0;
   while (!done) {
@@ -140,9 +142,7 @@ static THREADFN WebPWorkerThreadLoop(void *ptr) {    // thread loop
       pthread_cond_wait(&worker->condition_, &worker->mutex_);
     }
     if (worker->status_ == WORK) {
-      if (worker->hook) {
-        worker->had_error |= !worker->hook(worker->data1, worker->data2);
-      }
+      WebPWorkerExecute(worker);
       worker->status_ = OK;
     } else if (worker->status_ == NOT_OK) {   // finish the worker
       done = 1;
@@ -155,8 +155,8 @@ static THREADFN WebPWorkerThreadLoop(void *ptr) {    // thread loop
 }
 
 // main thread state control
-static void WebPWorkerChangeState(WebPWorker* const worker,
-                                  WebPWorkerStatus new_status) {
+static void ChangeState(WebPWorker* const worker,
+                        WebPWorkerStatus new_status) {
   // no-op when attempting to change state on a thread that didn't come up
   if (worker->status_ < OK) return;
 
@@ -173,7 +173,7 @@ static void WebPWorkerChangeState(WebPWorker* const worker,
   pthread_mutex_unlock(&worker->mutex_);
 }
 
-#endif
+#endif  // WEBP_USE_THREAD
 
 //------------------------------------------------------------------------------
 
@@ -184,7 +184,7 @@ void WebPWorkerInit(WebPWorker* const worker) {
 
 int WebPWorkerSync(WebPWorker* const worker) {
 #ifdef WEBP_USE_THREAD
-  WebPWorkerChangeState(worker, OK);
+  ChangeState(worker, OK);
 #endif
   assert(worker->status_ <= OK);
   return !worker->had_error;
@@ -200,7 +200,7 @@ int WebPWorkerReset(WebPWorker* const worker) {
       return 0;
     }
     pthread_mutex_lock(&worker->mutex_);
-    ok = !pthread_create(&worker->thread_, NULL, WebPWorkerThreadLoop, worker);
+    ok = !pthread_create(&worker->thread_, NULL, ThreadLoop, worker);
     if (ok) worker->status_ = OK;
     pthread_mutex_unlock(&worker->mutex_);
 #else
@@ -213,19 +213,24 @@ int WebPWorkerReset(WebPWorker* const worker) {
   return ok;
 }
 
+void WebPWorkerExecute(WebPWorker* const worker) {
+  if (worker->hook != NULL) {
+    worker->had_error |= !worker->hook(worker->data1, worker->data2);
+  }
+}
+
 void WebPWorkerLaunch(WebPWorker* const worker) {
 #ifdef WEBP_USE_THREAD
-  WebPWorkerChangeState(worker, WORK);
+  ChangeState(worker, WORK);
 #else
-  if (worker->hook)
-    worker->had_error |= !worker->hook(worker->data1, worker->data2);
+  WebPWorkerExecute(worker);
 #endif
 }
 
 void WebPWorkerEnd(WebPWorker* const worker) {
   if (worker->status_ >= OK) {
 #ifdef WEBP_USE_THREAD
-    WebPWorkerChangeState(worker, NOT_OK);
+    ChangeState(worker, NOT_OK);
     pthread_join(worker->thread_, NULL);
     pthread_mutex_destroy(&worker->mutex_);
     pthread_cond_destroy(&worker->condition_);

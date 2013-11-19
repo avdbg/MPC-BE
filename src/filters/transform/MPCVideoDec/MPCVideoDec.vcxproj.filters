@@ -18,6 +18,9 @@
     <ClCompile Include="CpuId.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DXVAAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DXVADecoder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -30,7 +33,10 @@
     <ClCompile Include="DXVADecoderVC1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ffImgfmt.cpp">
+    <ClCompile Include="ffmpegContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FormatConverter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="MPCVideoDec.cpp">
@@ -42,30 +48,12 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DXVAAllocator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\winmdi.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxctrlcontainer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxglobals.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="H264RandomAccess.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ffmpegContext.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\DSUtil\WinAPIUtils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CpuId.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DXVAAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DXVADecoder.h">
@@ -83,6 +71,9 @@
     <ClInclude Include="ffmpegContext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FormatConverter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="IMPCVideoDec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -96,15 +87,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="stdafx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DXVAAllocator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="H264RandomAccess.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ffImgfmt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

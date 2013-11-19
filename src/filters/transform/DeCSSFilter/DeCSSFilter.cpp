@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -388,7 +386,7 @@ void CDeCSSInputPin::StripPacket(BYTE*& p, long& len)
 					len -= 6;
 					p += 6;
 				} else if(m_mt.subtype == MEDIASUBTYPE_DOLBY_AC3 || m_mt.subtype == MEDIASUBTYPE_WAVE_DOLBY_AC3
-						  || m_mt.subtype == MEDIASUBTYPE_DTS || m_mt.subtype == MEDIASUBTYPE_WAVE_DTS) {
+						  || m_mt.subtype == MEDIASUBTYPE_DTS || m_mt.subtype == MEDIASUBTYPE_DTS2) {
 					len -= 3;
 					p += 3;
 				}

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -33,6 +31,7 @@ class CFGManager
 	: public CUnknown
 	, public IGraphBuilder2
 	, public IGraphBuilderDeadEnd
+	, public IGraphBuilderSub
 	, public CCritSec
 {
 public:
@@ -116,8 +115,16 @@ protected:
 	STDMETHODIMP_(size_t) GetCount();
 	STDMETHODIMP GetDeadEnd(int iIndex, CAtlList<CStringW>& path, CAtlList<CMediaType>& mts);
 
+	// IGraphBuilderSub
+	STDMETHODIMP RenderSubFile(LPCWSTR lpcwstrFile);
+	BOOL bOnlySub;
+
 	//
 	HWND m_hWnd;
+
+	//
+	HRESULT ConnectFilterDirect(IPin* pPinOut, CFGFilter* pFGF);
+
 
 public:
 	CFGManager(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd = 0, bool IsPreview = false);

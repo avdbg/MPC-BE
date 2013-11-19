@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Sergey "judelaw" and Sergey "Exodus8"
  *
  * This file is part of MPC-BE.
@@ -29,11 +27,11 @@ class CFlyBar : public CWnd
 public:
 	CFlyBar();
 	virtual ~CFlyBar();
-	
+
 	int iw;
 
 	void CalcButtonsRect();
-	
+
 	DECLARE_DYNAMIC(CFlyBar)
 
 private:

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -1020,7 +1018,7 @@ void CPlayerSubresyncBar::OnRclickList(NMHDR* pNMHDR, LRESULT* pResult)
 							m_sts.m_styles.GetNextAssoc(pos, key, val);
 
 							CAutoPtr<CPPageSubStyle> page(DNew CPPageSubStyle());
-							page->InitStyle(key, *val);
+							page->InitSubStyle(key, val);
 							pages.Add(page);
 							styles.Add(val);
 
@@ -1037,7 +1035,7 @@ void CPlayerSubresyncBar::OnRclickList(NMHDR* pNMHDR, LRESULT* pResult)
 						if (dlg.DoModal() == IDOK) {
 							for (int j = 0; j < (int)pages.GetCount(); j++) {
 								stss = styles[j];
-								pages[j]->GetStyle(*stss);
+								pages[j]->GetSubStyle(stss);
 
 								for (size_t i = 0; i < m_sts.GetCount(); i++) {
 									if (m_sts.GetStyle(i) == stss) {

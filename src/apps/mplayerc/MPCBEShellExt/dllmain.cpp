@@ -1,6 +1,4 @@
 /*
- * $Id: dllmain.cpp 1136 2012-09-14 05:13:52Z szl $
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.

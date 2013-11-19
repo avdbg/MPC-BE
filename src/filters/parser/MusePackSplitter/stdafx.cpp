@@ -1,6 +1,4 @@
 /*
- * $Id: stdafx.cpp 20 2012-04-20 01:42:55Z aleksoid $
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.

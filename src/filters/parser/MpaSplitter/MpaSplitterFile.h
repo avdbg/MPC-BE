@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -34,7 +32,7 @@ class CMpaSplitterFile : public CBaseSplitterFileEx
 
 	mpahdr m_mpahdr;
 	aachdr m_aachdr;
-	__int64 m_startpos, m_endpos;
+	__int64 m_startpos;
 
 	__int64 m_totalbps;
 	CRBMap<__int64, int> m_pos2bps;
@@ -58,14 +56,11 @@ public:
 		return m_mt;
 	}
 	REFERENCE_TIME GetDuration() {
-		return IsRandomAccess() ? m_rtDuration : 0;
+		return m_rtDuration;
 	}
 
 	__int64 GetStartPos() {
 		return m_startpos;
-	}
-	__int64 GetEndPos() {
-		return m_endpos;
 	}
 
 	bool Sync(int limit = 0x2000);

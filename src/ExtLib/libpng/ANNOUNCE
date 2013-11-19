@@ -1,5 +1,5 @@
 
-Libpng 1.7.0beta14 - May 13, 2013
+Libpng 1.7.0beta21 - October 13, 2013
 
 This is not intended to be a public release.  It will be replaced
 within a few weeks by a public version or by another test version.
@@ -9,19 +9,20 @@ Files available for download:
 Source files with LF line endings (for Unix/Linux) and with a
 "configure" script
 
-   1.7.0beta14.tar.xz (LZMA-compressed, recommended)
-   1.7.0beta14.tar.gz
+   1.7.0beta21.tar.xz (LZMA-compressed, recommended)
+   1.7.0beta21.tar.gz
 
 Source files with CRLF line endings (for Windows), without the
 "configure" script
 
-   lp170b14.7z  (LZMA-compressed, recommended)
-   lp170b14.zip
+   lp170b21.7z  (LZMA-compressed, recommended)
+   lp170b21.zip
 
 Other information:
 
-   1.7.0beta14-README.txt
-   1.7.0beta14-LICENSE.txt
+   1.7.0beta21-README.txt
+   1.7.0beta21-LICENSE.txt
+   Gnupg/*.asc (PGP armored detached signatures)
 
 Changes since the last public release (1.6.0):
 
@@ -304,7 +305,100 @@ Version 1.7.0beta13 [May 12, 2013]
   Added information in the documentation about problems with and fixes for
     the bad CRC and bad iTXt chunk situations.
 
-Version 1.7.0beta14 [May 13, 2013]
+Version 1.7.0beta14 [June 8, 2013]
+  Removed a redundant test in png_set_IHDR().
+  Added set(CMAKE_CONFIGURATION_TYPES ...) to CMakeLists.txt (Andrew Hundt)
+  Deleted set(CMAKE_BUILD_TYPE) block from CMakeLists.txt
+  Enclose the prototypes for the simplified write API in #ifdef STDIO/#endif
+  Make ARM NEON support work at compile time (not just configure time).
+    This moves the test on __ARM_NEON__ into pngconf.h to avoid issues when
+    using a compiler that compiles for multiple architectures at one time.
+  Removed PNG_FILTER_OPTIMIZATIONS and PNG_ARM_NEON_SUPPORTED from
+    pnglibconf.h, allowing more of the decisions to be made internally
+    (pngpriv.h) during the compile.  Without this, symbol prefixing is broken
+    under certain circumstances on ARM platforms.  Now only the API parts of
+    the optimizations ('check' vs 'api') are exposed in the public header files
+    except that the new setting PNG_ARM_NEON_OPT documents how libpng makes the
+    decision about whether or not to use the optimizations.
+  Protect symbol prefixing against CC/CPPFLAGS/CFLAGS useage.
+    Previous iOS/Xcode fixes for the ARM NEON optimizations moved the test
+    on __ARM_NEON__ from configure time to compile time.  This breaks symbol
+    prefixing because the definition of the special png_init_filter_functions
+    call was hidden at configure time if the relevant compiler arguments are
+    passed in CFLAGS as opposed to CC.  This change attempts to avoid all
+    the confusion that would result by declaring the init function even when
+    it is not used, so that it will always get prefixed.
+
+Version 1.7.0beta15 [June 18, 2013]
+  Revised libpng.3 so that "doclifter" can process it.
+
+Version 1.7.0beta16 [July 5, 2013]
+  Revised example.c to illustrate use of PNG_DEFAULT_sRGB and PNG_GAMMA_MAC_18
+    as parameters for png_set_gamma().  These have been available since
+    libpng-1.5.4.
+  Renamed contrib/tools/png-fix-too-far-back.c to pngfix.c and revised it
+    to check all compressed chunks known to libpng.
+  Updated documentation to show default behavior of benign errors correctly.
+  Added perfect hash code generation for lists of PNG chunks. This is
+    a work in progress; checked in for use in pngfix.c
+  Ported ARM no-read patch from libpng16.
+  Ported pngfix.c patches from libpng16.
+
+Version 1.7.0beta17 [August 21, 2013]
+  Revised manual about changes in iTXt chunk handling made in libpng-1.6.0.
+  Added "/* SAFE */" comments in pngrutil.c and pngrtran.c where warnings
+    may be erroneously issued by code-checking applications.
+  Added information about png_set_options() to the manual.
+  Delay calling png_init_filter_functions() until a row with nonzero filter
+    is found.
+
+Version 1.7.0beta18 [September 16, 2013]
+  Fixed inconsistent conditional compilation of png_chunk_unknown_handling()
+    prototype, definition, and usage.  Made it depend on
+    PNG_HANDLE_AS_UNKNOWN_SUPPORTED everywhere.
+
+Version 1.7.0beta19 [September 30, 2013]
+  Reverted the change to unknown handling #defines; the change breaks 'NOREAD'
+    builds.
+  Fixed default behavior of ARM_NEON_API. If the ARM NEON API option is
+    compiled without the CHECK option it defaulted to on, not off.
+  Catch up with recent libpng16 changes; unknown handling and spelling
+    corrections
+  Avoid up-cast warnings in pngvalid.c. On ARM the alignment requirements of
+    png_modifier are greater than that of png_store and as a consequence
+    compilation of pngvalid.c results in a warning about increased alignment
+    requirements because of the bare cast to (png_modifier*).  The code is
+    safe, because the pointer is known to point to a stack allocated
+    png_modifier, but this change avoids the warning.
+  Fixed some grammatical changes and updated the png chunks list.
+
+Version 1.7.0beta20 [October 13, 2013]
+  Made changes for compatibility with automake 1.14:
+    1) Added the 'compile' program to the list of programs that must be cleaned
+       in autogen.sh
+    2) Added 'subdir-objects' which causes .c files in sub-directories to be
+       compiled such that the corresponding .o files are also in the
+       sub-directory.  This is because automake 1.14 warns that the
+       current behavior of compiling to the top level directory may be removed
+       in the future.
+    3) Updated dependencies on pnglibconf.h to match the new .o locations and
+       added all the files in contrib/libtests and contrib/tools that depend
+       on pnglibconf.h
+    4) Added 'BUILD_SOURCES = pnglibconf.h'; this is the automake recommended
+       way of handling the dependencies of sources that are machine generated;
+       unfortunately it only works if the user does 'make all' or 'make check',
+       so the dependencies (3) are still required.
+  Cleaned up (char*) casts of zlib messages. The latest version of the Intel C
+    compiler complains about casting a string literal as (char*), so copied the
+    treatment of z_const from the library code into pngfix.c
+  Simplified error message code in pngunknown. The simplification has the
+    useful side effect of avoiding a bogus warning generated by the latest
+    version of the Intel C compiler (it objects to
+    condition ? string-literal : string-literal).
+  Make autogen.sh work with automake 1.13 as well as 1.14. Do this by always
+    removing the 1.14 'compile' script but never checking for it.
+
+Version 1.7.0beta21 [October 13, 2013]
 
 Send comments/corrections/commendations to png-mng-implement at lists.sf.net
 (subscription required; visit

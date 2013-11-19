@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -30,11 +28,22 @@
 #include "MpegSplitter.h"
 #include <moreuuids.h>
 #include <basestruct.h>
-#include "../../../DSUtil/AudioParser.h"
 #include <atlpath.h>
 
 #include "../../../apps/mplayerc/SettingsDefines.h"
 #include "../../reader/VTSReader/VTSReader.h"
+
+// option names
+#define OPT_REGKEY_MPEGSplit  _T("Software\\MPC-BE Filters\\MPEG Splitter")
+#define OPT_SECTION_MPEGSplit _T("Filters\\MPEG Splitter")
+#define OPT_FastStreamChange  _T("UseFastStreamChange")
+#define OPT_FastSeek          _T("UseFastSeek")
+#define OPT_ForcedSub         _T("ForcedSub")
+#define OPT_AudioLangOrder    _T("AudioLanguageOrder")
+#define OPT_SubLangOrder      _T("SubtitlesLanguageOrder")
+#define OPT_AC3CoreOnly       _T("AC3CoreOnly")
+#define OPT_AltDuration       _T("AlternativeDuration")
+#define OPT_SubEmptyOutput    _T("SubtitleEmptyOutput")
 
 TCHAR* MPEG2_Profile[]=
 {
@@ -393,7 +402,7 @@ CString GetMediaTypeDesc(const CMediaType *_pMediaType, const CHdmvClipInfo::Str
 						Infos.AddTail(L"PS2 ADPCM");
 					}
 					break;
-					case WAVE_FORMAT_DVD_DTS: {
+					case WAVE_FORMAT_DTS2: {
 						if (pPresentationDesc) {
 							Infos.AddTail(pPresentationDesc);
 						} else {
@@ -409,7 +418,7 @@ CString GetMediaTypeDesc(const CMediaType *_pMediaType, const CHdmvClipInfo::Str
 						}
 					}
 					break;
-					case WAVE_FORMAT_AAC: {
+					case WAVE_FORMAT_RAW_AAC1: {
 						Infos.AddTail(L"AAC");
 					}
 					break;
@@ -531,8 +540,8 @@ CMpegSplitterFilter::CMpegSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr, const CLS
 	: CBaseSplitterFilter(NAME("CMpegSplitterFilter"), pUnk, phr, clsid)
 	, m_pPipoBimbo(false)
 	, m_rtPlaylistDuration(0)
-	, m_csAudioLanguageOrder(_T(""))
-	, m_csSubtitlesLanguageOrder(_T(""))
+	, m_rtMin(0)
+	, m_rtMax(0)
 	, m_useFastStreamChange(true)
 	, m_useFastSeek(false)
 	, m_ForcedSub(false)
@@ -545,49 +554,49 @@ CMpegSplitterFilter::CMpegSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr, const CLS
 	TCHAR buff[256];
 	ULONG len;
 
-	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\MPEG Splitter"), KEY_READ)) {
+	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, OPT_REGKEY_MPEGSplit, KEY_READ)) {
 		DWORD dw;
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("UseFastStreamChange"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_FastStreamChange, dw)) {
 			m_useFastStreamChange = !!dw;
 		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("UseFastSeek"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_FastSeek, dw)) {
 			m_useFastSeek = !!dw;
 		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("ForcedSub"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_ForcedSub, dw)) {
 			m_ForcedSub = !!dw;
 		}
 
 		len = _countof(buff);
 		memset(buff, 0, sizeof(buff));
-		if (ERROR_SUCCESS == key.QueryStringValue(_T("AudioLanguageOrder"), buff, &len)) {
+		if (ERROR_SUCCESS == key.QueryStringValue(OPT_AudioLangOrder, buff, &len)) {
 			m_csAudioLanguageOrder = CString(buff);
 		}
 
 		len = _countof(buff);
 		memset(buff, 0, sizeof(buff));
-		if (ERROR_SUCCESS == key.QueryStringValue(_T("SubtitlesLanguageOrder"), buff, &len)) {
+		if (ERROR_SUCCESS == key.QueryStringValue(OPT_SubLangOrder, buff, &len)) {
 			m_csSubtitlesLanguageOrder = CString(buff);
 		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("AC3CoreOnly"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_AC3CoreOnly, dw)) {
 			m_AC3CoreOnly = dw;
 		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("AlternativeDuration"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_AltDuration, dw)) {
 			m_AlternativeDuration = !!dw;
 		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("SubtitleEmptyOutput"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_SubEmptyOutput, dw)) {
 			m_SubEmptyPin = !!dw;
 		}
 	}
 #else
-	m_useFastStreamChange		= !!AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("UseFastStreamChange"), m_useFastStreamChange);
-	m_useFastSeek				= !!AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("UseFastSeek"), m_useFastSeek);
-	m_ForcedSub					= !!AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("ForcedSub"), m_ForcedSub);
+	m_useFastStreamChange		= !!AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_FastStreamChange, m_useFastStreamChange);
+	m_useFastSeek				= !!AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_FastSeek, m_useFastSeek);
+	m_ForcedSub					= !!AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_ForcedSub, m_ForcedSub);
 
 	bool UseLangOrder			= !!AfxGetApp()->GetProfileInt(IDS_R_SETTINGS, IDS_RS_INTERNALSELECTTRACKLOGIC, TRUE);
 	if (UseLangOrder) {
@@ -595,9 +604,9 @@ CMpegSplitterFilter::CMpegSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr, const CLS
 		m_csAudioLanguageOrder		= AfxGetApp()->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIOSLANGORDER, _T(""));
 	}
 
-	m_AC3CoreOnly				= AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("AC3CoreOnly"), m_AC3CoreOnly);
-	m_AlternativeDuration		= !!AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("AlternativeDuration"), m_AlternativeDuration);
-	m_SubEmptyPin				= !!AfxGetApp()->GetProfileInt(_T("Filters\\MPEG Splitter"), _T("SubtitleEmptyOutput"), m_SubEmptyPin);
+	m_AC3CoreOnly				= AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_AC3CoreOnly, m_AC3CoreOnly);
+	m_AlternativeDuration		= !!AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_AltDuration, m_AlternativeDuration);
+	m_SubEmptyPin				= !!AfxGetApp()->GetProfileInt(OPT_SECTION_MPEGSplit, OPT_SubEmptyOutput, m_SubEmptyPin);
 
 	m_nFlag					   |= PACKET_PTS_DISCONTINUITY;
 #endif
@@ -693,6 +702,10 @@ STDMETHODIMP CMpegSplitterFilter::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYP
 
 HRESULT CMpegSplitterFilter::DemuxNextPacket(REFERENCE_TIME rtStartOffset)
 {
+	if (m_pFile->IsRandomAccess() && !m_pFile->GetRemaining()) {
+		return E_FAIL;
+	}
+
 	HRESULT hr;
 	BYTE b;
 
@@ -759,12 +772,14 @@ HRESULT CMpegSplitterFilter::DemuxNextPacket(REFERENCE_TIME rtStartOffset)
 
 			CMpegSplitterFile::peshdr h2;
 
-			if (h.payloadstart && m_pFile->NextMpegStartCode(b, 4) && m_pFile->Read(h2, b)) { // pes packet
-				if (h2.type == CMpegSplitterFile::mpeg2 && h2.scrambling) {
-					ASSERT(0);
-					return E_FAIL;
+			if (h.payloadstart && m_pFile->NextMpegStartCode(b, 4)) { // pes packet
+				if (m_pFile->Read(h2, b)) {
+					if (h2.type == CMpegSplitterFile::mpeg2 && h2.scrambling) {
+						ASSERT(0);
+						return E_FAIL;
+					}
+					TrackNumber = m_pFile->AddStream(h.pid, b, 0, h.bytes - (DWORD)(m_pFile->GetPos() - pos));
 				}
-				TrackNumber = m_pFile->AddStream(h.pid, b, 0, h.bytes - (DWORD)(m_pFile->GetPos() - pos));
 			}
 
 			if (GetOutputPin(TrackNumber) && (h.bytes > (m_pFile->GetPos() - pos))) {
@@ -785,7 +800,7 @@ HRESULT CMpegSplitterFilter::DemuxNextPacket(REFERENCE_TIME rtStartOffset)
 				p->bSyncPoint	= !!h2.fpts && (p->rtStart != INVALID_TIME);
 #if (DEBUG) && 0
 				if (h2.fpts) {
-					TRACE(_T("h.pid = %d, h2.pts = %ws [%10I64d] ==> %ws [%10I64d]\n"), h.pid, ReftimeToString(h2.pts), h2.pts, ReftimeToString(p->rtStart), p->rtStart);
+					TRACE(_T("h.pid = %d, m_rtPTSOffset = [%10I64d], h2.pts = %ws [%10I64d] ==> %ws [%10I64d]\n"), h.pid, rtStartOffset, ReftimeToString(h2.pts), h2.pts, ReftimeToString(p->rtStart), p->rtStart);
 				}
 #endif
 
@@ -845,8 +860,8 @@ HRESULT CMpegSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 
 	m_pFile.Free();
 
-	ReadClipInfo (GetPartFilename(pAsyncReader));
-	m_pFile.Attach(DNew CMpegSplitterFile(pAsyncReader, hr, m_ClipInfo.IsHdmv(), m_ClipInfo, m_ForcedSub, m_AC3CoreOnly, m_AlternativeDuration, m_SubEmptyPin));
+	ReadClipInfo(GetPartFilename(pAsyncReader));
+	m_pFile.Attach(DNew CMpegSplitterFile(pAsyncReader, hr, m_ClipInfo, m_rtPlaylistDuration > 0, m_ForcedSub, m_AC3CoreOnly, m_AlternativeDuration, m_SubEmptyPin));
 
 	if (!m_pFile) {
 		return E_OUTOFMEMORY;
@@ -855,6 +870,11 @@ HRESULT CMpegSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 	if (FAILED(hr)) {
 		m_pFile.Free();
 		return hr;
+	}
+
+	if (m_rtMin && m_rtMax && m_rtMax > m_rtMin) {
+		m_pFile->m_rtMin = m_rtMin;
+		m_pFile->m_rtMax = m_rtMax;
 	}
 
 	REFERENCE_TIME	rt_IfoDuration	= 0;
@@ -872,8 +892,7 @@ HRESULT CMpegSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 		}
 	}
 
-	CString cs_audioProgram		= _T("");
-	CString cs_subpicProgram	= _T("");
+	CString cs_audioProgram, cs_subpicProgram;
 
 	// Create
 	if (m_ClipInfo.IsHdmv()) {
@@ -885,7 +904,7 @@ HRESULT CMpegSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 		}
 	}
 
-	CString lang = _T("");
+	CString lang;
 	CAtlList<CString> lang_list_audio;
 	CAtlList<CString> lang_list_subpic;
 	int	Idx_audio  = 99;
@@ -1209,6 +1228,22 @@ void CMpegSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 	if (rt <= UNITS || m_rtDuration <= 0) {
 		m_pFile->Seek(0);
 	} else {
+		__int64 pos = SeekBD(rt);
+		if (pos >= 0) {
+			m_pFile->Seek(pos + 4);
+
+			CMpegSplitterFile::stream stream = pMasterStream->GetHead();
+			REFERENCE_TIME rtmax = rt - UNITS;
+			REFERENCE_TIME rtPTS = m_pFile->NextPTS(stream);
+
+			while (rtPTS <= rtmax) {
+				m_pFile->Seek(m_pFile->GetPos() + 192);
+				rtPTS = m_pFile->NextPTS(stream);
+			}
+
+			return;
+		}
+
 		__int64 len			= m_pFile->GetLength();
 		__int64 seekpos		= (__int64)(1.0*rt/m_rtDuration*len);
 		__int64 minseekpos	= _I64_MIN;
@@ -1237,6 +1272,9 @@ void CMpegSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 							double div = 1.0;
 							for (;;) {
 								REFERENCE_TIME rt2 = m_pFile->NextPTS(TrackNum);
+								if (rt2 == INVALID_TIME) {
+									break;
+								}
 
 								if (rtmin <= rt2 && rt2 <= rtmax) {
 									minseekpos = curpos;
@@ -1294,7 +1332,10 @@ void CMpegSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 
 			seekpos	= (__int64)(1.0*rt/m_rtDuration*len);
 			m_pFile->Seek(seekpos);
-			m_rtStartOffset = m_pFile->m_rtMin + m_pFile->NextPTS(pMasterStream->GetHead()) - rt;
+			REFERENCE_TIME rtPTS = m_pFile->NextPTS(pMasterStream->GetHead());
+			if (rtPTS != INVALID_TIME) {
+				m_rtStartOffset = m_pFile->m_rtMin + rtPTS - rt;
+			}
 
 			if (m_rtStartOffset > m_pFile->m_rtMax)  {
 				m_rtStartOffset = 0;
@@ -1311,11 +1352,23 @@ bool CMpegSplitterFilter::DemuxLoop()
 {
 	REFERENCE_TIME rtStartOffset = m_rtStartOffset ? m_rtStartOffset : m_pFile->m_rtMin;
 
+	CAtlList<CMpegSplitterFile::stream>* pMasterStream = m_pFile->GetMasterStream();
+	if (!pMasterStream) {
+		ASSERT(0);
+		return false;
+	}
+
+	const CMpegSplitterFile::stream st = pMasterStream->GetHead();
+	BOOL bMainIsVideo	= (st.mt.majortype == MEDIATYPE_Video);
+	__int64 AvailBytes	= bMainIsVideo ? 256 * KILOBYTE : 16 * KILOBYTE;
+
 	HRESULT hr = S_OK;
-	while (SUCCEEDED(hr) && !CheckRequest(NULL) && SUCCEEDED(m_pFile->WaitAvailable(3000, MEGABYTE/4))) {
-		if ((hr = DemuxNextPacket(rtStartOffset)) == S_FALSE) {
-			Sleep(1);
+	while (SUCCEEDED(hr) && !CheckRequest(NULL)) {
+		if (m_pFile->IsStreaming()) {
+			m_pFile->WaitAvailable(2000, AvailBytes);
 		}
+
+		hr = DemuxNextPacket(rtStartOffset);
 	}
 
 	return true;
@@ -1324,7 +1377,21 @@ bool CMpegSplitterFilter::DemuxLoop()
 bool CMpegSplitterFilter::BuildPlaylist(LPCTSTR pszFileName, CHdmvClipInfo::CPlaylist& Items)
 {
 	m_rtPlaylistDuration = 0;
-	return SUCCEEDED (m_ClipInfo.ReadPlaylist (pszFileName, m_rtPlaylistDuration, Items)) ? true : false;
+
+	bool res = SUCCEEDED (m_ClipInfo.ReadPlaylist (pszFileName, m_rtPlaylistDuration, Items, TRUE));
+	if (res) {
+		m_rtMin = Items.GetHead()->m_rtIn;
+		REFERENCE_TIME rtDur = 0;
+
+		POSITION pos = Items.GetHeadPosition();
+		while (pos) {
+			rtDur += Items.GetNext(pos)->Duration();
+		}
+
+		m_rtMax = m_rtMin + rtDur;
+	}
+	
+	return res;
 }
 
 bool CMpegSplitterFilter::BuildChapters(LPCTSTR pszFileName, CHdmvClipInfo::CPlaylist& PlaylistItems, CHdmvClipInfo::CPlaylistChapter& Items)
@@ -1456,7 +1523,7 @@ LONGLONG GetMediaTypeQuality(const CMediaType *_pMediaType, int _PresentationFor
 						TypePriority = 4;
 					}
 					break;
-					case WAVE_FORMAT_DVD_DTS: {
+					case WAVE_FORMAT_DTS2: {
 						TypePriority = 9;
 					}
 					break;
@@ -1464,7 +1531,7 @@ LONGLONG GetMediaTypeQuality(const CMediaType *_pMediaType, int _PresentationFor
 						TypePriority = 8;
 					}
 					break;
-					case WAVE_FORMAT_AAC: {
+					case WAVE_FORMAT_RAW_AAC1: {
 						TypePriority = 7;
 					}
 					break;
@@ -1615,23 +1682,23 @@ STDMETHODIMP CMpegSplitterFilter::Apply()
 {
 #ifdef REGISTER_FILTER
 	CRegKey key;
-	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\MPEG Splitter"))) {
-		key.SetDWORDValue(_T("UseFastStreamChange"), m_useFastStreamChange);
-		key.SetDWORDValue(_T("UseFastSeek"), m_useFastSeek);
-		key.SetDWORDValue(_T("ForcedSub"), m_ForcedSub);
-		key.SetStringValue(_T("AudioLanguageOrder"), m_csAudioLanguageOrder);
-		key.SetStringValue(_T("SubtitlesLanguageOrder"), m_csSubtitlesLanguageOrder);
-		key.SetDWORDValue(_T("AC3CoreOnly"), m_AC3CoreOnly);
-		key.SetDWORDValue(_T("AlternativeDuration"), m_AlternativeDuration);
-		key.SetDWORDValue(_T("SubtitleEmptyOutput"), m_SubEmptyPin);
+	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, OPT_REGKEY_MPEGSplit)) {
+		key.SetDWORDValue(OPT_FastStreamChange, m_useFastStreamChange);
+		key.SetDWORDValue(OPT_FastSeek, m_useFastSeek);
+		key.SetDWORDValue(OPT_ForcedSub, m_ForcedSub);
+		key.SetStringValue(OPT_AudioLangOrder, m_csAudioLanguageOrder);
+		key.SetStringValue(OPT_SubLangOrder, m_csSubtitlesLanguageOrder);
+		key.SetDWORDValue(OPT_AC3CoreOnly, m_AC3CoreOnly);
+		key.SetDWORDValue(OPT_AltDuration, m_AlternativeDuration);
+		key.SetDWORDValue(OPT_SubEmptyOutput, m_SubEmptyPin);
 	}
 #else
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("UseFastStreamChange"), m_useFastStreamChange);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("UseFastSeek"), m_useFastSeek);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("ForcedSub"), m_ForcedSub);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("AC3CoreOnly"), m_AC3CoreOnly);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("AlternativeDuration"), m_AlternativeDuration);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\MPEG Splitter"), _T("SubtitleEmptyOutput"), m_SubEmptyPin);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_FastStreamChange, m_useFastStreamChange);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_FastSeek, m_useFastSeek);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_ForcedSub, m_ForcedSub);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_AC3CoreOnly, m_AC3CoreOnly);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_AltDuration, m_AlternativeDuration);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_MPEGSplit, OPT_SubEmptyOutput, m_SubEmptyPin);
 #endif
 
 	return S_OK;
@@ -1765,10 +1832,11 @@ CMpegSplitterOutputPin::CMpegSplitterOutputPin(CAtlArray<CMediaType>& mts, LPCWS
 	, m_fHasAccessUnitDelimiters(false)
 	, m_type(type)
 	, m_bFlushed(false)
-	, m_AC3_size(0), m_AC3_count(0)
+	, m_AC3_count(0)
 	, m_truehd_framelength(0)
 	, m_hdmvLPCM_samplerate(0), m_hdmvLPCM_channels(0), m_hdmvLPCM_packetsize(0)
 {
+	m_AC3_frame.clear();
 }
 
 CMpegSplitterOutputPin::~CMpegSplitterOutputPin()
@@ -1786,6 +1854,8 @@ HRESULT CMpegSplitterOutputPin::Flush()
 	m_bFlushed				= true;
 	m_truehd_framelength	= 0;
 
+	m_hdmvLPCM_samplerate = m_hdmvLPCM_channels = m_hdmvLPCM_packetsize = 0;
+
 	return S_OK;
 }
 
@@ -1798,9 +1868,6 @@ HRESULT CMpegSplitterOutputPin::DeliverEndFlush()
 	return __super::DeliverEndFlush();
 }
 
-#define MOVE_TO_H264_START_CODE(b, e)	while(b <= e-4 && !((*(DWORD *)b == 0x01000000) || ((*(DWORD *)b & 0x00FFFFFF) == 0x00010000))) b++; if((b <= e-4) && *(DWORD *)b == 0x01000000) b++;
-#define MOVE_TO_AC3_START_CODE(b, e)	while(b <= e-8 && (*(WORD*)b != 0x770b)) b++;
-
 HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 {
 	CAutoLock cAutoLock(this);
@@ -1808,13 +1875,14 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 	if (p->pmt) {
 		if (*((CMediaType *)p->pmt) != m_mt) {
 			SetMediaType ((CMediaType*)p->pmt);
-			m_AC3_size = m_AC3_count = 0;
+			m_AC3_frame.clear();
+			m_AC3_count = 0;
 			Flush();
 		}
 	}
 
 	// AAC
-	if (m_mt.subtype == MEDIASUBTYPE_AAC) { // special code for aac, the currently available decoders only like whole frame samples
+	if (m_mt.subtype == MEDIASUBTYPE_RAW_AAC1) { // special code for aac, the currently available decoders only like whole frame samples
 		if (m_p && m_p->GetCount() == 1 && m_p->GetAt(0) == 0xff && !(!p->IsEmpty() && (p->GetAt(0) & 0xf6) == 0xf0)) {
 			m_p.Free();
 		}
@@ -1856,7 +1924,7 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 				break;
 			}
 
-			if (len <= 0 || e - s >= len + 2 && (s[len] != 0xff || (s[len+1]&0xf6) != 0xf0)) {
+			if (len <= 0 || (e - s >= len + 2 && (s[len] != 0xff || (s[len+1]&0xf6) != 0xf0))) {
 				m_p.Free();
 				break;
 			}
@@ -1954,17 +2022,14 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 			CAutoPtr<Packet> p2;
 
 			while (Nalu.ReadNext()) {
-				DWORD	dwNalLength =
-					((Nalu.GetDataLength() >> 24) & 0x000000ff) |
-					((Nalu.GetDataLength() >>  8) & 0x0000ff00) |
-					((Nalu.GetDataLength() <<  8) & 0x00ff0000) |
-					((Nalu.GetDataLength() << 24) & 0xff000000);
+				DWORD dwNalLength = Nalu.GetDataLength();
+				dwNalLength = BSWAP32(dwNalLength);
 
 				CAutoPtr<Packet> p3(DNew Packet());
 
-				p3->SetCount (Nalu.GetDataLength()+sizeof(dwNalLength));
-				memcpy (p3->GetData(), &dwNalLength, sizeof(dwNalLength));
-				memcpy (p3->GetData()+sizeof(dwNalLength), Nalu.GetDataBuffer(), Nalu.GetDataLength());
+				p3->SetCount(Nalu.GetDataLength() + sizeof(dwNalLength));
+				memcpy(p3->GetData(), &dwNalLength, sizeof(dwNalLength));
+				memcpy(p3->GetData() + sizeof(dwNalLength), Nalu.GetDataBuffer(), Nalu.GetDataLength());
 
 				if (p2 == NULL) {
 					p2 = p3;
@@ -2029,11 +2094,11 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 			Packet* pPacket = m_pl.GetAt(pos);
 			BYTE* pData = pPacket->GetData();
 
-			if ((pData[4]&0x1f) == 0x09) {
+			if ((pData[4] & 0x1f) == 0x09) {
 				m_fHasAccessUnitDelimiters = true;
 			}
 
-			if ((pData[4]&0x1f) == 0x09 || (!m_fHasAccessUnitDelimiters && pPacket->rtStart != INVALID_TIME)) {
+			if ((pData[4] & 0x1f) == 0x09 || (!m_fHasAccessUnitDelimiters && pPacket->rtStart != INVALID_TIME)) {
 				if (pPacket->rtStart == INVALID_TIME && rtStart != INVALID_TIME) {
 					pPacket->rtStart	= rtStart;
 					pPacket->rtStop		= rtStop;
@@ -2187,7 +2252,7 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 
 		if (m_p->GetCount() < 4) {
 			m_p.Free();
-			return S_OK;    // Should be invalid packet
+			return S_OK;	// Should be invalid packet
 		}
 
 		BYTE* start = m_p->GetData();
@@ -2252,20 +2317,29 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 			MOVE_TO_AC3_START_CODE(start, end);
 
 			if (start <= end-8) {
-				int size;
-				if ((size = ParseAC3Header(start)) > 0) {
+				audioframe_t af;
+				if (ParseAC3Header(start, &af) > 0) {
 
-					if (size <= (end-start)) {
+					if (af.size <= (end - start)) {
 
-						// TODO - found better way to detect valid AC3 frame(core) in TrueHD stream ...
-						if (size == m_AC3_size) {
+						if (af.samples == m_AC3_frame.samples
+								&& af.samplerate == m_AC3_frame.samplerate
+								&& af.channels == m_AC3_frame.channels
+								&& af.param1 == m_AC3_frame.param1) {
 							m_AC3_count++;
 						} else if (m_AC3_count < 10) {
-							m_AC3_size	= size;
+							m_AC3_frame.samples		= af.samples;
+							m_AC3_frame.samplerate	= af.samplerate;
+							m_AC3_frame.channels	= af.channels;
+							m_AC3_frame.param1		= af.param1;
 							m_AC3_count	= 0;
 						}
 
-						if (m_AC3_count >= 10 && size != m_AC3_size) {
+						if (m_AC3_count >= 10
+								&& (af.samples != m_AC3_frame.samples
+									|| af.samplerate != m_AC3_frame.samplerate
+									|| af.channels != m_AC3_frame.channels
+									|| af.param1 != m_AC3_frame.param1)) {
 							start++;
 							continue;
 						}
@@ -2287,7 +2361,7 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 						p2->pmt		= m_p->pmt;
 						m_p->pmt	= NULL;
 
-						p2->SetData(start, size);
+						p2->SetData(start, af.size);
 
 						if (!p2->pmt && m_bFlushed) {
 							p2->pmt = CreateMediaType(&m_mt);
@@ -2319,7 +2393,7 @@ HRESULT CMpegSplitterOutputPin::DeliverPacket(CAutoPtr<Packet> p)
 						m_p->pmt	= p->pmt;
 						p->pmt		= NULL;
 							
-						start += size;
+						start += af.size;
 					} else {
 						break;
 					}

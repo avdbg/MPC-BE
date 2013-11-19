@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,12 +21,14 @@
 
 #include "stdafx.h"
 #include "UDPReader.h"
+#include <moreuuids.h>
 #include "../../../DSUtil/DSUtil.h"
+#include "../../../apps/mplayerc/SettingsDefines.h"
 
 #ifdef REGISTER_FILTER
 
 const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
-	{&MEDIATYPE_Stream, &MEDIASUBTYPE_NULL},
+	{&MEDIATYPE_Stream, &MEDIASUBTYPE_MPEG2_TRANSPORT},
 };
 
 const AMOVIESETUP_PIN sudOpPin[] = {
@@ -48,7 +48,7 @@ int g_cTemplates = _countof(g_Templates);
 STDAPI DllRegisterServer()
 {
 	SetRegKeyValue(_T("udp"), 0, _T("Source Filter"), CStringFromGUID(__uuidof(CUDPReader)));
-	SetRegKeyValue(_T("tévé"), 0, _T("Source Filter"), CStringFromGUID(__uuidof(CUDPReader)));
+	SetRegKeyValue(_T("http"), 0, _T("Source Filter"), CStringFromGUID(__uuidof(CUDPReader)));
 
 	return AMovieDllRegisterServer2(TRUE);
 }
@@ -66,8 +66,8 @@ CFilterApp theApp;
 
 #endif
 
-#define BUFF_SIZE (256*1024)
-#define BUFF_SIZE_FIRST (4*BUFF_SIZE)
+#define MAXSTORESIZE	25*MEGABYTE	// The maximum size of a buffer for storing the received information
+#define MAXBUFSIZE		65536		// Max UDP Packet size is 64 Kbyte
 
 //
 // CUDPReader
@@ -79,6 +79,10 @@ CUDPReader::CUDPReader(IUnknown* pUnk, HRESULT* phr)
 	if (phr) {
 		*phr = S_OK;
 	}
+
+#ifndef REGISTER_FILTER
+	AfxSocketInit();
+#endif
 }
 
 CUDPReader::~CUDPReader()
@@ -108,6 +112,24 @@ STDMETHODIMP CUDPReader::QueryFilterInfo(FILTER_INFO* pInfo)
 	return S_OK;
 }
 
+STDMETHODIMP CUDPReader::Stop()
+{
+	m_stream.CallWorker(m_stream.CMD_STOP);
+	return S_OK;
+}
+
+STDMETHODIMP CUDPReader::Pause()
+{
+	m_stream.CallWorker(m_stream.CMD_PAUSE);
+	return S_OK;
+}
+
+STDMETHODIMP CUDPReader::Run(REFERENCE_TIME tStart)
+{
+	m_stream.CallWorker(m_stream.CMD_RUN);
+	return S_OK;
+}
+
 // IFileSourceFilter
 
 STDMETHODIMP CUDPReader::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYPE* pmt)
@@ -119,8 +141,8 @@ STDMETHODIMP CUDPReader::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYPE* pmt)
 	m_fn = pszFileName;
 
 	CMediaType mt;
-	mt.majortype = MEDIATYPE_Stream;
-	mt.subtype = m_stream.GetSubType();
+	mt.majortype	= MEDIATYPE_Stream;
+	mt.subtype		= m_stream.GetSubtype();
 	m_mt = mt;
 
 	return S_OK;
@@ -145,10 +167,12 @@ STDMETHODIMP CUDPReader::GetCurFile(LPOLESTR* ppszFileName, AM_MEDIA_TYPE* pmt)
 // CUDPStream
 
 CUDPStream::CUDPStream()
+	: m_protocol(PR_NONE)
+	, m_UdpSocket(INVALID_SOCKET)
+	, m_HttpSocketTread(INVALID_SOCKET)
+	, m_subtype(MEDIASUBTYPE_NULL)
 {
-	m_port = 0;
-	m_socket = INVALID_SOCKET;
-	m_subtype = MEDIASUBTYPE_NULL;
+	m_WSAEvent[0] = NULL;
 }
 
 CUDPStream::~CUDPStream()
@@ -158,40 +182,39 @@ CUDPStream::~CUDPStream()
 
 void CUDPStream::Clear()
 {
-	if (m_socket !=INVALID_SOCKET) {
-		closesocket(m_socket);
-		m_socket = INVALID_SOCKET;
-	}
 	if (CAMThread::ThreadExists()) {
 		CAMThread::CallWorker(CMD_EXIT);
 		CAMThread::Close();
 	}
+
+	if (m_WSAEvent[0] != NULL) {
+		WSACloseEvent(m_WSAEvent[0]);
+	}
+
+	if (m_UdpSocket != INVALID_SOCKET) {
+		closesocket(m_UdpSocket);
+		m_UdpSocket = INVALID_SOCKET;
+	}
+
+	if (m_HttpSocketTread != INVALID_SOCKET) {
+		m_HttpSocket.Attach(m_HttpSocketTread);
+	}
+	m_HttpSocket.Close();
+
+	if (m_protocol == PR_UDP) { // ?
+		WSACleanup();
+	}
+
 	while (!m_packets.IsEmpty()) {
 		delete m_packets.RemoveHead();
 	}
+
 	m_pos = m_len = 0;
-	m_drop = false;
 }
 
 void CUDPStream::Append(BYTE* buff, int len)
 {
 	CAutoLock cAutoLock(&m_csLock);
-
-	if (m_packets.GetCount() > 1) {
-		__int64 size = m_packets.GetTail()->m_end - m_packets.GetHead()->m_start;
-
-		if (!m_drop && (m_pos >= BUFF_SIZE_FIRST && size >= BUFF_SIZE_FIRST || size >= 2*BUFF_SIZE_FIRST)) {
-			m_drop = true;
-			TRACE(_T("DROP ON\n"));
-		} else if (m_drop && size <= BUFF_SIZE_FIRST) {
-			m_drop = false;
-			TRACE(_T("DROP OFF\n"));
-		}
-
-		if (m_drop) {
-			return;
-		}
-	}
 
 	m_packets.AddTail(DNew packet_t(buff, m_len, m_len + len));
 	m_len += len;
@@ -201,43 +224,223 @@ bool CUDPStream::Load(const WCHAR* fnw)
 {
 	Clear();
 
-	CStringW url = CStringW(fnw);
+	m_url_str = CString(fnw);
 
-//#ifdef _DEBUG
-	//	url = L"udp://:1234/";
-	//	url = L"udp://239.255.255.250:1234/{e436eb8e-524f-11ce-9f53-0020af0ba770}";
-	//	url = L"udp://239.255.255.19:2345/";
-//#endif
-
-	CAtlList<CStringW> sl;
-	Explode(url, sl, ':');
-	if (sl.GetCount() != 3) {
+	if (!m_url.CrackUrl(m_url_str)) {
 		return false;
 	}
 
-	CStringW protocol = sl.RemoveHead();
-	// if(protocol != L"udp") return false;
+	CString str_protocol = m_url.GetSchemeName();
+	str_protocol.MakeLower();
 
-	m_ip = CString(sl.RemoveHead()).TrimLeft('/');
+	if (str_protocol == L"udp") {
+		m_protocol = PR_UDP;
 
-	int port = _wtoi(Explode(sl.RemoveHead(), sl, '/', 2));
-	if (port < 0 || port > 0xffff) {
-		return false;
-	}
-	m_port = port;
+		WSADATA wsaData;
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-	if (sl.GetCount() != 2 || FAILED(GUIDFromCString(CString(sl.GetTail()), m_subtype))) {
-		m_subtype = MEDIASUBTYPE_NULL;    // TODO: detect subtype
+		memset(&m_addr, 0, sizeof(m_addr));
+		m_addr.sin_family      = AF_INET;
+		m_addr.sin_port        = htons((u_short)m_url.GetPortNumber());
+		m_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+		ip_mreq imr;
+		imr.imr_multiaddr.s_addr = inet_addr(CStringA(m_url.GetHostName()));
+		imr.imr_interface.s_addr = INADDR_ANY;
+
+		if ((m_UdpSocket = socket(AF_INET, SOCK_DGRAM, 0)) != INVALID_SOCKET) {
+			m_WSAEvent[0] = WSACreateEvent();
+			WSAEventSelect(m_UdpSocket, m_WSAEvent[0], FD_READ);
+
+			DWORD dw = TRUE;
+			if (setsockopt(m_UdpSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&dw, sizeof(dw)) == SOCKET_ERROR) {
+				closesocket(m_UdpSocket);
+				m_UdpSocket = INVALID_SOCKET;
+			}
+
+			if (bind(m_UdpSocket, (struct sockaddr*)&m_addr, sizeof(m_addr)) == SOCKET_ERROR) {
+				closesocket(m_UdpSocket);
+				m_UdpSocket = INVALID_SOCKET;
+			}
+
+			if (IN_MULTICAST(htonl(imr.imr_multiaddr.s_addr))) {
+				int ret = setsockopt(m_UdpSocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&imr, sizeof(imr));
+				if (ret < 0) {
+					closesocket(m_UdpSocket);
+					m_UdpSocket = INVALID_SOCKET;
+				}
+			}
+
+			dw = MAXBUFSIZE;
+			if (setsockopt(m_UdpSocket, SOL_SOCKET, SO_RCVBUF, (const char*)&dw, sizeof(dw)) == SOCKET_ERROR) {
+				;
+			}
+
+			// set non-blocking mode
+			u_long param = 1;
+			ioctlsocket(m_UdpSocket, FIONBIO, &param);
+		}
+
+		if (m_UdpSocket == INVALID_SOCKET) {
+			return false;
+		}
+
+		UINT timeout = 0;
+		while (timeout < 500) {
+			DWORD res = WSAWaitForMultipleEvents(1, m_WSAEvent, FALSE, 100, FALSE);
+			if (res == WSA_WAIT_EVENT_0) {
+				int fromlen = sizeof(m_addr);
+				char buf[MAXBUFSIZE];
+				int len = recvfrom(m_UdpSocket, buf, MAXBUFSIZE, 0, (SOCKADDR*)&m_addr, &fromlen);
+				if (len <= 0) {
+					timeout += 100;
+					continue;
+				}
+				break;
+			} else {
+				timeout += 100;
+				continue;
+			}
+
+			break;
+		}
+
+		if (timeout == 500) {
+			return false;
+		}
+
+	} else if (str_protocol == L"http") {
+		m_protocol = PR_HTTP;
+
+		if (m_url.GetUrlPathLength() == 0) {
+			m_url.SetUrlPath(_T("/"));
+			m_url_str += '/';
+		}
+
+		BOOL connected = FALSE;
+		for (int k = 1; k <= 5; k++) {
+			bool redir = false;
+
+			CStringA hdr;
+
+			if (!m_HttpSocket.Create()) {
+				return false;
+			}
+			
+			m_HttpSocket.SetUserAgent("MPC UDP/HTTP Reader");
+			m_HttpSocket.SetTimeOut(3000, 3000);
+			connected = m_HttpSocket.Connect(m_url);
+			if (connected) {
+				hdr = m_HttpSocket.GetHeader();
+				DbgLog((LOG_TRACE, 3, "\nCUDPStream::Load() - HTTP hdr:\n%s", hdr));
+
+				connected = !hdr.IsEmpty();
+				hdr.MakeLower();
+			}
+			
+			if (!connected) {
+				return false;
+			}
+
+			CAtlList<CStringA> sl;
+			Explode(hdr, sl, '\n');
+			POSITION pos = sl.GetHeadPosition();
+			while (pos) {
+				CStringA& hdrline = sl.GetNext(pos);
+				CAtlList<CStringA> sl2;
+				Explode(hdrline, sl2, ':', 2);
+				if (sl2.GetCount() != 2) {
+					continue;
+				}
+
+				CStringA param = sl2.GetHead();
+				CStringA value = sl2.GetTail();
+
+				if (param == "content-type") {
+					if (value == "application/octet-stream") {
+						m_subtype = MEDIASUBTYPE_NULL; // "universal" subtype for most splitters
+
+						BYTE buf[1024];
+						int len = m_HttpSocket.Receive((LPVOID)&buf, sizeof(buf));
+						if (len) {
+							if (len >= 188 && buf[0] == 0x47) {
+								BOOL bIsMPEGTS = TRUE;
+								// verify MPEG Stream
+								for (int i = 188; i < len; i += 188) {
+									if (buf[i] != 0x47) {
+										bIsMPEGTS = FALSE;
+										break;
+									}
+								}
+
+								if (bIsMPEGTS) {
+									m_subtype = MEDIASUBTYPE_MPEG2_TRANSPORT;
+								}
+							} else if (len > 6 && *(DWORD*)&buf == 0xBA010000) {
+								if ((buf[4]&0xc4) == 0x44) {
+									m_subtype = MEDIASUBTYPE_MPEG2_PROGRAM;
+								} else if ((buf[4]&0xf1) == 0x21) {
+									m_subtype = MEDIASUBTYPE_MPEG1System;
+								}
+							} else if (len > 4 && *(DWORD*)&buf == 'SggO') {
+								m_subtype = MEDIASUBTYPE_Ogg;
+							} else if (len > 4 && *(DWORD*)&buf == 0xA3DF451A) {
+								m_subtype = MEDIASUBTYPE_Matroska;
+							}
+
+							Append(buf, len);
+						}
+					} else if (value == "application/x-ogg" || value == "application/ogg" || value == "audio/ogg") {
+						m_subtype = MEDIASUBTYPE_Ogg;
+					} else if (value == "video/webm") {
+						m_subtype = MEDIASUBTYPE_Matroska;
+					} else if (value == "video/mp4" || value == "video/x-flv" || value == "video/3gpp") {
+						m_subtype = MEDIASUBTYPE_NULL;
+					} else { // "text/html..." and other
+						 // not supported content-type
+						connected = FALSE;
+					}
+				} else if (param == "content-length") {
+					// Not stream. This downloadable file. Here it is better to use "File Source (URL)".
+					connected = FALSE; 
+				} else if (param == "location") {
+					if (value.Left(7) == "http://") {
+						if (value.Find('/', 8) == -1) { // looking for the beginning of URL path (find '/' after 'http://x')
+							value += '/'; // if not found, set minimum URL path
+						}
+						if (m_url_str != CString(value)) {
+							m_url_str = value;
+							m_url.CrackUrl(m_url_str);
+							redir = true;
+						}
+					}
+				}
+			}
+
+			if (!redir) {
+				break;
+			}
+
+			m_HttpSocket.Close();
+		}
+
+		if (!connected) {
+			return false;
+		}
+
+		m_HttpSocketTread = m_HttpSocket.Detach();
+	} else {
+		return false; // not supported protocol
 	}
 
 	CAMThread::Create();
-	if (FAILED(CAMThread::CallWorker(CMD_RUN))) {
+	if (FAILED(CAMThread::CallWorker(CMD_INIT))) {
 		Clear();
 		return false;
 	}
 
 	clock_t start = clock();
-	while (clock() - start < 3000 && m_len < 1000000) {
+	while (clock() - start < 5000 && m_len < MEGABYTE * 2) {
 		Sleep(100);
 	}
 
@@ -251,7 +454,7 @@ HRESULT CUDPStream::SetPointer(LONGLONG llPos)
 	if (m_packets.IsEmpty() && llPos != 0
 			|| !m_packets.IsEmpty() && llPos < m_packets.GetHead()->m_start
 			|| !m_packets.IsEmpty() && llPos > m_packets.GetTail()->m_end) {
-		TRACE(_T("CUDPStream: SetPointer error\n"));
+		TRACE(_T("CUDPStream: SetPointer error - %lld, [%I64d -> %I64d]\n"), llPos, m_packets.GetHead()->m_start, m_packets.GetTail()->m_end);
 		return E_FAIL;
 	}
 
@@ -289,15 +492,10 @@ HRESULT CUDPStream::Read(PBYTE pbBuffer, DWORD dwBytesToRead, BOOL bAlign, LPDWO
 				ptr += size;
 				len -= size;
 			}
-
-			if (p->m_end <= m_pos - 2048 && BUFF_SIZE_FIRST <= m_pos) {
-				while (m_packets.GetHeadPosition() != pos) {
-					delete m_packets.RemoveHead();
-				}
-			}
-
 		}
 	}
+
+	CheckBuffer();
 
 	if (pdwBytesRead) {
 		*pdwBytesRead = ptr - pbBuffer;
@@ -312,6 +510,7 @@ LONGLONG CUDPStream::Size(LONGLONG* pSizeAvailable)
 	if (pSizeAvailable) {
 		*pSizeAvailable = m_len;
 	}
+
 	return 0;
 }
 
@@ -330,52 +529,29 @@ void CUDPStream::Unlock()
 	m_csLock.Unlock();
 }
 
-DWORD CUDPStream::ThreadProc()
+void CUDPStream::CheckBuffer()
 {
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
+	CAutoLock cAutoLock(&m_csLock);
 
-	sockaddr_in addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	addr.sin_port = htons((u_short)m_port);
-
-	ip_mreq imr;
-	imr.imr_multiaddr.s_addr = inet_addr(CStringA(m_ip));
-	imr.imr_interface.s_addr = INADDR_ANY;
-
-	if ((m_socket = socket(AF_INET, SOCK_DGRAM, 0))!=INVALID_SOCKET) {
-		/*		u_long argp = 1;
-				ioctlsocket(m_socket, FIONBIO, &argp);
-		*/
-		DWORD dw = TRUE;
-		if (setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&dw, sizeof(dw))==SOCKET_ERROR) {
-			closesocket(m_socket);
-			m_socket =  INVALID_SOCKET;
-		}
-
-		if (bind(m_socket, (struct sockaddr*)&addr, sizeof(addr))==SOCKET_ERROR) {
-			closesocket(m_socket);
-			m_socket =  INVALID_SOCKET;
-		}
-
-		if (IN_MULTICAST(htonl(imr.imr_multiaddr.s_addr))) {
-			int ret = setsockopt(m_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&imr, sizeof(imr));
-			if (ret < 0) {
-				ret = ::WSAGetLastError();
-			}
-			ret = ret;
+#define PacketsSize (m_packets.GetTail()->m_end - m_packets.GetHead()->m_start)
+	if (!m_packets.IsEmpty()) {
+		while (PacketsSize > MAXSTORESIZE) {
+			delete m_packets.RemoveHead();
 		}
 	}
+}
 
+DWORD CUDPStream::ThreadProc()
+{
 	SetThreadPriority(m_hThread, THREAD_PRIORITY_TIME_CRITICAL);
+
+	if (m_protocol == PR_HTTP) {
+		AfxSocketInit();
+	}
 
 #ifdef _DEBUG
 	FILE* dump = NULL;
-	//	dump = _tfopen(_T("c:\\udp.ts"), _T("wb"));
-	FILE* log = NULL;
-	//	log = _tfopen(_T("c:\\udp.txt"), _T("wt"));
+	//dump = _tfopen(_T("c:\\http.ts"), _T("wb"));
 #endif
 
 	for (;;) {
@@ -384,84 +560,72 @@ DWORD CUDPStream::ThreadProc()
 		switch (cmd) {
 			default:
 			case CMD_EXIT:
-				if (m_socket!=INVALID_SOCKET) {
-					closesocket(m_socket);
-					m_socket =  INVALID_SOCKET;
-				}
-				WSACleanup();
-#ifdef _DEBUG
-				if (dump) {
-					fclose(dump);
-				}
-				if (log) {
-					fclose(log);
-				}
-#endif
 				Reply(S_OK);
+				if (m_protocol == PR_HTTP) {
+					m_HttpSocketTread = m_HttpSocket.Detach();
+				}
+#ifdef _DEBUG
+				if (dump) { fclose(dump); }
+#endif
 				return 0;
+			case CMD_STOP:
+			case CMD_PAUSE:
+				Reply(S_OK);
+				break;
+			case CMD_INIT:
+				if (m_protocol == PR_HTTP) {
+					m_HttpSocket.Attach(m_HttpSocketTread);
+				}
 			case CMD_RUN:
-				Reply(m_socket!=INVALID_SOCKET ? S_OK : E_FAIL);
-
+				Reply(S_OK);
 				{
-					char buff[65536*2];
-					int buffsize = 0;
-
-					for (unsigned int i = 0; ; i++) {
-						if (!(i&0xff)) {
-							if (CheckRequest(NULL)) {
-								break;
-							}
-						}
-
-						int fromlen = sizeof(addr);
-						int len = recvfrom(m_socket, &buff[buffsize], 65536, 0, (SOCKADDR*)&addr, &fromlen);
-						if (len <= 0) {
-							Sleep(1);
-							continue;
-						}
-
-#ifdef _DEBUG
-						if (log) {
-							if (buffsize >= len && !memcmp(&buff[buffsize-len], &buff[buffsize], len)) {
-								DWORD pid = ((buff[buffsize+1]<<8)|buff[buffsize+2])&0x1fff;
-								DWORD counter = buff[buffsize+3]&0xf;
-								_ftprintf_s(log, _T("%04d %2d DUP\n"), pid, counter);
-							}
-						}
-#endif
-
-						buffsize += len;
-
-						if (buffsize >= 65536 || m_len == 0) {
-#ifdef _DEBUG
-							if (dump) {
-								fwrite(buff, buffsize, 1, dump);
-							}
-
-							if (log) {
-								static BYTE pid2counter[0x2000];
-								static bool init = false;
-								if (!init) {
-									memset(pid2counter, 0, sizeof(pid2counter));
-									init = true;
-								}
-
-								for (int i = 0; i < buffsize; i += 188) {
-									DWORD pid = ((buff[i+1]<<8)|buff[i+2])&0x1fff;
-									BYTE counter = buff[i+3]&0xf;
-									if (pid2counter[pid] != ((counter-1+16)&15)) {
-										_ftprintf_s(log, _T("%04x %2d -> %2d\n"), pid, pid2counter[pid], counter);
+					char  buff[MAXBUFSIZE * 2];
+					int   buffsize = 0;
+					UINT  attempts = 0;
+				
+					do {
+						int len =  0;
+				
+						if (m_protocol == PR_UDP) {
+							DWORD res = WSAWaitForMultipleEvents(1, m_WSAEvent, FALSE, 100, FALSE);
+							if (res == WSA_WAIT_EVENT_0) {
+								WSAResetEvent(m_WSAEvent[0]);
+								int fromlen = sizeof(m_addr);
+								len = recvfrom(m_UdpSocket, &buff[buffsize], MAXBUFSIZE, 0, (SOCKADDR*)&m_addr, &fromlen);
+								if (len <= 0) {
+									int err = WSAGetLastError();
+									if (err != WSAEWOULDBLOCK) {
+										attempts++;
 									}
-									pid2counter[pid] = counter;
+									continue;
 								}
+							} else {
+								attempts++;
+								continue;
 							}
+				
+						} else if (m_protocol == PR_HTTP) {
+							len = m_HttpSocket.Receive(&buff[buffsize], MAXBUFSIZE);
+							if (len <= 0) {
+								attempts++;
+								continue;
+							}
+				
+							attempts = 0;
+						}
+				
+						buffsize += len;
+				
+						if (buffsize >= MAXBUFSIZE) {
+#ifdef _DEBUG
+							if (dump) { fwrite(buff, buffsize, 1, dump); }
 #endif
-
 							Append((BYTE*)buff, buffsize);
 							buffsize = 0;
 						}
-					}
+					} while (!CheckRequest(NULL) && attempts < 10);
 				}
+
 				break;
 		}
 	}
@@ -475,6 +639,6 @@ CUDPStream::packet_t::packet_t(BYTE* p, __int64 start, __int64 end)
 	, m_end(end)
 {
 	size_t size = (size_t)(end - start);
-	m_buff = DNew BYTE[size];
+	m_buff      = DNew BYTE[size];
 	memcpy(m_buff, p, size);
 }

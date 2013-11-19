@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -24,7 +22,6 @@
 #include "MPCVideoDecSettingsWnd.h"
 #include "../../../DSUtil/DSUtil.h"
 #include <ffmpeg/libavcodec/avcodec.h>
-#include "ffImgfmt.h"
 
 //
 // CMPCVideoDecSettingsWnd
@@ -73,7 +70,7 @@ bool CMPCVideoDecSettingsWnd::OnConnect(const CInterfaceList<IUnknown, &IID_IUnk
 void CMPCVideoDecSettingsWnd::OnDisconnect()
 {
 	if (m_pMDF) {
-		m_pMDF->SetDialogHWND(0);
+		m_pMDF->SetDialogHWND(NULL);
 	}
 
 	m_pMDF.Release();
@@ -87,7 +84,6 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 	const int h25 = IPP_SCALE(25);
 	DWORD dwStyle = WS_VISIBLE | WS_CHILD | WS_TABSTOP;
 	CPoint p(10, 10);
-	GUID* DxvaGui = NULL;
 
 	m_grpFFMpeg.Create(ResStr(IDS_VDF_SETTINGS), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, CRect(p + CPoint(-5, 0), CSize(IPP_SCALE(350), h20 + h25 * 3 + h20)), this, (UINT)IDC_STATIC);
 	p.y += h20;
@@ -97,9 +93,9 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 	m_cbThreadNumber.Create(dwStyle | CBS_DROPDOWNLIST | WS_VSCROLL, CRect(p + CPoint(IPP_SCALE(230), -4), CSize(IPP_SCALE(110), 200)), this, IDC_PP_THREAD_NUMBER);
 	m_cbThreadNumber.AddString (ResStr (IDS_VDF_AUTO));
 	CString ThreadNumberStr;
-	for (int i=0; i<16; i++) {
-		ThreadNumberStr.Format		(_T("%d"), i+1);
-		m_cbThreadNumber.AddString	(ThreadNumberStr);
+	for (int i = 1; i <= 16; i++) {
+		ThreadNumberStr.Format(_T("%d"), i);
+		m_cbThreadNumber.AddString(ThreadNumberStr);
 	}
 	p.y += h25;
 
@@ -129,7 +125,7 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 	p.y += h25;
 
 	//
-	m_grpDXVA.Create(ResStr(IDS_VDF_DXVA_SETTING),   WS_VISIBLE | WS_CHILD | BS_GROUPBOX, CRect(p + CPoint(-5, 0), CSize(IPP_SCALE(350), h20 + h25 +h20 * 3 + m_fontheight)), this, (UINT)IDC_STATIC);
+	m_grpDXVA.Create(ResStr(IDS_VDF_DXVA_SETTING), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, CRect(p + CPoint(-5, 0), CSize(IPP_SCALE(350), h20 + h25 +h20 * 3 + m_fontheight)), this, (UINT)IDC_STATIC);
 	p.y += h20;
 
 	// DXVA Compatibility check
@@ -156,105 +152,75 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 	m_edtVideoCardDescription.Create(ES_MULTILINE | WS_CHILD | WS_VISIBLE | WS_DISABLED, CRect(p + CPoint(IPP_SCALE(120), 0), CSize(IPP_SCALE(220), m_fontheight * 2)), this, 0);
 	m_edtVideoCardDescription.SetWindowText (m_pMDF->GetVideoCardDescription());
 
-	DxvaGui = m_pMDF->GetDXVADecoderGuid();
-	if (DxvaGui != NULL) {
-		CString DXVAMode = GetDXVAMode (DxvaGui);
-		m_edtDXVAMode.SetWindowText (DXVAMode);
+	GUID* DxvaGuid = m_pMDF->GetDXVADecoderGuid();
+	if (DxvaGuid != NULL) {
+		m_edtDXVAMode.SetWindowText(GetDXVAMode(DxvaGuid));
 	} else {
-		m_txtDXVAMode.ShowWindow (SW_HIDE);
-		m_edtDXVAMode.ShowWindow (SW_HIDE);
+		m_txtDXVAMode.ShowWindow(SW_HIDE);
+		m_edtDXVAMode.ShowWindow(SW_HIDE);
 	}
 
 	// === New swscaler options
-	p = CPoint(IPP_SCALE(360), 10);
-	int width_s  = IPP_SCALE(88);
-
-	// Software output formats
-	static wchar_t *SwOutputFormatNames[] = { _T("NV12 (default)"), _T("YV12"), _T("YUY2"), _T("RGB32"), _T("RGB16"), _T("RGB15") };
-	ASSERT(_countof(SwOutputFormatNames) == _countof(m_nSwIndex));
-	int nSwOF = m_pMDF ? m_pMDF->GetSwOutputFormats() : 0;
-	// get the output formats order from the DWORD nibbles extracting literal values [0x00543210] = 0,1,2,3,4,5
-	// get the output formats with the checked flag (8) from the DWORD nibbles [0x0054ba98] = 0,1,2,3
-	for (int i = 0; i < _countof(m_nSwIndex); i++){
-		if (nSwOF == 0) {
-			m_nSwIndex[i]   = i;
-			m_nSwChecked[i] = 1;
-		} else {
-			m_nSwIndex[i]   = ( nSwOF & ( 0x0000000F << (4*i) ) ) >> (4*i);
-			m_nSwChecked[i] = (m_nSwIndex[i] & 8) != 0;
-			m_nSwIndex[i]  &= ~8;
-		}
-	}
-	m_txtSwOutputFormats.Create(_T("Output formats:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_lstSwOutputFormats.Create(dwStyle|WS_BORDER|LBS_OWNERDRAWFIXED|LBS_HASSTRINGS, CRect(p, CSize(width_s, IPP_SCALE(82))), this, 0);
-	for (int i = 0; i < _countof(m_nSwIndex); i++) {
-		m_lstSwOutputFormats.AddString(SwOutputFormatNames[m_nSwIndex[i]]);
-	}
-	p.y += IPP_SCALE(82);
-
-	// Software Output formats order
-	int btn_w = m_fontheight + 12;
-	int btn_h = m_fontheight + 4;
-	m_cbSwOutputFormatUp.Create(_T("\x35"), dwStyle|BS_PUSHBUTTON, CRect(p + CPoint(width_s - btn_w * 2, 0), CSize(btn_w, btn_h)), this, IDC_PP_SWOUTPUTFORMATUP);
-	m_cbSwOutputFormatDown.Create(_T("\x36"), dwStyle|BS_PUSHBUTTON, CRect(p + CPoint(width_s - btn_w, 0), CSize(btn_w, btn_h)), this, IDC_PP_SWOUTPUTFORMATDOWN);
+	p = CPoint(IPP_SCALE(365), 10);
+	int width_s = IPP_SCALE(180);
+	int btn_w   = m_fontheight + 12;
+	int btn_h   = m_fontheight + 4;
+	int combo_w = IPP_SCALE(85);
+	int label_w = width_s - combo_w;
+	m_grpFmtConv.Create(ResStr(IDS_VDF_COLOR_FMT_CONVERSION), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, CRect(p + CPoint(-5, 0), CSize(width_s + 10, IPP_SCALE(225) + m_fontheight)), this, (UINT)IDC_STATIC);
 	p.y += h20;
 
-	// Resize Method
-	m_txtSwResizeMethodBE.Create(_T("Resize Method:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_cbSwResizeMethodBE.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p, CSize(width_s, 200)), this, IDC_PP_RESIZEMETHODBE);
-	m_cbSwResizeMethodBE.AddString(_T("Area"));          // ResStr(IDS_VDF_CHR_AREA)
-	m_cbSwResizeMethodBE.AddString(_T("Bicubic"));       // ResStr(IDS_VDF_CHR_BICUBIC)
-//	m_cbSwResizeMethodBE.AddString(_T("Bicublin"));      // ResStr(IDS_VDF_CHR_BICUBLIN) //temp rem
-	m_cbSwResizeMethodBE.AddString(_T("Bilinear"));      // ResStr(IDS_VDF_CHR_BILINEAR)
-	m_cbSwResizeMethodBE.AddString(_T("Fast Bilinear")); // ResStr(IDS_VDF_CHR_FAST_BILINEAR)
-	m_cbSwResizeMethodBE.AddString(_T("Gauss"));         // ResStr(IDS_VDF_CHR_FULL_GAUSS)
-	m_cbSwResizeMethodBE.AddString(_T("Lanczos"));       // ResStr(IDS_VDF_CHR_FULL_LANCZOS)
-	m_cbSwResizeMethodBE.AddString(_T("Point"));         // ResStr(IDS_VDF_CHR_FULL_POINT)
-	m_cbSwResizeMethodBE.AddString(_T("Sinc"));          // ResStr(IDS_VDF_CHR_FULL_SINC)
-	m_cbSwResizeMethodBE.AddString(_T("Spline"));        // ResStr(IDS_VDF_CHR_FULL_SPLINE)
-	m_cbSwResizeMethodBE.AddString(_T("X"));             // ResStr(IDS_VDF_CHR_FULL_X)
+	// Software output formats
+	m_txtSwOutputFormats.Create(ResStr(IDS_VDF_COLOR_OUTPUT_FORMATS), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
+	p.y += h20;
+	m_txt420.Create(_T("4:2:0 YUV:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbNV12.Create(_T("NV12"), dwStyle | BS_AUTOCHECKBOX, CRect(p + CSize(IPP_SCALE(60), 0), CSize(IPP_SCALE(55), m_fontheight)), this, IDC_PP_SW_NV12);
+	m_cbYV12.Create(_T("YV12"), dwStyle | BS_AUTOCHECKBOX, CRect(p + CSize(IPP_SCALE(120), 0), CSize(IPP_SCALE(55), m_fontheight)), this, IDC_PP_SW_YV12);
+	p.y += h20;
+	m_txt422.Create(_T("4:2:2 YUV:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbYUY2.Create(_T("YUY2"), dwStyle | BS_3STATE, CRect(p + CSize(IPP_SCALE(60), 0), CSize(IPP_SCALE(55), m_fontheight)), this, IDC_PP_SW_YUY2);
+	p.y += h20;
+	//m_txt444.Create(_T("4:4:4 YUV:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
+	//p.y += h20;
+	m_txtRGB.Create(_T("RGB:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbRGB32.Create(_T("RGB32"), dwStyle | BS_AUTOCHECKBOX, CRect(p + CSize(IPP_SCALE(60), 0), CSize(IPP_SCALE(55), m_fontheight)), this, IDC_PP_SW_RGB32);
 	p.y += h25;
-	
-	// Chroma options
-	m_txtSwChromaToRGB.Create(_T("Chroma to RGB:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_cbSwChromaToRGB.Create (dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p, CSize(width_s, 200)), this, IDC_PP_SWCHROMATORGB);
-	m_cbSwChromaToRGB.AddString(_T("Fast"));   // ResStr(IDS_VDF_CHR_FAST)
-	m_cbSwChromaToRGB.AddString(_T("Normal")); // ResStr(IDS_VDF_CHR_NORMAL)
-//	m_cbSwChromaToRGB.AddString(_T("High"));   // ResStr(IDS_VDF_CHR_HIGH) //temp rem
-	m_cbSwChromaToRGB.AddString(_T("Full"));   // ResStr(IDS_VDF_CHR_FULL)
+
+	// Preset
+	m_txtSwPreset.Create(ResStr(IDS_VDF_COLOR_PRESET), WS_VISIBLE|WS_CHILD, CRect(p, CSize(label_w, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbSwPreset.Create (dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p + CSize(label_w, -4), CSize(combo_w, 200)), this, IDC_PP_SWPRESET);
+	m_cbSwPreset.AddString(_T("Fastest"));
+	m_cbSwPreset.AddString(_T("Fast"));
+	m_cbSwPreset.AddString(_T("Normal"));
+	m_cbSwPreset.AddString(_T("Full"));
 	p.y += h25;
-	
-	// Software Colorspace
-	m_txtSwColorspace.Create(_T("Colorspace:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_cbSwColorspace.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p, CSize(width_s, 200)), this, IDC_PP_SWCOLORSPACE);
-	m_cbSwColorspace.AddString(_T("SD (BT.601)")); // ResStr(IDS_VDF_COLOR_HD)
-	m_cbSwColorspace.AddString(_T("HD (BT.709)")); // ResStr(IDS_VDF_COLOR_SD)
-	m_cbSwColorspace.AddString(ResStr(IDS_VDF_AUTO));
+
+	// Standard (ITU-R Recommendation)
+	m_txtSwStandard.Create(ResStr(IDS_VDF_COLOR_STANDARD), WS_VISIBLE|WS_CHILD, CRect(p, CSize(label_w, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbSwStandard.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p + CSize(label_w, -4), CSize(combo_w, 200)), this, IDC_PP_SWSTANDARD);
+	m_cbSwStandard.AddString(_T("SD (BT.601)"));
+	m_cbSwStandard.AddString(_T("HD (BT.709)"));
+	m_cbSwStandard.AddString(ResStr(IDS_VDF_AUTO));
 	p.y += h25;
 
 	// Input levels
-	m_txtSwInputLevels.Create(_T("Input levels:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_cbSwInputLevels.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p, CSize(width_s, 200)), this, IDC_PP_SWINPUTLEVELS);
-	m_cbSwInputLevels.AddString(_T("TV (16-235)")); // ResStr(IDS_VDF_RANGE_TV)
-	m_cbSwInputLevels.AddString(_T("PC (0-255)"));  // ResStr(IDS_VDF_RANGE_PC)
+	m_txtSwInputLevels.Create(ResStr(IDS_VDF_COLOR_INPUT_LEVELS), WS_VISIBLE|WS_CHILD, CRect(p, CSize(label_w, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbSwInputLevels.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p + CSize(label_w, -4), CSize(combo_w, 200)), this, IDC_PP_SWINPUTLEVELS);
+	m_cbSwInputLevels.AddString(_T("TV (16-235)"));
+	m_cbSwInputLevels.AddString(_T("PC (0-255)"));
 	m_cbSwInputLevels.AddString(ResStr(IDS_VDF_AUTO));
 	p.y += h25;
 
 	// Output levels
-	m_txtSwOutputLevels.Create(_T("Output levels:"), WS_VISIBLE|WS_CHILD, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
-	p.y += h16;
-	m_cbSwOutputLevels.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p, CSize(width_s, 200)), this, IDC_PP_SWOUTPUTLEVELS);
-	m_cbSwOutputLevels.AddString(_T("TV (16-235)")); // ResStr(IDS_VDF_RANGE_TV)
-	m_cbSwOutputLevels.AddString(_T("PC (0-255)"));  // ResStr(IDS_VDF_RANGE_PC)
+	m_txtSwOutputLevels.Create(ResStr(IDS_VDF_COLOR_OUTPUT_LEVELS), WS_VISIBLE|WS_CHILD, CRect(p, CSize(label_w, m_fontheight)), this, (UINT)IDC_STATIC);
+	m_cbSwOutputLevels.Create(dwStyle|CBS_DROPDOWNLIST|WS_VSCROLL, CRect(p + CSize(label_w, -4), CSize(combo_w, 200)), this, IDC_PP_SWOUTPUTLEVELS);
+	m_cbSwOutputLevels.AddString(_T("TV (16-235)"));
+	m_cbSwOutputLevels.AddString(_T("PC (0-255)"));
 	m_cbSwOutputLevels.AddString(ResStr(IDS_VDF_AUTO));
 	p.y += h25;
 
 	// Software version, useful info for stand-alone filter
+	p.y = IPP_SCALE(230);
 	m_strSwVersion.Format(_T("v%d.%d.%d.%d"),MPC_VERSION_MAJOR,MPC_VERSION_MINOR,MPC_VERSION_PATCH,MPC_VERSION_STATUS);
 	m_txtSwVersion.Create(m_strSwVersion, WS_DISABLED|WS_VISIBLE|WS_CHILD|SS_RIGHT|SS_PATHELLIPSIS, CRect(p, CSize(width_s, m_fontheight)), this, (UINT)IDC_STATIC);
 	//
@@ -262,10 +228,6 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 	for (CWnd* pWnd = GetWindow(GW_CHILD); pWnd; pWnd = pWnd->GetNextWindow()) {
 		pWnd->SetFont(&m_font, FALSE);
 	}
-	LOGFONT lf = {m_fontheight*7/4,0L,0L,0L,FW_NORMAL,0,0,0,SYMBOL_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,FF_DONTCARE|DEFAULT_PITCH,_T("Webdings")};
-	m_arrowsFont.CreateFontIndirect(&lf);
-	m_cbSwOutputFormatUp.SetFont(&m_arrowsFont);
-	m_cbSwOutputFormatDown.SetFont(&m_arrowsFont);
 
 	CorrectComboListWidth(m_cbDXVACompatibilityCheck);
 	CorrectComboListWidth(m_cbDiscardMode);
@@ -283,26 +245,27 @@ bool CMPCVideoDecSettingsWnd::OnActivate()
 		m_cbDXVA_SD.SetCheck(m_pMDF->GetDXVA_SD());
 
 		// === New swscaler options
-		for (int i=0; i<6; i++) {
-			m_lstSwOutputFormats.SetCheck(i, m_nSwChecked[i]);
-		}
-		m_cbSwChromaToRGB.SetCurSel(m_pMDF->GetSwChromaToRGB());
-		m_cbSwResizeMethodBE.SetCurSel(m_pMDF->GetSwResizeMethodBE());
-		m_cbSwColorspace.SetCurSel(m_pMDF->GetSwColorspace());
+		m_cbNV12.SetCheck (m_pMDF->GetSwPixelFormat(PixFmt_NV12)  ? BST_CHECKED : BST_UNCHECKED);
+		m_cbYV12.SetCheck (m_pMDF->GetSwPixelFormat(PixFmt_YV12)  ? BST_CHECKED : BST_UNCHECKED);
+		m_cbYUY2.SetCheck (m_pMDF->GetSwPixelFormat(PixFmt_YUY2)  ? BST_CHECKED : BST_INDETERMINATE);
+		m_cbRGB32.SetCheck(m_pMDF->GetSwPixelFormat(PixFmt_RGB32) ? BST_CHECKED : BST_UNCHECKED);
+
+		m_cbSwPreset.SetCurSel(m_pMDF->GetSwPreset());
+		m_cbSwStandard.SetCurSel(m_pMDF->GetSwStandard());
 		m_cbSwInputLevels.SetCurSel(m_pMDF->GetSwInputLevels());
 		m_cbSwOutputLevels.SetCurSel(m_pMDF->GetSwOutputLevels());
 
-		unsigned __int64 m_nOutCsp = m_pMDF->GetOutputFormat();
-
-		m_lstSwOutputFormats.EnableWindow(m_nOutCsp != FF_CSP_UNSUPPORTED);
-		m_cbSwOutputFormatUp.EnableWindow(m_nOutCsp != FF_CSP_UNSUPPORTED);
-		m_cbSwOutputFormatDown.EnableWindow(m_nOutCsp != FF_CSP_UNSUPPORTED);
-
-		m_cbSwResizeMethodBE.EnableWindow(m_nOutCsp == 0 || m_nOutCsp != FF_CSP_UNSUPPORTED);
-		m_cbSwChromaToRGB.EnableWindow(m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp));
-		m_cbSwColorspace.EnableWindow(m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp));
-		m_cbSwInputLevels.EnableWindow(m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp));
-		m_cbSwOutputLevels.EnableWindow(m_nOutCsp == 0 || csp_isRGB_RGB(m_nOutCsp));
+		if (m_pMDF->IsColorTypeConversion() == 0) {
+			m_cbSwPreset.EnableWindow(FALSE);
+			m_cbSwStandard.EnableWindow(FALSE);
+			m_cbSwInputLevels.EnableWindow(FALSE);
+			m_cbSwOutputLevels.EnableWindow(FALSE);
+		} else {
+			m_cbSwPreset.EnableWindow(TRUE);
+			m_cbSwStandard.EnableWindow(TRUE);
+			m_cbSwInputLevels.EnableWindow(TRUE);
+			m_cbSwOutputLevels.EnableWindow(TRUE);
+		}
 		//
 	}
 
@@ -336,52 +299,49 @@ bool CMPCVideoDecSettingsWnd::OnApply()
 		m_pMDF->SetDXVA_SD(m_cbDXVA_SD.GetCheck());
 
 		// === New swscaler options
-		int m_nSwRefresh = 0; // no refresh
+		int refresh = 0; // no refresh
 
-		if (m_cbSwChromaToRGB.GetCurSel() != m_pMDF->GetSwChromaToRGB() || 
-		m_cbSwResizeMethodBE.GetCurSel() != m_pMDF->GetSwResizeMethodBE() || 
-		m_cbSwColorspace.GetCurSel() != m_pMDF->GetSwColorspace() || 
-		m_cbSwInputLevels.GetCurSel() != m_pMDF->GetSwInputLevels() || 
-		m_cbSwOutputLevels.GetCurSel() != m_pMDF->GetSwOutputLevels()) {
-			m_nSwRefresh = 1;	// soft refresh - signal new swscaler colorspace details
+		if (m_cbSwPreset.GetCurSel() != m_pMDF->GetSwPreset()
+				|| m_cbSwStandard.GetCurSel() != m_pMDF->GetSwStandard()
+				|| m_cbSwInputLevels.GetCurSel() != m_pMDF->GetSwInputLevels()
+				|| m_cbSwOutputLevels.GetCurSel() != m_pMDF->GetSwOutputLevels()) {
+			refresh = 1; // soft refresh - signal new swscaler colorspace details
 		}
 
-		int	m_nSwOldIndex[6];
-		int	m_nSwOldChecked[6];
-		int nSwOldOF = m_pMDF ? m_pMDF->GetSwOutputFormats() : 0;
-		// get the output formats order from the DWORD nibbles extracting literal values [0x00543210] = 0,1,2,3,4,5
-		// get the output formats with the checked flag (8) from the DWORD nibbles [0x0054ba98] = 0,1,2,3
-		for (int i=0; i<6; i++){
-			if (nSwOldOF == 0) {
-				m_nSwOldIndex[i] = i;
-				m_nSwOldChecked[i]	= 1;
-			} else {
-				m_nSwOldIndex[i] = ( nSwOldOF & ( 0x0000000F << (4*i) ) ) >> (4*i);
-				m_nSwOldChecked[i] = (m_nSwOldIndex[i] & 8) != 0;
-				m_nSwOldIndex[i]	&= ~8;
-			}
-			if (m_nSwIndex[i] != m_nSwOldIndex[i] || m_lstSwOutputFormats.GetCheck(i) != m_nSwOldChecked[i])
-				m_nSwRefresh = 2; // hard refresh - signal new output format
+		if ((m_cbNV12.GetCheck()  == BST_CHECKED) != m_pMDF->GetSwPixelFormat(PixFmt_NV12) ||
+			(m_cbYV12.GetCheck()  == BST_CHECKED) != m_pMDF->GetSwPixelFormat(PixFmt_YV12) ||
+			(m_cbYUY2.GetCheck()  == BST_CHECKED) != m_pMDF->GetSwPixelFormat(PixFmt_YUY2) ||
+			(m_cbRGB32.GetCheck() == BST_CHECKED) != m_pMDF->GetSwPixelFormat(PixFmt_RGB32)) {
+				refresh = 2;
 		}
- 		m_pMDF->SetSwRefresh(m_nSwRefresh);
+		
+		/*
+		CMediaType mt;
+		m_pMDF->GetOutputMediaType(&mt);
+		if (mt.subtype == MEDIASUBTYPE_NV12 && m_cbNV12.GetCheck() == BST_UNCHECKED ||
+			mt.subtype == MEDIASUBTYPE_YV12 && m_cbYV12.GetCheck() == BST_UNCHECKED ||
+			mt.subtype == MEDIASUBTYPE_RGB32 && m_cbRGB32.GetCheck() == BST_UNCHECKED) {
+				refresh = 2;
+		}
+		FreeMediaType(mt);
+		*/
+		
 
-		// set the output formats order in the DWORD nibbles with literal values [0x00543210] = 0,1,2,3,4,5
-		// set the output formats with the checked flag (8) in the DWORD nibbles [0x0054ba98] = 0,1,2,3
-		int nSwOF = 0;
-		for (int i=0; i<6; i++) {
-			m_nSwChecked[i] = m_lstSwOutputFormats.GetCheck(i);
+		if (refresh >= 2) {
+			m_pMDF->SetSwPixelFormat(PixFmt_NV12 , m_cbNV12.GetCheck()  == BST_CHECKED);
+			m_pMDF->SetSwPixelFormat(PixFmt_YV12 , m_cbYV12.GetCheck()  == BST_CHECKED);
+			m_pMDF->SetSwPixelFormat(PixFmt_YUY2 , m_cbYUY2.GetCheck()  == BST_CHECKED);
+			m_pMDF->SetSwPixelFormat(PixFmt_RGB32, m_cbRGB32.GetCheck() == BST_CHECKED);
 		}
-		for (int i=0; i<6; i++) {
-			nSwOF = (nSwOF<<4) | (m_nSwIndex[5-i] + m_nSwChecked[5-i]*8);
-		}
-   		m_pMDF->SetSwOutputFormats(nSwOF);
 
-		m_pMDF->SetSwChromaToRGB(m_cbSwChromaToRGB.GetCurSel());
-		m_pMDF->SetSwResizeMethodBE(m_cbSwResizeMethodBE.GetCurSel());
-		m_pMDF->SetSwColorspace(m_cbSwColorspace.GetCurSel());
-		m_pMDF->SetSwInputLevels(m_cbSwInputLevels.GetCurSel());
-		m_pMDF->SetSwOutputLevels(m_cbSwOutputLevels.GetCurSel());
-		//
+		if (refresh >= 1) {
+			m_pMDF->SetSwPreset(m_cbSwPreset.GetCurSel());
+			m_pMDF->SetSwStandard(m_cbSwStandard.GetCurSel());
+			m_pMDF->SetSwInputLevels(m_cbSwInputLevels.GetCurSel());
+			m_pMDF->SetSwOutputLevels(m_cbSwOutputLevels.GetCurSel());
+		}
+		
+		m_pMDF->SetSwRefresh(refresh);
 
 		m_pMDF->Apply();
 	}
@@ -391,54 +351,18 @@ bool CMPCVideoDecSettingsWnd::OnApply()
 
 
 BEGIN_MESSAGE_MAP(CMPCVideoDecSettingsWnd, CInternalPropertyPageWnd)
-	// === New swscaler options
-	ON_BN_CLICKED( IDC_PP_SWOUTPUTFORMATUP, OnClickedSwOutputFormatUp)
-	ON_BN_CLICKED( IDC_PP_SWOUTPUTFORMATDOWN, OnClickedSwOutputFormatDown)
-	//
+	ON_BN_CLICKED(IDC_PP_SW_YUY2, OnBnClickedYUY2)
 	ON_NOTIFY_EX(TTN_NEEDTEXT, 0, OnToolTipNotify)
 END_MESSAGE_MAP()
 
-// === New swscaler options
-void CMPCVideoDecSettingsWnd::OnClickedSwOutputFormatUp()
+void CMPCVideoDecSettingsWnd::OnBnClickedYUY2()
 {
-	int pos = m_lstSwOutputFormats.GetCurSel();
-	int count = m_lstSwOutputFormats.GetCount();
-	int selected;	int selectedUp; 
-	CString text;
-	if ((pos != LB_ERR) && (count > 1) && (pos-1 >= 0)) {
-		selected = m_lstSwOutputFormats.GetCheck(pos);
-		selectedUp = m_lstSwOutputFormats.GetCheck(pos-1);
-		m_lstSwOutputFormats.GetText(pos, text);        
-		m_lstSwOutputFormats.DeleteString(pos);
-		m_lstSwOutputFormats.InsertString(pos-1, text);
-		m_lstSwOutputFormats.SetCheck(pos-1, selected);
-		m_lstSwOutputFormats.SetCheck(pos, selectedUp);
-		m_lstSwOutputFormats.SetCurSel(pos-1);
-		std::swap(m_nSwIndex[pos],m_nSwIndex[pos-1]);
+	if (m_cbYUY2.GetCheck() == BST_CHECKED) {
+		m_cbYUY2.SetCheck(BST_INDETERMINATE);
+	} else {
+		m_cbYUY2.SetCheck(BST_CHECKED);
 	}
 }
-
-void CMPCVideoDecSettingsWnd::OnClickedSwOutputFormatDown()
-{
-	int pos		= m_lstSwOutputFormats.GetCurSel();
-	int count	= m_lstSwOutputFormats.GetCount();
-	int selected;
-	int selectedDown; 
-	CString text;
-
-	if ((pos != LB_ERR) && (count > 1) && (pos+1 < count)) {
-		selected = m_lstSwOutputFormats.GetCheck(pos);
-		selectedDown = m_lstSwOutputFormats.GetCheck(pos+1);
-		m_lstSwOutputFormats.GetText(pos,text);
-		m_lstSwOutputFormats.DeleteString(pos);
-		m_lstSwOutputFormats.InsertString(pos+1,text);
-		m_lstSwOutputFormats.SetCheck(pos+1,selected);
-		m_lstSwOutputFormats.SetCheck(pos,selectedDown);
-		m_lstSwOutputFormats.SetCurSel(pos+1);
-		std::swap(m_nSwIndex[pos],m_nSwIndex[pos+1]);
-	}
-}
-//
 
 BOOL CMPCVideoDecSettingsWnd::OnToolTipNotify(UINT id, NMHDR * pNMHDR, LRESULT * pResult)
 {
@@ -493,50 +417,51 @@ void CMPCVideoDecCodecWnd::OnDisconnect()
 }
 
 typedef struct {
-	DWORD		CodecId;
+	ULONGLONG	CodecId;
 	LPCTSTR		CodeName;
 } MPCFILTER_VIDEO_CODECS;
 
 MPCFILTER_VIDEO_CODECS mpc_codecs[] = {
-	{MPCVD_H264_DXVA,	_T("H.264/AVC (DXVA)")},
-	{MPCVD_MPEG2_DXVA,	_T("MPEG-2 (DXVA)")},
-	{MPCVD_VC1_DXVA,	_T("VC1 (DXVA)")},
-	{MPCVD_WMV3_DXVA,	_T("WMV3 (DXVA)")},
-	{MPCVD_AMVV,		_T("AMV video")},
-	{MPCVD_PRORES,		_T("Apple ProRes")},
-	{MPCVD_BINKV,		_T("Bink video")},
-	{MPCVD_CLLC,		_T("Canopus Lossless")},
-	{MPCVD_DIRAC,		_T("Dirac")},
-	{MPCVD_DIVX,		_T("DivX")},
-	{MPCVD_DV,			_T("DV video")},
-	{MPCVD_FLASH,		_T("FLV1/4")},
-	{MPCVD_H263,		_T("H.263")},
-	{MPCVD_H264,		_T("H.264/AVC (FFmpeg)")},
-	{MPCVD_INDEO,		_T("Indeo 3/4/5")},
-	{MPCVD_LAGARITH,	_T("Lagarith")},
-	{MPCVD_MJPEG,		_T("MJPEG")},
-	{MPCVD_MPEG1,		_T("MPEG-1 (FFmpeg)")},
-	{MPCVD_MPEG2,		_T("MPEG-2 (FFmpeg)")},
-	{MPCVD_MSMPEG4,		_T("MS-MPEG4")},
-	{MPCVD_PNG,			_T("PNG")},
-	{MPCVD_SCREC,		_T("Screen Recorder (CSCD/TSCC/QTRle)")},
-	{MPCVD_SVQ3,		_T("SVQ1/3")},
-	{MPCVD_THEORA,		_T("Theora")},
-	{MPCVD_UTVD,		_T("Ut video")},
-	{MPCVD_VC1,			_T("VC1 (FFmpeg)")},
-	{MPCVD_VP356,		_T("VP3/5/6")},
-	{MPCVD_VP8,			_T("VP8")},
-	{MPCVD_WMV,			_T("WMV1/2/3")},
-	{MPCVD_XVID,		_T("Xvid/MPEG-4")},
-	{MPCVD_RV,			_T("Real Video")},
-	{MPCVD_V210,		_T("Uncompressed video (v210)")},
+	{CODEC_H264_DXVA,	_T("H.264/AVC (DXVA)")},
+	{CODEC_MPEG2_DXVA,	_T("MPEG-2 (DXVA)")},
+	{CODEC_VC1_DXVA,	_T("VC1 (DXVA)")},
+	{CODEC_WMV3_DXVA,	_T("WMV3 (DXVA)")},
+	{CODEC_AMVV,		_T("AMV video")},
+	{CODEC_PRORES,		_T("Apple ProRes")},
+	{CODEC_BINKV,		_T("Bink video")},
+	{CODEC_CLLC,		_T("Canopus Lossless")},
+	{CODEC_DIRAC,		_T("Dirac")},
+	{CODEC_DIVX,		_T("DivX")},
+	{CODEC_DV,			_T("DV video")},
+	{CODEC_FLASH,		_T("FLV1/4")},
+	{CODEC_H263,		_T("H.263")},
+	{CODEC_H264,		_T("H.264/AVC (FFmpeg)")},
+	{CODEC_HEVC,		_T("HEVC (experimental)")},
+	{CODEC_INDEO,		_T("Indeo 3/4/5")},
+	{CODEC_LAGARITH,	_T("Lagarith")},
+	{CODEC_MJPEG,		_T("MJPEG")},
+	{CODEC_MPEG1,		_T("MPEG-1 (FFmpeg)")},
+	{CODEC_MPEG2,		_T("MPEG-2 (FFmpeg)")},
+	{CODEC_MSMPEG4,		_T("MS-MPEG4")},
+	{CODEC_PNG,			_T("PNG")},
+	{CODEC_SCREC,		_T("Screen Recorder (CSCD/TSCC/QTRle)")},
+	{CODEC_SVQ3,		_T("SVQ1/3")},
+	{CODEC_THEORA,		_T("Theora")},
+	{CODEC_UTVD,		_T("Ut video")},
+	{CODEC_VC1,			_T("VC1 (FFmpeg)")},
+	{CODEC_VP356,		_T("VP3/5/6")},
+	{CODEC_VP89,		_T("VP8/9")},
+	{CODEC_WMV,			_T("WMV1/2/3")},
+	{CODEC_XVID,		_T("Xvid/MPEG-4")},
+	{CODEC_REALV,		_T("Real Video")},
+	{CODEC_V210,		_T("Uncompressed video (v210)")},
 };
 
 bool CMPCVideoDecCodecWnd::OnActivate()
 {
-	DWORD dwStyle		= WS_VISIBLE|WS_CHILD|WS_BORDER;
-	int nPos			= 0;
-	DWORD nActiveCodecs	= m_pMDF ? m_pMDF->GetActiveCodecs() : 0;
+	DWORD dwStyle			= WS_VISIBLE|WS_CHILD|WS_BORDER;
+	int nPos				= 0;
+	ULONGLONG nActiveCodecs	= m_pMDF ? m_pMDF->GetActiveCodecs() : 0;
 
 	m_grpSelectedCodec.Create (_T("Selected codecs"), WS_VISIBLE|WS_CHILD | BS_GROUPBOX, CRect (10,  10, 330, 280), this, (UINT)IDC_STATIC);
 
@@ -563,8 +488,8 @@ bool CMPCVideoDecCodecWnd::OnApply()
 	OnDeactivate();
 
 	if (m_pMDF) {
-		int nActiveCodecs = 0;
-		int nPos		  = 0;
+		ULONGLONG nActiveCodecs	= 0;
+		int nPos				= 0;
 
 		for (size_t i = 0; i < _countof(mpc_codecs); i++) {
 			if (m_lstCodecs.GetCheck(nPos++)) {
@@ -572,7 +497,7 @@ bool CMPCVideoDecCodecWnd::OnApply()
 			}
 		}
 
-		m_pMDF->SetActiveCodecs (nActiveCodecs);
+		m_pMDF->SetActiveCodecs(nActiveCodecs);
 
 		m_pMDF->Apply();
 	}

@@ -24,13 +24,7 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\winmdi.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxctrlcontainer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\ExtLib\mfc\afxglobals.cpp">
+    <ClCompile Include="MatroskaSplitterSettingsWnd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -50,6 +44,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IMatroskaSplitter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MatroskaSplitterSettingsWnd.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

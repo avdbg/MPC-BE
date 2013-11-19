@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Sergey "judelaw" and Sergey "Exodus8"
  *
  * This file is part of MPC-BE.
@@ -26,7 +24,7 @@
 
 // CPrevView
 
-CFlyBar::CFlyBar() : 
+CFlyBar::CFlyBar() :
 	bt_idx(-1),
 	r_ExitIcon(0,0,0,0),
 	r_MinIcon(0,0,0,0),
@@ -242,7 +240,7 @@ void CFlyBar::UpdateWnd(CPoint point)
 	m_tooltip.GetText(str,this);
 
 	CMainFrame* pFrame = (CMainFrame*)GetParentFrame();
-	
+
 	if (r_ExitIcon.PtInRect(point)) {
 		if (str != ResStr(IDS_AG_EXIT)) {
 			m_tooltip.UpdateTipText(ResStr(IDS_AG_EXIT), this);
@@ -351,8 +349,6 @@ void CFlyBar::DrawWnd()
 			if (!i || bt_idx == 2) { // restore
 				if (wp.showCmd == SW_SHOWMAXIMIZED) {
 					DrawButton(&mdc, x, sep[2][i], 2);
-				} else if (pFrame->m_fFullScreen) {
-					DrawButton(&mdc, x, sep[4][i], 2);
 				} else {
 					DrawButton(&mdc, x, sep[4][i], 2);
 				}
@@ -373,8 +369,6 @@ void CFlyBar::DrawWnd()
 			if (!i || bt_idx == 5) { // fs
 				if (pFrame->m_fFullScreen) {
 					DrawButton(&mdc, x, sep[8][i], 4);
-				} else if (wp.showCmd == SW_SHOWMAXIMIZED || (s.IsD3DFullscreen() && fs != -1)) {
-					DrawButton(&mdc, x, sep[10][i], 4);
 				} else {
 					DrawButton(&mdc, x, sep[10][i], 4);
 				}

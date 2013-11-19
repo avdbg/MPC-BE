@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.
@@ -57,16 +55,15 @@ bool CAviSplitterSettingsWnd::OnActivate()
 	DWORD dwStyle = WS_VISIBLE | WS_CHILD | WS_TABSTOP;
 	CPoint p(10, 10);
 
-	m_cbBadInterleavedSuport.Create (ResStr(IDS_AVISPLITTER_NON_INTERLEAVED), WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_AUTOCHECKBOX|BS_LEFTTEXT, CRect(p, CSize(IPP_SCALE(250), m_fontheight)), this, IDC_PP_INTERLEAVED_SUPPORT);
+	m_cbBadInterleavedSuport.Create (ResStr(IDS_AVISPLITTER_NON_INTERLEAVED), WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_AUTOCHECKBOX|BS_LEFTTEXT, CRect(p, CSize(IPP_SCALE(270), m_fontheight)), this, IDC_PP_INTERLEAVED_SUPPORT);
 	p.y += IPP_SCALE(20);
 
-	m_cbSetReindex.Create (ResStr(IDS_AVISPLITTER_REINDEX_BROKEN), WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_AUTOCHECKBOX|BS_LEFTTEXT, CRect(p, CSize(IPP_SCALE(250), m_fontheight)), this, IDC_PP_SET_REINDEX);
+	m_cbSetReindex.Create (ResStr(IDS_AVISPLITTER_REINDEX_BROKEN), WS_VISIBLE|WS_CHILD|WS_TABSTOP|BS_AUTOCHECKBOX|BS_LEFTTEXT, CRect(p, CSize(IPP_SCALE(270), m_fontheight)), this, IDC_PP_SET_REINDEX);
 
 	if (m_pMSF) {
 		m_cbBadInterleavedSuport.SetCheck(m_pMSF->GetBadInterleavedSuport());
 		m_cbSetReindex.SetCheck(m_pMSF->GetReindex());
 	}
-	m_cbBadInterleavedSuport.EnableWindow(FALSE);
 
 	for (CWnd* pWnd = GetWindow(GW_CHILD); pWnd; pWnd = pWnd->GetNextWindow()) {
 		pWnd->SetFont(&m_font, FALSE);

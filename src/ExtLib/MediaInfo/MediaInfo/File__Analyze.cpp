@@ -188,6 +188,7 @@ File__Analyze::File__Analyze ()
     //MD5
     #if MEDIAINFO_MD5
         MD5=NULL;
+        Md5_ParseUpTo=0;
     #endif //MEDIAINFO_MD5
 
     Unsynch_Frame_Count=(int64u)-1;
@@ -341,13 +342,16 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
 
     //MD5
     #if MEDIAINFO_MD5
-        if (!IsSub && File_Offset==Config->File_Current_Offset && Config->File_Md5_Get())
+        if (ToAdd_Size)
         {
-            delete MD5; MD5=new struct MD5Context;
-            MD5Init(MD5);
+            if (!IsSub && !Buffer_Temp_Size && File_Offset==Config->File_Current_Offset && Config->File_Md5_Get())
+            {
+                delete MD5; MD5=new struct MD5Context;
+                MD5Init(MD5);
+            }
+            if (MD5)
+                MD5Update(MD5, ToAdd, (unsigned int)ToAdd_Size);
         }
-        if (MD5)
-            MD5Update(MD5, ToAdd, (unsigned int)ToAdd_Size);
     #endif //MEDIAINFO_MD5
 
     //Integrity
@@ -366,6 +370,20 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
             return; //No need of this piece of data
         }
     }
+
+    #if MEDIAINFO_MD5
+        //MD5 parsing only
+        if (Md5_ParseUpTo>File_Offset+Buffer_Size+ToAdd_Size)
+        {
+            File_Offset+=ToAdd_Size;
+            return; //No need of this piece of data
+        }
+        if (Md5_ParseUpTo>File_Offset && Md5_ParseUpTo<=File_Offset+ToAdd_Size)
+        {
+            Buffer_Offset+=(size_t)(Md5_ParseUpTo-File_Offset);
+            Md5_ParseUpTo=0;
+        }
+    #endif //MEDIAINFO_MD5
 
     if (Buffer_Temp_Size) //There is buffered data from before
     {
@@ -417,6 +435,9 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
 
     //MD5
     #if MEDIAINFO_MD5
+        if (Md5_ParseUpTo>File_Size)
+            Md5_ParseUpTo=File_Size;
+
         if (MD5 && File_Offset+Buffer_Size>=Config->File_Current_Size && Status[IsAccepted])
         {
             unsigned char Digest[16];
@@ -431,11 +452,26 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
             Temp+=Ztring().From_CC2(BigEndian2int16u(Digest+12));
             Temp+=Ztring().From_CC2(BigEndian2int16u(Digest+14));
             Temp.MakeLowerCase();
-            Fill(Stream_General, 0, "MD5", Temp);
+            const char* MD5Pos=Config->File_Names.size()>1?"Source_List_MD5_Generated":"MD5_Generated";
+            if (Config->File_Names_Pos<=1 && !Retrieve(Stream_General, 0, MD5Pos).empty() && Retrieve(Stream_General, 0, MD5Pos)==Temp)
+                Clear(Stream_General, 0, MD5Pos);
+            Fill(Stream_General, 0, MD5Pos, Temp);
             if (Config->File_Names_Pos<=1)
-                (*Stream_More)[Stream_General][0](Ztring().From_Local("MD5"), Info_Options)=__T("N NT");
+                (*Stream_More)[Stream_General][0](Ztring().From_Local(MD5Pos), Info_Options)=__T("N NT");
 
             delete MD5; MD5=NULL;
+        }
+
+        if (MD5 && File_GoTo!=(int64u)-1)
+        {
+            delete MD5; MD5=NULL; //MD5 not possible with a seek
+        }
+
+        if (MD5 && Buffer_Offset>Buffer_Size)
+        {
+            //We need the next data
+            Md5_ParseUpTo=File_Offset+Buffer_Offset;
+            Buffer_Offset=Buffer_Size;
         }
     #endif //MEDIAINFO_MD5
 
@@ -456,9 +492,13 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
                 Element_End0(); //This is Finish, must flush
             Buffer_Clear();
             File_Offset=File_Size;
-            Config->File_Current_Offset=Config->File_Current_Offset;
-            Config->File_Current_Size=0;
-            Config->File_Names_Pos=Config->File_Names.size();
+            if (!IsSub && !Config->File_Names.empty())
+            {
+                if (Config->File_Sizes.size()>=Config->File_Names.size())
+                    Config->File_Current_Size=Config->File_Sizes[Config->File_Names.size()-1];
+                Config->File_Current_Offset=Config->File_Current_Size;
+                Config->File_Names_Pos=Config->File_Names.size()-1;
+            }
             ForceFinish();
             return;
         }
@@ -478,6 +518,13 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
 
         return;
     }
+    #if MEDIAINFO_MD5
+        if (Md5_ParseUpTo)
+        {
+            Buffer_Clear();
+            return;
+        }
+    #endif //MEDIAINFO_MD5
     if (Buffer_Offset>=Buffer_Size
         #if MEDIAINFO_MD5
             && MD5==NULL
@@ -491,7 +538,7 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
     }
 
     //Buffer handling
-    if (Buffer_Offset!=Buffer_Size) //all is not used
+    if (Buffer_Size && Buffer_Offset<=Buffer_Size) //all is not used
     {
         if (File_Offset+Buffer_Size>=File_Size //No more data will come
         #if MEDIAINFO_DEMUX
@@ -640,7 +687,15 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
     //Is it OK?
     if (Buffer_Size>Buffer_MaximumSize)
     {
-        ForceFinish();
+        #if MEDIAINFO_MD5
+            if (Config->File_Md5_Get() && MD5 && Status[IsAccepted])
+            {
+                Buffer_Clear();
+                Md5_ParseUpTo=File_Size;
+            }
+            else
+        #endif //MEDIAINFO_MD5
+                ForceFinish();
         return;
     }
 }
@@ -656,7 +711,7 @@ void File__Analyze::Open_Buffer_Continue (File__Analyze* Sub, const int8u* ToAdd
     Sub->File_Offset=File_Offset+Buffer_Offset+Element_Offset;
     if (Sub->File_Size!=File_Size)
     {
-        for (size_t Pos=0; Pos<Sub->Element_Level; Pos++)
+        for (size_t Pos=0; Pos<=Sub->Element_Level; Pos++)
             if (Sub->Element[Pos].Next==Sub->File_Size)
                 Sub->Element[Pos].Next=File_Size;
         Sub->File_Size=File_Size;
@@ -674,7 +729,7 @@ void File__Analyze::Open_Buffer_Continue (File__Analyze* Sub, const int8u* ToAdd
     //Parsing
     Sub->PES_FirstByte_IsAvailable=PES_FirstByte_IsAvailable;
     Sub->PES_FirstByte_Value=PES_FirstByte_Value;
-    if (IsNewPacket)
+    if (IsNewPacket && ToAdd_Size)
     {
         if (Offsets_Stream.empty())
         {
@@ -688,12 +743,12 @@ void File__Analyze::Open_Buffer_Continue (File__Analyze* Sub, const int8u* ToAdd
                 if ((Buffer_Offset-Header_Size)*Ratio<Offsets_Buffer[0])
                 {
                     Sub->Offsets_Stream.push_back(Offsets_Stream[0]);
-                    Sub->Offsets_Buffer.push_back(Sub->Buffer_Size+Offsets_Buffer[0]-(Buffer_Offset+Element_Offset));
+                    Sub->Offsets_Buffer.push_back((Sub->OriginalBuffer_Size?Sub->OriginalBuffer_Size:Sub->Buffer_Size)+Offsets_Buffer[0]-(Buffer_Offset+Element_Offset));
                 }
                 else
                 {
                     Sub->Offsets_Stream.push_back(Offsets_Stream[0]+Buffer_Offset+Element_Offset-Offsets_Buffer[0]);
-                    Sub->Offsets_Buffer.push_back(Sub->OriginalBuffer_Size);
+                    Sub->Offsets_Buffer.push_back(Sub->OriginalBuffer_Size?Sub->OriginalBuffer_Size:Sub->Buffer_Size);
                 }
             }
             for (size_t Pos=1; Pos<Offsets_Stream.size(); Pos++)
@@ -702,12 +757,12 @@ void File__Analyze::Open_Buffer_Continue (File__Analyze* Sub, const int8u* ToAdd
                     if ((Buffer_Offset-Header_Size)*Ratio<Offsets_Buffer[Pos])
                     {
                         Sub->Offsets_Stream.push_back(Offsets_Stream[Pos]);
-                        Sub->Offsets_Buffer.push_back(Sub->OriginalBuffer_Size+Offsets_Buffer[Pos]-(Buffer_Offset+Element_Offset));
+                        Sub->Offsets_Buffer.push_back((Sub->OriginalBuffer_Size?Sub->OriginalBuffer_Size:Sub->Buffer_Size)+Offsets_Buffer[Pos]-(Buffer_Offset+Element_Offset));
                     }
                     else
                     {
                         Sub->Offsets_Stream.push_back(Offsets_Stream[Pos]+Buffer_Offset+Element_Offset-Offsets_Buffer[Pos]);
-                        Sub->Offsets_Buffer.push_back(Sub->OriginalBuffer_Size);
+                        Sub->Offsets_Buffer.push_back(Sub->OriginalBuffer_Size?Sub->OriginalBuffer_Size:Sub->Buffer_Size);
                     }
                 }
         }
@@ -799,7 +854,10 @@ bool File__Analyze::Open_Buffer_Continue_Loop ()
     Read_Buffer_Continue();
     if (Element_IsWaitingForMoreData())
         return false; //Wait for more data
-    Buffer_Offset+=(size_t)Element_Offset;
+    if (sizeof(size_t)<sizeof(int64u) && Buffer_Offset+Element_Offset>=(int64u)(size_t)-1)
+        GoTo(File_Offset+Buffer_Offset+Element_Offset);
+    else
+        Buffer_Offset+=(size_t)Element_Offset;
     if ((Status[IsFinished] && !ShouldContinueParsing) || Buffer_Offset>Buffer_Size || File_GoTo!=(int64u)-1)
         return false; //Finish
     #if MEDIAINFO_DEMUX
@@ -821,7 +879,14 @@ bool File__Analyze::Open_Buffer_Continue_Loop ()
     Read_Buffer_AfterParsing();
 
     //Handling of File_GoTo with already buffered data
-    if (File_GoTo!=(int64u)-1 && File_GoTo>=File_Offset && File_GoTo<=File_Offset+Buffer_Size)
+    #if MEDIAINFO_MD5
+        if (File_GoTo==(int64u)-1 && Md5_ParseUpTo && Md5_ParseUpTo>=File_Offset && Md5_ParseUpTo<File_Offset+Buffer_Size)
+        {
+            File_GoTo=Md5_ParseUpTo;
+            Md5_ParseUpTo=0;
+        }
+    #endif //MEDIAINFO_MD5
+    if (File_GoTo!=(int64u)-1 && File_GoTo>=File_Offset && File_GoTo<File_Offset+Buffer_Size)
     {
         if (Buffer_Temp_Size==0) //If there was no copy
         {
@@ -990,7 +1055,7 @@ void File__Analyze::Open_Buffer_Finalize (bool NoBufferModification)
                 Event.Stream_Size=File_Size;
                 Event.Stream_Bytes_Padding=Buffer_PaddingBytes;
                 Event.Stream_Bytes_Junk=Buffer_JunkBytes;
-                if (!IsSub && MustSynchronize && !Synched)
+                if (!IsSub && MustSynchronize && !Synched && !UnSynched_IsNotJunk)
                     Event.Stream_Bytes_Junk+=Buffer_TotalBytes+Buffer_Offset-Buffer_TotalBytes_LastSynched;
             EVENT_END   ()
         }
@@ -1017,10 +1082,27 @@ size_t File__Analyze::Read_Buffer_Seek (size_t Method, int64u Value, int64u ID)
 {
     #if MEDIAINFO_IBI
         if (!IsSub)
-            return Ibi_Read_Buffer_Seek(Method, Value, ID);
+        {
+            size_t ReturnValue=Ibi_Read_Buffer_Seek(Method, Value, ID);
+            if (ReturnValue!=(size_t)-1) // If IBI file is supported
+                return ReturnValue;
+        }
     #endif //MEDIAINFO_IBI
 
-    return (size_t)-1; //Not supported
+    //Parsing
+    switch (Method)
+    {
+        case 0  :   //Default stream seek (byte offset)
+                    GoTo(Value);
+                    Open_Buffer_Unsynch();
+                    return 1;
+        case 1  :   //Default stream seek (percentage)
+                    GoTo(File_Size*Value/10000);
+                    Open_Buffer_Unsynch();
+                    return 1;
+        default :
+                    return (size_t)-1; //Not supported
+    }
 }
 #endif //MEDIAINFO_SEEK
 
@@ -1176,9 +1258,13 @@ void File__Analyze::Buffer_Clear()
     else
     {
         File_Offset=File_Size;
-        Config->File_Current_Offset=Config->File_Current_Offset;
-        Config->File_Current_Size=0;
-        Config->File_Names_Pos=Config->File_Names.size();
+        if (!IsSub && !Config->File_Names.empty())
+        {
+            if (Config->File_Sizes.size()>=Config->File_Names.size())
+                Config->File_Current_Size=Config->File_Sizes[Config->File_Names.size()-1];
+            Config->File_Current_Offset=Config->File_Current_Size;
+            Config->File_Names_Pos=Config->File_Names.size()-1;
+        }
     }
     Buffer_Size=0;
     Buffer_Temp_Size=0;
@@ -1317,65 +1403,25 @@ bool File__Analyze::FileHeader_Begin_XML(XMLDocument &Document)
     //XML header
     Ztring Data;
          if ((Buffer[0]=='<'
-           && Buffer[1]=='?'
-           && Buffer[2]=='x'
-           && Buffer[3]=='m'
-           && Buffer[4]=='l')
-          || (Buffer[0]==0xEF
-           && Buffer[1]==0xBB
-           && Buffer[2]==0xBF
-           && Buffer[3]=='<'
-           && Buffer[4]=='?'
-           && Buffer[5]=='x'
-           && Buffer[6]=='m'
-           && Buffer[7]=='l'))
-        Data.From_UTF8((const char*)Buffer, Buffer_Size);
-    else if ((Buffer[0]=='<'
-           && Buffer[1]==0x00
-           && Buffer[2]=='?'
-           && Buffer[3]==0x00
-           && Buffer[4]=='x'
-           && Buffer[5]==0x00
-           && Buffer[6]=='m'
-           && Buffer[7]==0x00
-           && Buffer[8]=='l'
-           && Buffer[9]==0x00)
+           && Buffer[1]==0x00)
           || (Buffer[0]==0xFF
            && Buffer[1]==0xFE
            && Buffer[2]=='<'
-           && Buffer[3]==0x00
-           && Buffer[4]=='?'
-           && Buffer[5]==0x00
-           && Buffer[6]=='x'
-           && Buffer[7]==0x00
-           && Buffer[8]=='m'
-           && Buffer[9]==0x00
-           && Buffer[10]=='l'
-           && Buffer[11]==0x00))
+           && Buffer[3]==0x00))
         Data.From_UTF16LE((const char*)Buffer, Buffer_Size);
     else if ((Buffer[0]==0x00
-           && Buffer[1]=='<'
-           && Buffer[2]==0x00
-           && Buffer[3]=='?'
-           && Buffer[4]==0x00
-           && Buffer[5]=='x'
-           && Buffer[6]==0x00
-           && Buffer[7]=='m'
-           && Buffer[8]==0x00
-           && Buffer[9]=='l')
+           && Buffer[1]=='<')
           || (Buffer[0]==0xFE
            && Buffer[1]==0xFF
            && Buffer[2]==0x00
-           && Buffer[3]=='<'
-           && Buffer[4]==0x00
-           && Buffer[5]=='?'
-           && Buffer[6]==0x00
-           && Buffer[7]=='x'
-           && Buffer[8]==0x00
-           && Buffer[9]=='m'
-           && Buffer[10]==0x00
-           && Buffer[11]=='l'))
+           && Buffer[3]=='<'))
         Data.From_UTF16BE((const char*)Buffer, Buffer_Size);
+    else if ((Buffer[0]=='<')
+          || (Buffer[0]==0xEF
+           && Buffer[1]==0xBB
+           && Buffer[2]==0xBF
+           && Buffer[3]=='<'))
+        Data.From_UTF8((const char*)Buffer, Buffer_Size);
     else
     {
         Reject();
@@ -1555,13 +1601,25 @@ bool File__Analyze::FileHeader_Manage()
         return false; //Wait for more data
     }
 
+    //Positionning
+    if ((Buffer_Size && Buffer_Offset+Element_Offset>Buffer_Size) || (sizeof(size_t)<sizeof(int64u) && Buffer_Offset+Element_Offset>=(int64u)(size_t)-1))
+    {
+        GoTo(File_Offset+Buffer_Offset+Element_Offset);
+        return false;
+    }
+    else
+    {
+        Buffer_Offset+=(size_t)Element_Offset;
+        Element_Offset=0;
+    }
+
     #if MEDIAINFO_DEMUX
         if (Config->Demux_EventWasSent)
             return false;
     #endif //MEDIAINFO_DEMUX
 
     //From the parser
-    Element_Size=Buffer_Size;
+    Element_Size=Buffer_Size-Buffer_Offset;
     Element_Begin1("File Header");
     FileHeader_Parse();
     if (Element_Offset==0)
@@ -1584,7 +1642,16 @@ bool File__Analyze::FileHeader_Manage()
     }
 
     //Positionning
-    Buffer_Offset+=(size_t)Element_Offset;
+    if ((Buffer_Size && Buffer_Offset+Element_Offset>Buffer_Size) || (sizeof(size_t)<sizeof(int64u) && Buffer_Offset+Element_Offset>=(int64u)(size_t)-1))
+    {
+        GoTo(File_Offset+Buffer_Offset+Element_Offset);
+        return false;
+    }
+    else
+    {
+        Buffer_Offset+=(size_t)Element_Offset;
+        Element_Offset=0;
+    }
 
     MustParseTheHeaderFile=false;
     return true;
@@ -1821,14 +1888,29 @@ bool File__Analyze::Data_Manage()
         }
 
         Element[Element_Level].IsComplete=true;
+
+        if (!Element_WantNextLevel && DataMustAlwaysBeComplete && Element_Offset<Element_Size)
+            Element_Offset=Element_Size; //In case the element is not fully parsed, an element with size from the header is assumed
     }
 
     //If no need of more
-    if (File_GoTo!=(int64u)-1 || (Status[IsFinished] && !ShouldContinueParsing))
+    if (File_GoTo!=(int64u)-1 || (Status[IsFinished] && !ShouldContinueParsing)
+        #if MEDIAINFO_MD5
+            || Md5_ParseUpTo
+        #endif //MEDIAINFO_MD5
+        )
     {
         if (!Element_WantNextLevel)
             Element_End0(); //Element
-        Buffer_Offset+=(size_t)Element_Offset;
+        if (!Element_WantNextLevel && Element_Offset<Element_Size)
+            Buffer_Offset+=(size_t)Element_Size;
+        else
+        {
+            if (sizeof(size_t)<sizeof(int64u) && Buffer_Offset+Element_Offset>=(int64u)(size_t)-1)
+                GoTo(File_Offset+Buffer_Offset+Element_Offset);
+            else
+                Buffer_Offset+=(size_t)Element_Offset;
+        }
         Header_Size=0;
         Element_Size=0;
         Element_Offset=0;
@@ -1856,7 +1938,15 @@ bool File__Analyze::Data_Manage()
         }
     }
 
-    Buffer_Offset+=(size_t)Element_Offset;
+    if (!Element_WantNextLevel && Element_Offset<Element_Size)
+        Buffer_Offset+=(size_t)Element_Size;
+    else
+    {
+        if (sizeof(size_t)<sizeof(int64u) && Buffer_Offset+Element_Offset>=(int64u)(size_t)-1)
+            GoTo(File_Offset+Buffer_Offset+Element_Offset);
+        else
+            Buffer_Offset+=(size_t)Element_Offset;
+    }
     Header_Size=0;
     Element_Size=0;
     Element_Offset=0;
@@ -2780,10 +2870,6 @@ void File__Analyze::GoTo (int64u GoTo, const char* ParserName)
     if (IsSub && Config->ParseSpeed==1)
         return;
 
-    #if MEDIAINFO_MD5
-        delete MD5; MD5=NULL; //MD5 not possible with a seek
-    #endif //MEDIAINFO_MD5
-
     if (GoTo==File_Size)
     {
         if (!BookMark_Code.empty())
@@ -3010,6 +3096,11 @@ void File__Analyze::Trace_Layers_Update(size_t Layer)
 //---------------------------------------------------------------------------
 bool File__Analyze::Element_IsOK ()
 {
+    #if !MEDIAINFO_TRACE
+        if (BS && BS->BufferUnderRun)
+            Trusted_IsNot();
+    #endif //MEDIAINFO_TRACE
+
     return !Element[Element_Level].WaitForMoreData && !Element[Element_Level].UnTrusted;
 }
 
@@ -3238,7 +3329,7 @@ bool File__Analyze::Demux_UnpacketizeContainer_Test_OneFramePerFile ()
 
     float64 Demux_Rate=Config->Demux_Rate_Get();
     if (!Demux_Rate)
-        Demux_Rate=25;
+        Demux_Rate=24;
     if (Frame_Count_NotParsedIncluded!=(int64u)-1)
         FrameInfo.DTS=float64_int64s(Frame_Count_NotParsedIncluded*1000000000/Demux_Rate);
     else
@@ -3286,6 +3377,9 @@ void File__Analyze::Ibi_Read_Buffer_Unsynched ()
 
 size_t File__Analyze::Ibi_Read_Buffer_Seek (size_t Method, int64u Value, int64u ID)
 {
+    if (IbiStream==NULL)
+        return (size_t)-1;
+
     //Init
     if (!Seek_Duration_Detected)
     {

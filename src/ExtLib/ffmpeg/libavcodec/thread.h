@@ -135,7 +135,9 @@ int ff_thread_ref_frame(ThreadFrame *dst, ThreadFrame *src);
 int ff_thread_init(AVCodecContext *s);
 void ff_thread_free(AVCodecContext *s);
 
-// ffdshow custom code. return pointer to the copied AVCodecContext for thread 0.
-AVCodecContext* get_thread0_avctx(AVCodecContext *avctx);
+int ff_alloc_entries(AVCodecContext *avctx, int count);
+void ff_reset_entries(AVCodecContext *avctx);
+void ff_thread_report_progress2(AVCodecContext *avctx, int field, int thread, int n);
+void ff_thread_await_progress2(AVCodecContext *avctx,  int field, int thread, int shift);
 
 #endif /* AVCODEC_THREAD_H */

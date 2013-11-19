@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -35,7 +33,8 @@
 #include <d3d9.h>
 #include <vmr9.h>
 #include <dxva2api.h> //#include <evr9.h>
-#include "Version.h"
+#include "../../../Include/Version.h"
+#include "WinDebugMonitor.h"
 
 #define DEF_LOGO IDF_LOGO1
 
@@ -116,6 +115,7 @@ class CMPlayerCApp : public CWinApp
 	static UINT	GetRemoteControlCodeMicrosoft(UINT nInputcode, HRAWINPUT hRawInput);
 	static UINT	GetRemoteControlCodeSRM7500(UINT nInputcode, HRAWINPUT hRawInput);
 
+	static UINT RunTHREADCopyData(LPVOID pParam);
 public:
 	CMPlayerCApp();
 
@@ -182,3 +182,56 @@ public:
 #define AfxGetMyApp() static_cast<CMPlayerCApp*>(AfxGetApp())
 #define AfxGetAppSettings() static_cast<CMPlayerCApp*>(AfxGetApp())->m_s
 #define AppSettings CAppSettings
+
+class CDebugMonitor : public CWinDebugMonitor
+{
+	FILE* m_File;
+
+private:
+	CString GetLocalTime() {
+		SYSTEMTIME st;
+		::GetLocalTime(&st);
+
+		CString lt;
+		lt.Format(L"%04d.%02d.%02d %02d:%02d:%02d.%03d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+
+		return lt;
+	}
+
+public:
+	CDebugMonitor(DWORD dwProcessId) : CWinDebugMonitor(dwProcessId) {
+		static CString sDesktop;
+		if (sDesktop.IsEmpty()) {
+			TCHAR szPath[MAX_PATH];
+			if(SUCCEEDED(SHGetFolderPath(NULL, CSIDL_DESKTOP, NULL, 0, szPath))) {
+				sDesktop = CString(szPath) + L"\\";
+			}
+		}
+
+		m_File = NULL;
+		if (bIsInitialize) {
+			CString fname = sDesktop + L"mpc-be_debug.log";
+			m_File = _tfopen(fname, L"at, ccs=UTF-8");
+			if (m_File) {
+				fseek(m_File, 0, 2);
+
+				_ftprintf_s(m_File, _T("=== Start MPC-BE Debug log [%s] ===\n"), GetLocalTime());
+			}
+		}
+	}
+
+	~CDebugMonitor() {
+		if (m_File) {
+			_ftprintf_s(m_File, _T("=== End MPC-BE Debug log [%s] ===\n"), GetLocalTime());
+
+			fclose(m_File);
+		}
+	}
+
+	virtual void OutputWinDebugString(const char *str) {
+		if (m_File) {
+			_ftprintf_s(m_File, _T("%s : %s"), GetLocalTime(), CString(str));
+		}
+	};
+};
+

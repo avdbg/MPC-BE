@@ -1,6 +1,4 @@
 /*
- * $Id: PlayerVimeo.h 2229 2013-03-08 13:27:11Z exodus8 $
- *
  * Copyright (C) 2013 Sergey "Exodus8" (rusguy6@gmail.com)
  *
  * This file is part of MPC-BE.
@@ -33,7 +31,7 @@ CString PlayerVimeo(CString fn)
 		link.Append(fn);
 		link.Append(_T("&random="));
 
-		char* final	= NULL;
+		char* final = NULL;
 		CString url;
 
 		for (size_t i = 0; i < 10; i++) {
@@ -97,6 +95,8 @@ CString PlayerVimeo(CString fn)
 				delete [] tmp_url;
 			}
 		}
+
+		delete [] final;
 
 		return url;
 	}

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -39,6 +37,7 @@
 #include <Bento4/Core/Ap4StsdAtom.h>
 #include <Bento4/Core/Ap4IsmaCryp.h>
 #include <Bento4/Core/Ap4AvcCAtom.h>
+#include <Bento4/Core/Ap4HvcCAtom.h>
 #include <Bento4/Core/Ap4ChplAtom.h>
 #include <Bento4/Core/Ap4FtabAtom.h>
 #include <Bento4/Core/Ap4DataAtom.h>
@@ -108,297 +107,6 @@ CFilterApp theApp;
 
 #endif
 
-struct SSACharacter {
-	CString pre, post;
-	WCHAR c;
-};
-
-static CStringW ConvertTX3GToSSA(
-	CStringW str,
-	const AP4_Tx3gSampleEntry::AP4_Tx3gDescription& desc,
-	CStringW font,
-	const AP4_Byte* mods,
-	int size,
-	CSize framesize,
-	CPoint translation,
-	int durationms,
-	CRect& rbox)
-{
-	int str_len = str.GetLength();
-
-	SSACharacter* chars = DNew SSACharacter[str_len];
-	for (int i = 0; i < str_len; ++i) {
-		chars[i].c = str[i];
-	}
-	str.Empty();
-
-	//
-
-	rbox.SetRect(desc.TextBox.Left, desc.TextBox.Top, desc.TextBox.Right, desc.TextBox.Bottom);
-
-	int align = 2;
-	signed char h = (signed char)desc.HorizontalJustification;
-	signed char v = (signed char)desc.VerticalJustification;
-	if (h == 0 && v < 0) {
-		align = 1;
-	} else if (h > 0 && v < 0) {
-		align = 2;
-	} else if (h < 0 && v < 0) {
-		align = 3;
-	} else if (h == 0 && v > 0) {
-		align = 4;
-	} else if (h > 0 && v > 0) {
-		align = 5;
-	} else if (h < 0 && v > 0) {
-		align = 6;
-	} else if (h == 0 && v == 0) {
-		align = 7;
-	} else if (h > 0 && v == 0) {
-		align = 8;
-	} else if (h < 0 && v == 0) {
-		align = 9;
-	}
-	str.Format(L"{\\an%d}%s", align, CStringW(str));
-
-	if (!font.CompareNoCase(L"serif")) {
-		font = L"Times New Roman";
-	} else if (!font.CompareNoCase(L"sans-serif")) {
-		font = L"Arial";
-	} else if (!font.CompareNoCase(L"monospace")) {
-		font = L"Courier New";
-	}
-	str.Format(L"{\\fn%s}%s", font, CStringW(str));
-
-	const AP4_Byte* fclr = (const AP4_Byte*)&desc.Style.Font.Color;
-
-	CStringW font_color;
-	font_color.Format(L"{\\1c%02x%02x%02x\\1a%02x}", fclr[2], fclr[1], fclr[0], 255 - fclr[3]);
-	str = font_color + str;
-
-	str.Format(L"%s{\\2c%02x%02x%02x\\2a%02x}", CString(str), fclr[2], fclr[1], fclr[0], 255 - fclr[3]);
-
-	CStringW font_size;
-	font_size.Format(L"{\\fs%d}", desc.Style.Font.Size);
-	str = font_size + str;
-
-	CStringW font_flags;
-	font_flags.Format(L"{\\b%d\\i%d\\u%d}",
-					  (desc.Style.Font.Face&1) ? 1 : 0,
-					  (desc.Style.Font.Face&2) ? 1 : 0,
-					  (desc.Style.Font.Face&4) ? 1 : 0);
-	str = font_flags + str;
-
-	//
-
-	const AP4_Byte* hclr = (const AP4_Byte*)&desc.BackgroundColor;
-
-	while (size > 8) {
-		DWORD tag_size = (mods[0]<<24)|(mods[1]<<16)|(mods[2]<<8)|(mods[3]);
-		mods += 4;
-		DWORD tag = (mods[0]<<24)|(mods[1]<<16)|(mods[2]<<8)|(mods[3]);
-		mods += 4;
-
-		size -= tag_size;
-		tag_size -= 8;
-		const AP4_Byte* next = mods + tag_size;
-
-		if (tag == 'styl') {
-			WORD styl_count = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-
-			while (styl_count-- > 0) {
-				WORD start = (mods[0]<<8)|(mods[1]);
-				mods += 2;
-				WORD end = (mods[0]<<8)|(mods[1]);
-				mods += 2;
-				WORD font_id = (mods[0]<<8)|(mods[1]);
-				mods += 2;
-				WORD flags = mods[0];
-				mods += 1;
-				WORD size = mods[0];
-				mods += 1;
-				const AP4_Byte* color = mods;
-				mods += 4;
-
-				if (end > str_len) {
-					end = str_len;
-				}
-
-				if (start < end) {
-					CStringW s;
-
-					s.Format(L"{\\1c%02x%02x%02x\\1a%02x}", color[2], color[1], color[0], 255 - color[3]);
-					chars[start].pre += s;
-					chars[end-1].post += font_color;
-
-					s.Format(L"{\\fs%d}", size);
-					chars[start].pre += s;
-					chars[end-1].post += font_size;
-
-					s.Format(L"{\\b%d\\i%d\\u%d}", (flags&1) ? 1 : 0, (flags&2) ? 1 : 0, (flags&4) ? 1 : 0);
-					chars[start].pre += s;
-					chars[end-1].post += font_flags;
-				}
-			}
-		} else if (tag == 'hclr') {
-			hclr = mods;
-		} else if (tag == 'hlit') {
-			WORD start = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-			WORD end = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-
-			if (end > str_len) {
-				end = str_len;
-			}
-
-			if (start < end) {
-				CStringW s;
-
-				s.Format(L"{\\3c%02x%02x%02x\\3a%02x}", hclr[2], hclr[1], hclr[0], 255 - hclr[3]);
-				chars[start].pre += s;
-				chars[end-1].post += font_color;
-
-				chars[start].pre += L"{\\bord0.1}";
-				chars[end-1].post += L"{\\bord}";
-			}
-		} else if (tag == 'blnk') {
-			WORD start = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-			WORD end = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-
-			if (end > str_len) {
-				end = str_len;
-			}
-
-			if (start < end) {
-				// cheap...
-
-				for (int i = 0, alpha = 255; i < durationms; i += 750, alpha = 255 - alpha) {
-					CStringW s;
-					s.Format(L"{\\t(%d, %d, \\alpha&H%02x&)}", i, i + 750, alpha);
-					chars[start].pre += s;
-				}
-
-				chars[end-1].post += L"{\\alpha}";
-			}
-		} else if (tag == 'tbox') {
-			rbox.top = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-			rbox.left = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-			rbox.bottom = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-			rbox.right = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-		} else if (tag == 'krok' && !(desc.DisplayFlags & 0x800)) {
-			DWORD start_time = (mods[0]<<24)|(mods[1]<<16)|(mods[2]<<8)|(mods[3]);
-			mods += 4;
-			WORD krok_count = (mods[0]<<8)|(mods[1]);
-			mods += 2;
-
-			while (krok_count-- > 0) {
-				DWORD end_time = (mods[0]<<24)|(mods[1]<<16)|(mods[2]<<8)|(mods[3]);
-				mods += 4;
-				WORD start = (mods[0]<<8)|(mods[1]);
-				mods += 2;
-				WORD end = (mods[0]<<8)|(mods[1]);
-				mods += 2;
-
-				if (end > str_len) {
-					end = str_len;
-				}
-
-				if (start < end) {
-					CStringW s;
-
-					s.Format(L"{\\kt%d\\kf%d}", start_time/10, (end_time - start_time)/10);
-					chars[start].pre += s;
-					s.Format(L"{\\1c%02x%02x%02x\\1a%02x}", hclr[2], hclr[1], hclr[0], 255 - hclr[3]);
-					chars[start].pre += s;
-					chars[end-1].post += L"{\\kt}" + font_color;
-				}
-
-				start_time = end_time;
-			}
-		}
-
-		mods = next;
-	}
-
-	// continous karaoke
-
-	if (desc.DisplayFlags & 0x800) {
-		CStringW s;
-
-		s.Format(L"{\\1c%02x%02x%02x\\1a%02x}", hclr[2], hclr[1], hclr[0], 255 - hclr[3]);
-		str += s;
-
-		int breaks = 0;
-
-		for (int i = 0, j = 0; i <= str_len; ++i) {
-			if (chars[i].c == '\n' /*|| chars[i].c == ' '*/) {
-				++breaks;
-			}
-		}
-
-		if (str_len > breaks) {
-			float dur = (float)max(durationms - 500, 0) / 10;
-
-			for (int i = 0, j = 0; i <= str_len; ++i) {
-				if (i == str_len || chars[i].c == '\n' /*|| chars[i].c == ' '*/) {
-					s.Format(L"{\\kf%d}", (int)(dur * (i - j) / (str_len - breaks)));
-					chars[j].pre += s;
-					j = i+1;
-				}
-			}
-		}
-	}
-
-	//
-
-	for (int i = 0; i < str_len; ++i) {
-		str += chars[i].pre;
-		str += chars[i].c;
-		if (desc.DisplayFlags & 0x20000) {
-			str += L"\\N";
-		}
-		str += chars[i].post;
-	}
-
-	delete [] chars;
-
-	//
-
-	if (rbox.IsRectEmpty()) {
-		rbox.SetRect(0, 0, framesize.cx, framesize.cy);
-	}
-	rbox.OffsetRect(translation);
-
-	CRect rbox2 = rbox;
-	rbox2.DeflateRect(2, 2);
-
-	CRect r(0,0,0,0);
-	if (rbox2.Height() > 0) {
-		r.top = rbox2.top;
-		r.bottom = framesize.cy - rbox2.bottom;
-	}
-	if (rbox2.Width() > 0) {
-		r.left = rbox2.left;
-		r.right = framesize.cx - rbox2.right;
-	}
-
-	CStringW hdr;
-	hdr.Format(L"0,0,Text,,%d,%d,%d,%d,,{\\clip(%d,%d,%d,%d)}",
-			   r.left, r.right, r.top, r.bottom,
-			   rbox.left, rbox.top, rbox.right, rbox.bottom);
-
-	//
-
-	return hdr + str;
-}
-
 //
 // CMP4SplitterFilter
 //
@@ -448,7 +156,7 @@ void SetTrackName(CString *TrackName, CString Suffix)
 	} \
 	SetTrackName(&TrackName, tname); \
 
-void SetAspect(VIDEOINFOHEADER2* vih2, CSize Aspect, LONG w, LONG h)
+static void SetAspect(VIDEOINFOHEADER2* vih2, CSize Aspect, LONG w, LONG h)
 {
 	if (!Aspect.cx || !Aspect.cy) {
 		Aspect.SetSize(w, h);
@@ -457,6 +165,16 @@ void SetAspect(VIDEOINFOHEADER2* vih2, CSize Aspect, LONG w, LONG h)
 
 	vih2->dwPictAspectRatioX = Aspect.cx;
 	vih2->dwPictAspectRatioY = Aspect.cy;
+}
+
+static CString ConvertStr(const char* S)
+{
+	CString str = AltUTF8ToStringW(S);
+	if (str.IsEmpty()) {
+		str = LocalToString(S); //Trying Local...
+	}
+
+	return str;
 }
 
 HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
@@ -537,43 +255,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 				ChapterTrackId = chap->GetChapterTrackId();
 			}
 
-			if (ChapterTrackId != INT_MIN && track->GetId() == ChapterTrackId) {
-
-				for (AP4_Cardinal i = 0; i < track->GetSampleCount(); i++) {
-					AP4_Sample sample;
-					AP4_DataBuffer data;
-					track->ReadSample(i, sample, data);
-
-					const AP4_Byte* ptr	= data.GetData();
-					AP4_Size avail		= data.GetDataSize();
-					CStringA ChapterName;
-
-					if (avail > 2) {
-						AP4_UI16 size = (ptr[0] << 8) | ptr[1];
-
-						if (size <= avail-2) {
-
-							if (size >= 2 && ptr[2] == 0xfe && ptr[3] == 0xff) {
-								CStringW wstr = CStringW((LPCWSTR)&ptr[2], size/2);
-								for (int i = 0; i < wstr.GetLength(); ++i) {
-									wstr.SetAt(i, ((WORD)wstr[i] >> 8) | ((WORD)wstr[i] << 8));
-								}
-								ChapterName = UTF16To8(wstr);
-							} else {
-								ChapterName = CStringA((LPCSTR)&ptr[2], size);
-							}
-						}
-					}
-
-					REFERENCE_TIME rtStart	= (REFERENCE_TIME)(10000000.0 / track->GetMediaTimeScale() * sample.GetCts());
-					
-					ChapAppend(rtStart, UTF8To16(ChapterName));
-				}
-
-				if (ChapGetCount()) {
-					ChapSort();
-				}
-
+			if (ChapterTrackId == track->GetId()) {
 				continue;
 			}
 
@@ -598,16 +280,15 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 				}
 			}
 
-			CStringW TrackName = UTF8ToStringW(track->GetTrackName().c_str());
-			if (TrackName.IsEmpty()) {
-				TrackName = LocalToStringW(track->GetTrackName().c_str()); //Trying Local...
-			}
+			CString TrackName = ConvertStr(track->GetTrackName().c_str());
 			if (TrackName.GetLength() && TrackName[0] < 0x20) {
 				TrackName.Delete(0);
 			}
 			TrackName.Trim();
 
 			CStringA TrackLanguage = track->GetTrackLanguage().c_str();
+
+			REFERENCE_TIME AvgTimePerFrame = item->GetData()->GetSampleCount() ? item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()) : 0;
 
 			CAtlArray<CMediaType> mts;
 
@@ -667,9 +348,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					vih2->bmiHeader.biWidth		= biWidth;
 					vih2->bmiHeader.biHeight	= biHeight;
 					vih2->rcSource				= vih2->rcTarget = CRect(0, 0, biWidth, biHeight);
-					if (item->GetData()->GetSampleCount()) {
-						vih2->AvgTimePerFrame = item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()); 
-					}
+					vih2->AvgTimePerFrame		= AvgTimePerFrame;
 
 					SetAspect(vih2, Aspect, vih2->bmiHeader.biWidth, vih2->bmiHeader.biHeight); 
 
@@ -677,51 +356,49 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 
 					switch (video_desc->GetObjectTypeId()) {
 						case AP4_MPEG4_VISUAL_OTI:
-							mt.subtype = FOURCCMap('v4pm');
-							mt.formattype = FORMAT_MPEG2Video;
 							{
-								MPEG2VIDEOINFO* mvih			= (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + di->GetDataSize());
-								memset(mvih, 0, mt.FormatLength());
-								mvih->hdr.bmiHeader.biSize		= sizeof(mvih->hdr.bmiHeader);
-								mvih->hdr.bmiHeader.biWidth		= biWidth;
-								mvih->hdr.bmiHeader.biHeight	= biHeight;
-								mvih->hdr.bmiHeader.biCompression = 'v4pm';
-								mvih->hdr.bmiHeader.biPlanes	= 1;
-								mvih->hdr.bmiHeader.biBitCount	= 24;
-								mvih->hdr.dwPictAspectRatioX	= mvih->hdr.bmiHeader.biWidth;
-								mvih->hdr.dwPictAspectRatioY	= mvih->hdr.bmiHeader.biHeight;
-								if (item->GetData()->GetSampleCount()) {
-									mvih->hdr.AvgTimePerFrame	= item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()); 
-								}
-								mvih->cbSequenceHeader			= di->GetDataSize();
-								memcpy(mvih->dwSequenceHeader, di->GetData(), di->GetDataSize());
+								BYTE* data			= (BYTE*)di->GetData();
+								size_t size			= (size_t)di->GetDataSize();
+
+								BITMAPINFOHEADER pbmi;
+								memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
+								pbmi.biSize			= sizeof(pbmi);
+								pbmi.biWidth		= biWidth;
+								pbmi.biHeight		= biHeight;
+								pbmi.biCompression	= FCC('mp4v');
+								pbmi.biPlanes		= 1;
+								pbmi.biBitCount		= 24;
+
+								Aspect.cx = pbmi.biWidth;
+								Aspect.cy = pbmi.biHeight;
+								ReduceDim(Aspect);
+								CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 								mts.Add(mt);
-								mt.subtype						= FOURCCMap(mvih->hdr.bmiHeader.biCompression = 'V4PM');
+
+								MPEG2VIDEOINFO* mvih	= (MPEG2VIDEOINFO*)mt.pbFormat;
+								mt.subtype				= FOURCCMap(mvih->hdr.bmiHeader.biCompression = 'V4PM');
 								mts.Add(mt);
-								//b_HasVideo = true;
 							}
 							break;
 						case AP4_JPEG_OTI:
-							mt.subtype = FOURCCMap('gepj');
-							mt.formattype = FORMAT_MPEG2Video;
 							{
-								MPEG2VIDEOINFO* mvih			= (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + di->GetDataSize());
-								memset(mvih, 0, mt.FormatLength());
-								mvih->hdr.bmiHeader.biSize		= sizeof(mvih->hdr.bmiHeader);
-								mvih->hdr.bmiHeader.biWidth		= biWidth;
-								mvih->hdr.bmiHeader.biHeight	= biHeight;
-								mvih->hdr.bmiHeader.biCompression = 'gepj';
-								mvih->hdr.bmiHeader.biPlanes	= 1;
-								mvih->hdr.bmiHeader.biBitCount	= 24;
-								mvih->hdr.dwPictAspectRatioX	= mvih->hdr.bmiHeader.biWidth;
-								mvih->hdr.dwPictAspectRatioY	= mvih->hdr.bmiHeader.biHeight;
-								if (item->GetData()->GetSampleCount()) {
-									mvih->hdr.AvgTimePerFrame	= item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()); 
-								}
-								mvih->cbSequenceHeader			= di->GetDataSize();
-								memcpy(mvih->dwSequenceHeader, di->GetData(), di->GetDataSize());
+								BYTE* data			= (BYTE*)di->GetData();
+								size_t size			= (size_t)di->GetDataSize();
+
+								BITMAPINFOHEADER pbmi;
+								memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
+								pbmi.biSize			= sizeof(pbmi);
+								pbmi.biWidth		= biWidth;
+								pbmi.biHeight		= biHeight;
+								pbmi.biCompression	= FCC('jpeg');
+								pbmi.biPlanes		= 1;
+								pbmi.biBitCount		= 24;
+
+								Aspect.cx = pbmi.biWidth;
+								Aspect.cy = pbmi.biHeight;
+								ReduceDim(Aspect);
+								CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 								mts.Add(mt);
-								//b_HasVideo = true;
 							}
 							break;
 						case AP4_MPEG2_VISUAL_SIMPLE_OTI:
@@ -795,7 +472,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 									break;
 								}
 							}
-							mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_AAC);
+							mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_RAW_AAC1);
 							if (wfe->cbSize >= 2) {
 								WORD Channels = (((BYTE*)(wfe+1))[1]>>3) & 0xf;
 								if (Channels) {
@@ -812,7 +489,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 								m_pFile->Seek(sample.GetOffset());
 								CBaseSplitterFileEx::mpahdr h;
 								CMediaType mt2;
-								if (m_pFile->Read(h, sample.GetSize(), false, &mt2)) {
+								if (m_pFile->Read(h, sample.GetSize(), &mt2)) {
 									mt = mt2;
 								}
 							}
@@ -821,7 +498,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						case AP4_DTSC_AUDIO_OTI:
 						case AP4_DTSH_AUDIO_OTI:
 						case AP4_DTSL_AUDIO_OTI:
-							mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_DVD_DTS);
+							mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_DTS2);
 							{
 								m_pFile->Seek(sample.GetOffset());
 								CBaseSplitterFileEx::dtshdr h;
@@ -900,26 +577,13 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (dynamic_cast<AP4_TextSampleEntry*>(sample_entry)
 							|| dynamic_cast<AP4_Tx3gSampleEntry*>(sample_entry)) {
 						mt.majortype = MEDIATYPE_Subtitle;
-						mt.subtype = MEDIASUBTYPE_ASS2;
+						mt.subtype = MEDIASUBTYPE_UTF8;
 						mt.formattype = FORMAT_SubtitleInfo;
-						CStringA hdr;
-						hdr.Format(
-							"[Script Info]\n"
-							"ScriptType: v4.00++\n"
-							"ScaledBorderAndShadow: yes\n"
-							"PlayResX: %d\n"
-							"PlayResY: %d\n"
-							"[V4++ Styles]\n"
-							"Style: Text,Arial,12,&H00ffffff,&H0000ffff,&H00000000,&H80000000,0,0,0,0,100,100,0,0.00,3,0,0,2,0,0,0,0,1,1\n",
-							// "Style: Text,Arial,12,&H00ffffff,&H0000ffff,&H00000000,&H80000000,0,0,0,0,100,100,0,0.00,1,0,0,2,0,0,0,0,1,1\n",
-							m_framesize.cx,
-							m_framesize.cy);
-						SUBTITLEINFO* si = (SUBTITLEINFO*)mt.AllocFormatBuffer(sizeof(SUBTITLEINFO) + hdr.GetLength());
+						SUBTITLEINFO* si = (SUBTITLEINFO*)mt.AllocFormatBuffer(sizeof(SUBTITLEINFO));
 						memset(si, 0, mt.FormatLength());
 						si->dwOffset = sizeof(SUBTITLEINFO);
 						strcpy_s(si->IsoLang, _countof(si->IsoLang), CStringA(TrackLanguage));
 						wcscpy_s(si->TrackName, _countof(si->TrackName), TrackName);
-						memcpy(si + 1, (LPCSTR)hdr, hdr.GetLength());
 						mts.Add(mt);
 					}
 				}
@@ -932,18 +596,9 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (!di) {
 						di = &empty;
 					}
-					int num = 1;
-					int den = 1;
-					if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(avc1->GetChild(AP4_ATOM_TYPE_PASP))) {
-						num = pasp->GetNum();
-						den = pasp->GetDen();
-					}
-					if (num <= 0 || den <= 0) { // if bad AR
-						num = den = 1; // then reset AR
-					}
 
-					const AP4_Byte* data = di->GetData();
-					AP4_Size size = di->GetDataSize();
+					BYTE* data			= (BYTE*)di->GetData();
+					size_t size			= (size_t)di->GetDataSize();
 
 					BITMAPINFOHEADER pbmi;
 					memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
@@ -954,14 +609,65 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					pbmi.biPlanes		= 1;
 					pbmi.biBitCount		= 24;
 
-					REFERENCE_TIME AvgTimePerFrame = item->GetData()->GetSampleCount() ? item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()) : 0;
-
-					CSize aspect(pbmi.biWidth * num, pbmi.biHeight * den);
-					ReduceDim(aspect);
-					CreateMPEG2VIfromAVC(&mt, &pbmi, AvgTimePerFrame, aspect, (BYTE*)data, size); 
+					Aspect.cx = pbmi.biWidth;
+					Aspect.cy = pbmi.biHeight;
+					if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(avc1->GetChild(AP4_ATOM_TYPE_PASP))) {
+						if (pasp->GetNum() > 0 && pasp->GetDen() > 0) {
+							Aspect.cx *= pasp->GetNum();
+							Aspect.cy *= pasp->GetDen();
+						}
+					}
+					ReduceDim(Aspect);
+					CreateMPEG2VIfromAVC(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 
 					mts.Add(mt);
 					//b_HasVideo = true;
+				}
+			} else if (AP4_Hvc1SampleEntry* hvc1 = dynamic_cast<AP4_Hvc1SampleEntry*>(
+					track->GetTrakAtom()->FindChild("mdia/minf/stbl/stsd/hvc1"))) {
+				if (AP4_HvcCAtom* hvcC = dynamic_cast<AP4_HvcCAtom*>(hvc1->GetChild(AP4_ATOM_TYPE_HVCC))) {
+					SetTrackName(&TrackName, _T("HEVC Video (H.265)"));
+
+					const AP4_DataBuffer* di = hvcC->GetDecoderInfo();
+					if (!di) {
+						di = &empty;
+					}
+
+					BYTE* data			= (BYTE*)di->GetData();
+					size_t size			= (size_t)di->GetDataSize();
+
+					BITMAPINFOHEADER pbmi;
+					memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
+					pbmi.biSize			= sizeof(pbmi);
+					pbmi.biWidth		= (LONG)hvc1->GetWidth();
+					pbmi.biHeight		= (LONG)hvc1->GetHeight();
+					pbmi.biCompression	= FCC('HVC1');
+					pbmi.biPlanes		= 1;
+					pbmi.biBitCount		= 24;
+
+					Aspect.cx = pbmi.biWidth;
+					Aspect.cy = pbmi.biHeight;
+					if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(hvc1->GetChild(AP4_ATOM_TYPE_PASP))) {
+						if (pasp->GetNum() > 0 && pasp->GetDen() > 0) {
+							Aspect.cx *= pasp->GetNum();
+							Aspect.cy *= pasp->GetDen();
+						}
+					}
+					ReduceDim(Aspect);
+					CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
+
+					mts.Add(mt);
+
+					vc_params_t params;
+					if (ParseHEVCDecoderConfigurationRecord(data, size, params, false)) {
+						MPEG2VIDEOINFO* pm2vi	= (MPEG2VIDEOINFO*)mt.pbFormat;
+						pm2vi->dwProfile		= params.profile;
+						pm2vi->dwLevel			= params.level;
+						pm2vi->dwFlags			= params.nal_length_size;
+						CreateSequenceHeaderHEVC(data, size, pm2vi->dwSequenceHeader, pm2vi->cbSequenceHeader);
+
+						mts.InsertAt(0, mt);
+					}
 				}
 			} else if (AP4_StsdAtom* stsd = dynamic_cast<AP4_StsdAtom*>(track->GetTrakAtom()->FindChild("mdia/minf/stbl/stsd"))) {
 				const AP4_DataBuffer& db = stsd->GetDataBuffer();
@@ -990,7 +696,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						memcpy(buff, &fourcc, 4);
 						buff[4] = 0;
 
-						CString tname = UTF8To16(vse->GetCompressorName());
+						CString tname = UTF8ToString(vse->GetCompressorName());
 						if ((buff[0] == 'x' || buff[0] == 'h') && buff[1] == 'd') {
 							// Apple HDV/XDCAM
 							FormatTrackName(_T("HDV/XDV MPEG2"), 0);
@@ -1035,10 +741,15 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						vih2->bmiHeader.biCompression	= fourcc;
 						vih2->bmiHeader.biBitCount		= (LONG)vse->GetDepth();
 						vih2->rcSource					= vih2->rcTarget = CRect(0, 0, vih2->bmiHeader.biWidth, vih2->bmiHeader.biHeight);
-						if (item->GetData()->GetSampleCount()) {
-							vih2->AvgTimePerFrame		= item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount());
-						}
+						vih2->AvgTimePerFrame			= AvgTimePerFrame;
 
+						if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(vse->GetChild(AP4_ATOM_TYPE_PASP))) {
+							if (pasp->GetNum() > 0 && pasp->GetDen() > 0) {
+								Aspect.cx *= pasp->GetNum();
+								Aspect.cy *= pasp->GetDen();
+								ReduceDim(Aspect);
+							}
+						}
 						SetAspect(vih2, Aspect, vih2->bmiHeader.biWidth, vih2->bmiHeader.biHeight); 
 
 						memcpy(vih2 + 1, db.GetData(), db.GetDataSize());
@@ -1105,7 +816,7 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 								SetTrackName(&TrackName, _T("AC-3 Audio"));
 							}
 						} else if (type == AP4_ATOM_TYPE_MP4A) {
-							fourcc = WAVE_FORMAT_AAC;
+							fourcc = WAVE_FORMAT_RAW_AAC1;
 							SetTrackName(&TrackName, _T("MPEG-2 Audio AAC"));
 						} else if (type == AP4_ATOM_TYPE_NMOS) {
 							fourcc = MAKEFOURCC('N','E','L','L');
@@ -1351,41 +1062,54 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 			EXECUTE_ASSERT(SUCCEEDED(AddOutputPin(id, pPinOut)));
 
 			m_trackpos[id] = trackpos();
+		}
 
-			if (mts.GetCount() == 1 && mts[0].subtype == MEDIASUBTYPE_ASS2) {
-				LPCWSTR postfix = L" (plain text)";
+		if (AP4_ChplAtom* chpl = dynamic_cast<AP4_ChplAtom*>(movie->GetMoovAtom()->FindChild("udta/chpl"))) {
+			AP4_Array<AP4_ChplAtom::AP4_Chapter>& chapters = chpl->GetChapters();
 
-				mts[0].subtype = MEDIASUBTYPE_UTF8;
+			for (AP4_Cardinal i = 0; i < chapters.ItemCount(); ++i) {
+				AP4_ChplAtom::AP4_Chapter& chapter = chapters[i];
 
-				SUBTITLEINFO* si = (SUBTITLEINFO*)mts[0].ReallocFormatBuffer(sizeof(SUBTITLEINFO));
-				wcscat_s(si->TrackName, postfix);
+				CString ChapterName = ConvertStr(chapter.Name.c_str());
 
-				id ^= 0x80402010; // FIXME: until fixing, let's hope there won't be another track like this...
+				ChapAppend(chapter.Time, ChapterName);
+			}
+		} else if (ChapterTrackId != INT_MIN) {
+			for (AP4_List<AP4_Track>::Item* item = movie->GetTracks().FirstItem();
+					item;
+					item = item->GetNext()) {
+				
+				AP4_Track* track = item->GetData();
 
-				CAutoPtr<CBaseSplitterOutputPin> pPinOut(DNew CMP4SplitterOutputPin(mts, name + postfix, this, this, &hr));
+				if (ChapterTrackId == track->GetId()) {
 
-				if (!TrackName.IsEmpty()) {
-					pPinOut->SetProperty(L"NAME", TrackName + postfix);
+					for (AP4_Cardinal i = 0; i < track->GetSampleCount(); i++) {
+						AP4_Sample sample;
+						AP4_DataBuffer data;
+						track->ReadSample(i, sample, data);
+
+						const AP4_Byte* ptr	= data.GetData();
+						AP4_Size avail		= data.GetDataSize();
+						CString ChapterName;
+
+						if (avail > 2) {
+							AP4_UI16 size = (ptr[0] << 8) | ptr[1];
+
+							ChapterName = ConvertStr((const char*)&ptr[2]);
+						}
+
+						REFERENCE_TIME rtStart	= (REFERENCE_TIME)(10000000.0 / track->GetMediaTimeScale() * sample.GetCts());
+					
+						ChapAppend(rtStart, ChapterName);
+					}
+
+					break;
 				}
-				if (!TrackLanguage.IsEmpty()) {
-					pPinOut->SetProperty(L"LANG", CStringW(TrackLanguage));
-				}
-
-				EXECUTE_ASSERT(SUCCEEDED(AddOutputPin(id, pPinOut)));
 			}
 		}
 
-		if (!ChapGetCount()) {
-			if (AP4_ChplAtom* chpl = dynamic_cast<AP4_ChplAtom*>(movie->GetMoovAtom()->FindChild("udta/chpl"))) {
-				AP4_Array<AP4_ChplAtom::AP4_Chapter>& chapters = chpl->GetChapters();
-
-				for (AP4_Cardinal i = 0; i < chapters.ItemCount(); ++i) {
-					AP4_ChplAtom::AP4_Chapter& chapter = chapters[i];
-					ChapAppend(chapter.Time, UTF8To16(ConvertMBCS(chapter.Name.c_str(), ANSI_CHARSET, CP_UTF8))); // this is b0rked, thx to nero :P
-				}
-
-				ChapSort();
-			}
+		if (ChapGetCount()) {
+			ChapSort();
 		}
 
 		if (AP4_ContainerAtom* ilst = dynamic_cast<AP4_ContainerAtom*>(movie->GetMoovAtom()->FindChild("udta/meta/ilst"))) {
@@ -1410,19 +1134,19 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						} else if (atom->GetType() == AP4_ATOM_TYPE_COVR) {
 							if (db->GetDataSize() > 10) {
 								DWORD sync = *(DWORD*)(db->GetData()+6);
-								// check for JFIF(0x4649464a) or Exif(0x66697845) sync ...
-								if (sync == 0x4649464a || sync == 0x66697845) {
+								// check for JFIF or Exif sync ...
+								if (sync == MAKEFOURCC('J', 'F', 'I', 'F') || sync == MAKEFOURCC('E', 'x', 'i', 'f')) {
 									ResAppend(_T("cover.jpg"), _T("cover"), _T("image/jpeg"), (BYTE*)db->GetData(), (DWORD)db->GetDataSize());
 								} else {
 									sync = *(DWORD*)db->GetData();
-									// check for PNG(0x474E5089) sync ...
-									if (sync == 0x474E5089) {
+									// check for PNG sync ...
+									if (sync == MAKEFOURCC(0x89, 'P', 'N', 'G')) {
 										ResAppend(_T("cover.png"), _T("cover"), _T("image/png"), (BYTE*)db->GetData(), (DWORD)db->GetDataSize());
 									}
 								}
 							}
 						} else {
-							CStringW str = UTF8To16(CStringA((LPCSTR)db->GetData(), db->GetDataSize()));
+							CStringW str = UTF8ToString(CStringA((LPCSTR)db->GetData(), db->GetDataSize()));
 
 							switch (atom->GetType()) {
 								case AP4_ATOM_TYPE_NAM:
@@ -1674,8 +1398,6 @@ bool CMP4SplitterFilter::DemuxLoop()
 					pPairNext->m_value.index++;
 				}
 			} else if (track->GetType() == AP4_Track::TYPE_TEXT) {
-				CStringA dlgln_bkg, dlgln_plaintext;
-
 				const AP4_Byte* ptr = data.GetData();
 				AP4_Size avail = data.GetDataSize();
 
@@ -1690,99 +1412,17 @@ bool CMP4SplitterFilter::DemuxLoop()
 							for (int i = 0; i < wstr.GetLength(); ++i) {
 								wstr.SetAt(i, ((WORD)wstr[i] >> 8) | ((WORD)wstr[i] << 8));
 							}
-							str = UTF16To8(wstr);
+							str = StringToUTF8(wstr);
 						} else {
 							str = CStringA((LPCSTR)&ptr[2], size);
 						}
 
 						CStringA dlgln = str;
-
-						if (mt.subtype == MEDIASUBTYPE_ASS2) {
-							AP4_SampleDescription* desc = track->GetSampleDescription(sample.GetDescriptionIndex());
-
-							dlgln = "0,0,Text,,0000,0000,0000,0000,," + str;
-							dlgln_plaintext = str;
-
-							CPoint translation(0, 0);
-							if (AP4_TkhdAtom* tkhd = dynamic_cast<AP4_TkhdAtom*>(track->GetTrakAtom()->GetChild(AP4_ATOM_TYPE_TKHD))) {
-								AP4_Float x, y;
-								tkhd->GetTranslation(x, y);
-								translation.SetPoint((int)x, (int)y);
-							}
-
-							if (AP4_UnknownSampleDescription* unknown_desc = dynamic_cast<AP4_UnknownSampleDescription*>(desc)) { // TEMP
-								AP4_SampleEntry* sample_entry = unknown_desc->GetSampleEntry();
-
-								if (AP4_TextSampleEntry* text = dynamic_cast<AP4_TextSampleEntry*>(sample_entry)) {
-									const AP4_TextSampleEntry::AP4_TextDescription& d = text->GetDescription();
-
-									// TODO
-								} else if (AP4_Tx3gSampleEntry* tx3g = dynamic_cast<AP4_Tx3gSampleEntry*>(sample_entry)) {
-									const AP4_Tx3gSampleEntry::AP4_Tx3gDescription& desc = tx3g->GetDescription();
-
-									CStringW font = L"Arial";
-
-									if (AP4_FtabAtom* ftab = dynamic_cast<AP4_FtabAtom*>(tx3g->GetChild(AP4_ATOM_TYPE_FTAB))) {
-										AP4_String Name;
-										if (AP4_SUCCEEDED(ftab->LookupFont(desc.Style.Font.Id, Name))) {
-											font = Name.c_str();
-										}
-									}
-
-									CRect rbox;
-									CStringW ssa = ConvertTX3GToSSA(
-													   UTF8To16(str), desc, font,
-													   ptr + (2 + size), avail - (2 + size),
-													   m_framesize, translation,
-													   (p->rtStop - p->rtStart)/10000,
-													   rbox);
-									dlgln = UTF16To8(ssa);
-
-									const AP4_Byte* bclr = (const AP4_Byte*)&desc.BackgroundColor;
-
-									if (bclr[3]) {
-										CPoint tl = rbox.TopLeft();
-										rbox.OffsetRect(-tl.x, -tl.y);
-
-										dlgln_bkg.Format(
-											"0,-1,Text,,0,0,0,0,,{\\an7\\pos(%d,%d)\\1c%02x%02x%02x\\1a%02x\\bord0\\shad0}{\\p1}m %d %d l %d %d l %d %d l %d %d {\\p0}",
-											tl.x, tl.y,
-											bclr[2], bclr[1], bclr[0],
-											255 - bclr[3],
-											rbox.left, rbox.top,
-											rbox.right, rbox.top,
-											rbox.right, rbox.bottom,
-											rbox.left, rbox.bottom);
-									}
-								}
-							}
-						}
-
 						dlgln.Replace("\r", "");
 						dlgln.Replace("\n", "\\N");
 
 						p->SetData((LPCSTR)dlgln, dlgln.GetLength());
 					}
-				}
-
-				if (!dlgln_bkg.IsEmpty()) {
-					CAutoPtr<Packet> p2(DNew Packet());
-					p2->TrackNumber = p->TrackNumber;
-					p2->rtStart = p->rtStart;
-					p2->rtStop = p->rtStop;
-					p2->bSyncPoint = p->bSyncPoint;
-					p2->SetData((LPCSTR)dlgln_bkg, dlgln_bkg.GetLength());
-					hr = DeliverPacket(p2);
-				}
-
-				if (!dlgln_plaintext.IsEmpty()) {
-					CAutoPtr<Packet> p2(DNew Packet());
-					p2->TrackNumber = p->TrackNumber ^ 0x80402010;
-					p2->rtStart = p->rtStart;
-					p2->rtStop = p->rtStop;
-					p2->bSyncPoint = p->bSyncPoint;
-					p2->SetData((LPCSTR)dlgln_plaintext, dlgln_plaintext.GetLength());
-					hr = DeliverPacket(p2);
 				}
 			} else {
 				p->SetData(data.GetData(), data.GetDataSize());

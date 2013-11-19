@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -1035,7 +1033,7 @@ bool CVobSubFile::WriteIdx(CString fn)
 			}
 
 			if (sp[j].vobid != vobid || sp[j].cellid != cellid) {
-				str.Format(_T("# Vob/Cell ID: %d, %d (PTS: %d)\n"), sp[j].vobid, sp[j].cellid, sp[j].celltimestamp);
+				str.Format(_T("# Vob/Cell ID: %d, %d (PTS: %I64d)\n"), sp[j].vobid, sp[j].cellid, sp[j].celltimestamp);
 				f.WriteString(str);
 				vobid = sp[j].vobid;
 				cellid = sp[j].cellid;
@@ -1649,10 +1647,6 @@ HRESULT CVobSubSettings::Render(SubPicDesc& spd, RECT& bbox)
 
 static bool CompressFile(CString fn)
 {
-	if (GetVersion() < 0) {
-		return false;
-	}
-
 	BOOL b = FALSE;
 
 	HANDLE h = CreateFile(fn, GENERIC_WRITE|GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, 0);
@@ -2340,8 +2334,8 @@ void CVobSubStream::Open(CString name, BYTE* pData, int len)
 			if (sl.GetCount() == 3) {
 				m_fAlign = sl.RemoveHead() == _T("ON");
 				CString hor = sl.GetHead(), ver = sl.GetTail();
-				m_alignhor = hor == _T("LEFT") ? 0 : hor == _T("CENTER") ? 1 : hor == _T("RIGHT") ? 2 : 1;
-				m_alignver = ver == _T("TOP") ? 0 : ver == _T("CENTER") ? 1 : ver == _T("BOTTOM") ? 2 : 2;
+				m_alignhor = hor == _T("LEFT") ? 0 : hor == _T("RIGHT")  ? 2 : 1;
+				m_alignver = ver == _T("TOP")  ? 0 : ver == _T("BOTTOM") ? 2 : 1;
 			}
 		} else if (key == _T("fade in/out")) {
 			_stscanf_s(value, _T("%d%, %d%"), &m_fadein, &m_fadeout);

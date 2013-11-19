@@ -1,6 +1,4 @@
 /*
- * $Id: WinAPIUtils.cpp 485 2012-06-03 15:17:19Z exodus8 $
- *
  * (C) 2011-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -321,11 +319,12 @@ bool ReadDisplay(CString szDevice, CString* MonitorName, UINT16* MonitorHorRes, 
 					}
 
 					if (ls == ERROR_SUCCESS) {
-						memcpy(DisplayDevice.DeviceName, gk_szRegCcsEnumDisplay, sizeof(gk_szRegCcsEnumDisplay) - 2);// chop off null character
-						memcpy(DisplayDevice.DeviceName + _countof(gk_szRegCcsEnumDisplay) - 1, DisplayDevice.DeviceKey, (cbName << 1) + 2);
-						wchar_t* pEnd0 = DisplayDevice.DeviceName + _countof(gk_szRegCcsEnumDisplay) - 1 + cbName;
+						static wchar_t DeviceName[MAX_PATH] = {0};
+						memcpy(DeviceName, gk_szRegCcsEnumDisplay, sizeof(gk_szRegCcsEnumDisplay) - 2);// chop off null character
+						memcpy(DeviceName + _countof(gk_szRegCcsEnumDisplay) - 1, DisplayDevice.DeviceKey, (cbName << 1) + 2);
+						wchar_t* pEnd0 = DeviceName + _countof(gk_szRegCcsEnumDisplay) - 1 + cbName;
 						HKEY hKey1;
-						ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DisplayDevice.DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey1);
+						ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey1);
 
 						if (ls == ERROR_SUCCESS) {
 							DWORD j = 0;
@@ -342,7 +341,7 @@ bool ReadDisplay(CString szDevice, CString* MonitorName, UINT16* MonitorHorRes, 
 									wchar_t* pEnd1 = pEnd0 + 1 + cbName;
 
 									HKEY hKey2;
-									ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DisplayDevice.DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey2);
+									ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey2);
 									if (ls == ERROR_SUCCESS) {
 
 										static wchar_t const szTDriverKeyN[] = L"Driver";
@@ -356,7 +355,7 @@ bool ReadDisplay(CString szDevice, CString* MonitorName, UINT16* MonitorHorRes, 
 												cbName = sizeof(DisplayDevice.DeviceKey);// 256, perfectly suited to receive a copy of the 128 or 256 bytes of EDID data
 
 												HKEY hKey3;
-												ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DisplayDevice.DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey3);
+												ls = RegOpenKeyEx(HKEY_LOCAL_MACHINE, DeviceName, 0, KEY_ENUMERATE_SUB_KEYS | KEY_READ, &hKey3);
 												if (ls == ERROR_SUCCESS) {
 
 													ls = RegQueryValueEx(hKey3, szkEDIDKeyN, NULL, NULL, (LPBYTE)DisplayDevice.DeviceKey, &cbName);

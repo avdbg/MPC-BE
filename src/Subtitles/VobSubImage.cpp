@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -24,7 +22,6 @@
 #include "stdafx.h"
 #include "VobSubImage.h"
 #include "RTS.h"
-#include <math.h>
 
 CVobSubImage::CVobSubImage()
 {
@@ -800,7 +797,7 @@ static bool FitBezierVH(COutline& o, CPoint& p1, CPoint& p2)
 	double mincf, maxcf;
 	if (MinMaxCosfi(o, mincf, maxcf)) {
 		if (maxcf-mincf > 0.8
-				|| maxcf-mincf > 0.6 && (maxcf >= 0.4 || mincf <= -0.4)) {
+				|| (maxcf-mincf > 0.6 && (maxcf >= 0.4 || mincf <= -0.4))) {
 			return false;
 		}
 	}

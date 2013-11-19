@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -40,12 +38,12 @@ static TCHAR* ext[3][_countof(exttypestr)] = {
 	},
 	{
 		_T(".*.srt"), _T(".*.sub"), _T(".*.smi"), _T(".*.psb"),
-		_T(".*.ssa"), _T(".*.ass"), _T(".*.dummyidx"), _T(".*.usf"),
+		_T(".*.ssa"), _T(".*.ass"), _T(".*.idx"), _T(".*.usf"),
 		_T(".*.xss"), _T(".*.txt"), _T(".*.rt"), _T(".*.sup")
 	},
 	{
 		_T("-*.srt"), _T("-*.sub"), _T("-*.smi"), _T("-*.psb"),
-		_T("-*.ssa"), _T("-*.ass"), _T("-*.dummyidx"), _T("-*.usf"),
+		_T("-*.ssa"), _T("-*.ass"), _T("-*.idx"), _T("-*.usf"),
 		_T("-*.xss"), _T("-*.txt"), _T("-*.rt"), _T("-*.sup")
 	},
 };

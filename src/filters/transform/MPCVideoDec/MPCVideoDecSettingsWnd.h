@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -25,7 +23,6 @@
 #include "../../filters/InternalPropertyPage.h"
 #include "IMPCVideoDec.h"
 #include "resource.h"
-#include <afxcmn.h>
 
 // === New swscaler options
 #include "Version.h"
@@ -39,11 +36,12 @@ enum {
 	IDC_PP_AR,
 	IDC_PP_DXVA_CHECK,
 	IDC_PP_DXVA_SD,
-	IDC_PP_SWOUTPUTFORMATUP,
-	IDC_PP_SWOUTPUTFORMATDOWN,
-	IDC_PP_SWCHROMATORGB,
-	IDC_PP_RESIZEMETHODBE,
-	IDC_PP_SWCOLORSPACE,
+	IDC_PP_SW_NV12,
+	IDC_PP_SW_YV12,
+	IDC_PP_SW_YUY2,
+	IDC_PP_SW_RGB32,
+	IDC_PP_SWPRESET,
+	IDC_PP_SWSTANDARD,
 	IDC_PP_SWINPUTLEVELS,
 	IDC_PP_SWOUTPUTLEVELS,
 	IDC_PP_DEINTERLACING
@@ -78,23 +76,22 @@ class __declspec(uuid("D5AA0389-D274-48e1-BF50-ACB05A56DDE0"))
 	CButton		m_cbDXVA_SD;
 
 	// === New swscaler options
-	CStatic			m_txtSwOutputFormats;
-	CCheckListBox	m_lstSwOutputFormats;
-	CImageList		m_onoff;
-	CButton			m_cbSwOutputFormatUp;
-	CButton			m_cbSwOutputFormatDown;
+	CButton		m_grpFmtConv;
+	CStatic		m_txtSwOutputFormats;
+	CStatic     m_txt420;
+	CStatic     m_txt422;
+	//CStatic     m_txt444;
+	CStatic     m_txtRGB;
+	CButton		m_cbNV12;
+	CButton		m_cbYV12;
+	CButton		m_cbYUY2;
+	CButton		m_cbRGB32;
 
-	int			m_nSwIndex[6];
-	int			m_nSwChecked[6];
+	CStatic     m_txtSwPreset;
+	CComboBox   m_cbSwPreset;
 
-	CStatic     m_txtSwChromaToRGB;
-	CComboBox   m_cbSwChromaToRGB;
-
-	CStatic     m_txtSwResizeMethodBE;
-	CComboBox   m_cbSwResizeMethodBE;
-
-	CStatic     m_txtSwColorspace;
-	CComboBox   m_cbSwColorspace;
+	CStatic     m_txtSwStandard;
+	CComboBox   m_cbSwStandard;
 
 	CStatic     m_txtSwInputLevels;
 	CComboBox   m_cbSwInputLevels;
@@ -115,17 +112,12 @@ public:
 	bool OnApply();
 
 	static LPCTSTR GetWindowTitle() { return MAKEINTRESOURCE(IDS_FILTER_SETTINGS_CAPTION); }
-	static CSize GetWindowSize() { return CSize(453, 356); }
+	static CSize GetWindowSize() { return CSize(555, 273); }
 
 	DECLARE_MESSAGE_MAP()
 
-	// === New swscaler options
-	afx_msg void OnClickedSwOutputFormatUp();
-	afx_msg void OnClickedSwOutputFormatDown();
-
+	afx_msg void OnBnClickedYUY2();
 	afx_msg BOOL OnToolTipNotify(UINT id, NMHDR * pNMHDR, LRESULT * pResult);
-	//
-
 };
 
 class __declspec(uuid("3C395D46-8B0F-440d-B962-2F4A97355453"))
@@ -147,7 +139,7 @@ public:
 	bool OnApply();
 
 	static LPCTSTR GetWindowTitle() { return _T("Codecs");    }
-	static CSize GetWindowSize()    { return CSize(453, 356); }
+	static CSize GetWindowSize()    { return CSize(340, 290); }
 
 	DECLARE_MESSAGE_MAP()
 };

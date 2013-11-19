@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright (C) 2012 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
  *
  * This file is part of MPC-BE.
@@ -24,77 +22,6 @@
 
 #include "DSUtil.h"
 #include "GolombBuffer.h"
-
-#define REF_SECOND_MULT 10000000LL
-
-struct dirac_source_params {
-	unsigned width;
-	unsigned height;
-	WORD chroma_format;          ///< 0: 444  1: 422  2: 420
-
-	BYTE interlaced;
-	BYTE top_field_first;
-
-	BYTE frame_rate_index;       ///< index into dirac_frame_rate[]
-	BYTE aspect_ratio_index;     ///< index into dirac_aspect_ratio[]
-
-	WORD clean_width;
-	WORD clean_height;
-	WORD clean_left_offset;
-	WORD clean_right_offset;
-
-	BYTE pixel_range_index;      ///< index into dirac_pixel_range_presets[]
-	BYTE color_spec_index;       ///< index into dirac_color_spec_presets[]
-};
-
-static const dirac_source_params dirac_source_parameters_defaults[] = {
-	{ 640,  480,  2, 0, 0, 1,  1, 640,  480,  0, 0, 1, 0 },
-	{ 176,  120,  2, 0, 0, 9,  2, 176,  120,  0, 0, 1, 1 },
-	{ 176,  144,  2, 0, 1, 10, 3, 176,  144,  0, 0, 1, 2 },
-	{ 352,  240,  2, 0, 0, 9,  2, 352,  240,  0, 0, 1, 1 },
-	{ 352,  288,  2, 0, 1, 10, 3, 352,  288,  0, 0, 1, 2 },
-	{ 704,  480,  2, 0, 0, 9,  2, 704,  480,  0, 0, 1, 1 },
-	{ 704,  576,  2, 0, 1, 10, 3, 704,  576,  0, 0, 1, 2 },
-	{ 720,  480,  1, 1, 0, 4,  2, 704,  480,  8, 0, 3, 1 },
-	{ 720,  576,  1, 1, 1, 3,  3, 704,  576,  8, 0, 3, 2 },
-	{ 1280, 720,  1, 0, 1, 7,  1, 1280, 720,  0, 0, 3, 3 },
-	{ 1280, 720,  1, 0, 1, 6,  1, 1280, 720,  0, 0, 3, 3 },
-	{ 1920, 1080, 1, 1, 1, 4,  1, 1920, 1080, 0, 0, 3, 3 },
-	{ 1920, 1080, 1, 1, 1, 3,  1, 1920, 1080, 0, 0, 3, 3 },
-	{ 1920, 1080, 1, 0, 1, 7,  1, 1920, 1080, 0, 0, 3, 3 },
-	{ 1920, 1080, 1, 0, 1, 6,  1, 1920, 1080, 0, 0, 3, 3 },
-	{ 2048, 1080, 0, 0, 1, 2,  1, 2048, 1080, 0, 0, 4, 4 },
-	{ 4096, 2160, 0, 0, 1, 2,  1, 4096, 2160, 0, 0, 4, 4 },
-	{ 3840, 2160, 1, 0, 1, 7,  1, 3840, 2160, 0, 0, 3, 3 },
-	{ 3840, 2160, 1, 0, 1, 6,  1, 3840, 2160, 0, 0, 3, 3 },
-	{ 7680, 4320, 1, 0, 1, 7,  1, 3840, 2160, 0, 0, 3, 3 },
-	{ 7680, 4320, 1, 0, 1, 6,  1, 3840, 2160, 0, 0, 3, 3 },
-};
-
-static const AV_Rational avpriv_frame_rate_tab[16] = {
-	{    0,    0},
-	{24000, 1001},
-	{   24,    1},
-	{   25,    1},
-	{30000, 1001},
-	{   30,    1},
-	{   50,    1},
-	{60000, 1001},
-	{   60,    1},
-	// Xing's 15fps: (9)
-	{   15,    1},
-	// libmpeg3's "Unofficial economy rates": (10-13)
-	{    5,    1},
-	{   10,    1},
-	{   12,    1},
-	{   15,    1},
-	{    0,    0},
-};
-
-static const AV_Rational dirac_frame_rate[] = {
-	{15000, 1001},
-	{25, 2},
-};
 
 static const byte pixel_aspect[17][2]= {
 	{0, 1},
@@ -130,3 +57,30 @@ struct avc_hdr
 
 bool ParseDiracHeader(CGolombBuffer gb, unsigned* width, unsigned* height, REFERENCE_TIME* AvgTimePerFrame);
 bool ParseAVCHeader(CGolombBuffer gb, avc_hdr& h, bool fullscan = false);
+
+////
+
+enum nal_unit_type_e {
+	NAL_UNIT_VPS = 32,
+	NAL_UNIT_SPS = 33,
+	NAL_UNIT_PPS = 34,
+};
+
+void CreateSequenceHeaderAVC(BYTE* data, int size, DWORD* dwSequenceHeader, DWORD& cbSequenceHeader);
+void CreateSequenceHeaderHEVC(BYTE* data, int size, DWORD* dwSequenceHeader, DWORD& cbSequenceHeader);
+
+struct vc_params_t {
+	LONG width, height;
+
+	DWORD profile, level;
+	DWORD nal_length_size;
+
+	void clear() {
+		memset(this, 0, sizeof(*this));
+	}
+};
+
+bool ParseSequenceParameterSet(BYTE* data, int size, vc_params_t& params);
+
+bool ParseAVCDecoderConfigurationRecord(BYTE* data, int size, vc_params_t& params, int flv_hm = 0);
+bool ParseHEVCDecoderConfigurationRecord(BYTE* data, int size, vc_params_t& params, bool parseSPS);

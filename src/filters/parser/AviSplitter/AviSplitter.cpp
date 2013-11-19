@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,6 +23,12 @@
 #include <MMReg.h>
 #include "AviFile.h"
 #include "AviSplitter.h"
+
+// option names
+#define OPT_REGKEY_AVISplit  _T("Software\\MPC-BE Filters\\AVI Splitter")
+#define OPT_SECTION_AVISplit _T("Filters\\AVI Splitter")
+#define OPT_BadInterleaved   _T("BadInterleavedSuport")
+#define OPT_NeededReindex    _T("NeededReindex")
 
 #ifdef REGISTER_FILTER
 
@@ -94,20 +98,20 @@ CAviSplitterFilter::CAviSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr)
 #ifdef REGISTER_FILTER
 	CRegKey key;
 
-	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\AVI Splitter"), KEY_READ)) {
+	if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, OPT_REGKEY_AVISplit, KEY_READ)) {
 		DWORD dw;
 
-		//if (ERROR_SUCCESS == key.QueryDWORDValue(_T("BadInterleavedSuport"), dw)) {
-		//	m_bBadInterleavedSuport = !!dw;
-		//}
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_BadInterleaved, dw)) {
+			m_bBadInterleavedSuport = !!dw;
+		}
 
-		if (ERROR_SUCCESS == key.QueryDWORDValue(_T("NeededReindex"), dw)) {
+		if (ERROR_SUCCESS == key.QueryDWORDValue(OPT_NeededReindex, dw)) {
 			m_bSetReindex = !!dw;
 		}
 	}
 #else
-	//m_bBadInterleavedSuport	= !!AfxGetApp()->GetProfileInt(_T("Filters\\AVI Splitter"), _T("BadInterleavedSuport"), m_bBadInterleavedSuport);
-	m_bSetReindex			= !!AfxGetApp()->GetProfileInt(_T("Filters\\AVI Splitter"), _T("NeededReindex"), m_bSetReindex);
+	m_bBadInterleavedSuport	= !!AfxGetApp()->GetProfileInt(OPT_SECTION_AVISplit, OPT_BadInterleaved, m_bBadInterleavedSuport);
+	m_bSetReindex			= !!AfxGetApp()->GetProfileInt(OPT_SECTION_AVISplit, OPT_NeededReindex, m_bSetReindex);
 #endif
 }
 
@@ -247,6 +251,7 @@ HRESULT CAviSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 				// need calculate in double, because the (10000000ui64 * size * 8) can give overflow
 			}
 
+			// building a basic media type
 			mt.majortype = MEDIATYPE_Video;
 			switch (pbmi->biCompression) {
 				case BI_RGB:
@@ -269,44 +274,16 @@ HRESULT CAviSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 				case FCC('mpg2'):
 				case FCC('MPG2'):
 				case FCC('MMES'):
-					{
-						size_t scCount = s->cs.GetCount();
-						if (scCount) {
-							__int64 cur_pos = m_pFile->GetPos();
-
-							m_pFile->Seek(s->cs[0].filepos);
-							CBaseSplitterFileEx::seqhdr h;
-							CMediaType mt2;
-							if (m_pFile->Read(h, s->cs[0].size, &mt2)) {
-								mts.Add(mt2);
-								m_pFile->Seek(cur_pos);
-								break;
-							}
-							m_pFile->Seek(cur_pos);
-						}
-						mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
-					}
+					mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
 					break;
 				case FCC('MPEG'):
 					mt.subtype = MEDIASUBTYPE_MPEG1Payload;
 					break;
-
 				case FCC('DXSB'):
 				case FCC('DXSA'):
 					label = L"XSub";
 				default:
 					mt.subtype = FOURCCMap(pbmi->biCompression);
-			}
-
-			if (pbmi->biCompression == FCC('H264') && s->strf.GetCount() > sizeof(BITMAPINFOHEADER)) {
-				size_t extralen	= s->strf.GetCount() - sizeof(BITMAPINFOHEADER);
-				BYTE* extra		= s->strf.GetData() + (s->strf.GetCount() - extralen);
-
-				CSize aspect(pbmi->biWidth, pbmi->biHeight);
-				ReduceDim(aspect);
-				CreateMPEG2VIfromAVC(&mt, pbmi, AvgTimePerFrame, aspect, extra, extralen); 
-
-				mts.Add(mt);
 			}
 
 			mt.formattype			= FORMAT_VideoInfo;
@@ -321,6 +298,60 @@ HRESULT CAviSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							 ? s->strh.dwSuggestedBufferSize*3/2
 							 : (pvih->bmiHeader.biWidth*pvih->bmiHeader.biHeight*4));
 			mts.Add(mt);
+
+			// building a special media type
+			switch (pbmi->biCompression) {
+				case FCC('HM10'):
+					if (s->cs.GetCount()) {
+						__int64 cur_pos = m_pFile->GetPos();
+						for (size_t i = 0; i < s->cs.GetCount() - 1; i++) {
+							if (s->cs[i].orgsize) {
+								m_pFile->Seek(s->cs[i].filepos);
+								CBaseSplitterFileEx::hevchdr h;
+								CMediaType mt2;
+								if (m_pFile->Read(h, s->cs[i].orgsize, &mt2)) {
+									mts.InsertAt(0, mt2);
+								}
+							
+								break;
+							}
+						}
+
+						m_pFile->Seek(cur_pos);
+					}
+				case FCC('mpg2'):
+				case FCC('MPG2'):
+				case FCC('MMES'):
+					if (s->cs.GetCount()) {
+						__int64 cur_pos = m_pFile->GetPos();
+
+						m_pFile->Seek(s->cs[0].filepos);
+						CBaseSplitterFileEx::seqhdr h;
+						CMediaType mt2;
+						if (m_pFile->Read(h, s->cs[0].size, &mt2)) {
+							mts.InsertAt(0, mt2);
+						}
+						m_pFile->Seek(cur_pos);
+					}
+					break;
+				case FCC('H264'):
+				case FCC('avc1'):
+					if (s->strf.GetCount() > sizeof(BITMAPINFOHEADER)) {
+						size_t extralen	= s->strf.GetCount() - sizeof(BITMAPINFOHEADER);
+						BYTE* extra		= s->strf.GetData() + (s->strf.GetCount() - extralen);
+
+						CSize aspect(pbmi->biWidth, pbmi->biHeight);
+						ReduceDim(aspect);
+
+						pbmi->biCompression = FCC('AVC1');
+
+						CMediaType mt2;
+						if (SUCCEEDED(CreateMPEG2VIfromAVC(&mt2, pbmi, AvgTimePerFrame, aspect, extra, extralen))) {
+							mts.InsertAt(0, mt2);
+						}
+					}
+					break;
+			}
 		} else if (s->strh.fccType == FCC('auds') || s->strh.fccType == FCC('amva')) {
 			label = L"Audio";
 
@@ -951,13 +982,13 @@ STDMETHODIMP CAviSplitterFilter::Apply()
 {
 #ifdef REGISTER_FILTER
 	CRegKey key;
-	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, _T("Software\\MPC-BE Filters\\AVI Splitter"))) {
-		//key.SetDWORDValue(_T("BadInterleavedSuport"), m_bBadInterleavedSuport);
-		key.SetDWORDValue(_T("NeededReindex"), m_bSetReindex);
+	if (ERROR_SUCCESS == key.Create(HKEY_CURRENT_USER, OPT_REGKEY_AVISplit)) {
+		key.SetDWORDValue(OPT_BadInterleaved, m_bBadInterleavedSuport);
+		key.SetDWORDValue(OPT_NeededReindex, m_bSetReindex);
 	}
 #else
-	//AfxGetApp()->WriteProfileInt(_T("Filters\\AVI Splitter"), _T("BadInterleavedSuport"), m_bBadInterleavedSuport);
-	AfxGetApp()->WriteProfileInt(_T("Filters\\AVI Splitter"), _T("NeededReindex"), m_bSetReindex);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_AVISplit, OPT_BadInterleaved, m_bBadInterleavedSuport);
+	AfxGetApp()->WriteProfileInt(OPT_SECTION_AVISplit, OPT_NeededReindex, m_bSetReindex);
 #endif
 	return S_OK;
 }

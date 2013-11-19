@@ -21,8 +21,10 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C2082189-3ECB-4079-91FA-89D3C8A305C0}</ProjectGuid>
     <RootNamespace>system</RootNamespace>
+    <ProjectName>system</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="..\..\..\platform.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
@@ -61,7 +63,6 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -111,7 +112,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\h\vd2\system\source\registrymemory.cpp" />
-    <ClCompile Include="linearalloc.cpp" />
     <ClCompile Include="source\bitmath.cpp" />
     <ClCompile Include="source\cache.cpp" />
     <ClCompile Include="source\cmdline.cpp" />

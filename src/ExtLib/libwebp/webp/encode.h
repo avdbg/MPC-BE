@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 //   WebP encoder: main interface
@@ -115,7 +117,8 @@ struct WebPConfig {
 
   int show_compressed;    // if true, export the compressed picture back.
                           // In-loop filtering is not applied.
-  int preprocessing;      // preprocessing filter (0=none, 1=segment-smooth)
+  int preprocessing;      // preprocessing filter:
+                          // 0=none, 1=segment-smooth, 2=pseudo-random dithering
   int partitions;         // log2(number of token partitions) in [0..3]. Default
                           // is set to 0 for easier progressive decoding.
   int partition_limit;    // quality degradation allowed to fit the 512k limit
@@ -360,8 +363,9 @@ WEBP_EXTERN(int) WebPPictureAlloc(WebPPicture* picture);
 // preserved.
 WEBP_EXTERN(void) WebPPictureFree(WebPPicture* picture);
 
-// Copy the pixels of *src into *dst, using WebPPictureAlloc. Upon return,
-// *dst will fully own the copied pixels (this is not a view).
+// Copy the pixels of *src into *dst, using WebPPictureAlloc. Upon return, *dst
+// will fully own the copied pixels (this is not a view). The 'dst' picture need
+// not be initialized as its content is overwritten.
 // Returns false in case of memory allocation error.
 WEBP_EXTERN(int) WebPPictureCopy(const WebPPicture* src, WebPPicture* dst);
 
@@ -392,7 +396,9 @@ WEBP_EXTERN(int) WebPPictureCrop(WebPPicture* picture,
 // the top and left coordinates will be snapped to even values.
 // Picture 'src' must out-live 'dst' picture. Self-extraction of view is allowed
 // ('src' equal to 'dst') as a mean of fast-cropping (but note that doing so,
-// the original dimension will be lost).
+// the original dimension will be lost). Picture 'dst' need not be initialized
+// with WebPPictureInit() if it is different from 'src', since its content will
+// be overwritten.
 // Returns false in case of memory allocation error or invalid parameters.
 WEBP_EXTERN(int) WebPPictureView(const WebPPicture* src,
                                  int left, int top, int width, int height,
@@ -437,6 +443,13 @@ WEBP_EXTERN(int) WebPPictureImportBGRX(
 // Returns false in case of error.
 WEBP_EXTERN(int) WebPPictureARGBToYUVA(WebPPicture* picture,
                                        WebPEncCSP colorspace);
+
+// Same as WebPPictureARGBToYUVA(), but the conversion is done using
+// pseudo-random dithering with a strength 'dithering' between
+// 0.0 (no dithering) and 1.0 (maximum dithering). This is useful
+// for photographic picture.
+WEBP_EXTERN(int) WebPPictureARGBToYUVADithered(
+    WebPPicture* picture, WebPEncCSP colorspace, float dithering);
 
 // Converts picture->yuv to picture->argb and sets picture->use_argb to true.
 // The input format must be YUV_420 or YUV_420A.

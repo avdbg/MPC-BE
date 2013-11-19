@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -179,9 +177,9 @@ CRect CPlayerSeekBar::GetChannelRect()
 {
 	CRect r;
 	GetClientRect(&r);
-	
+
 	if (AfxGetAppSettings().fDisableXPToolbars) {
-		//r.DeflateRect(1,1,1,1); 
+		//r.DeflateRect(1,1,1,1);
 	} else {
 		r.DeflateRect(8, 9, 9, 0);
 		r.bottom = r.top + 5;
@@ -341,11 +339,11 @@ void CPlayerSeekBar::OnPaint()
 
 		CPen penPlayed(s.clrFaceABGR == 0x00ff00ff ? PS_NULL : PS_SOLID, 0, s.clrFaceABGR);
 		CPen penPlayedOutline(s.clrOutlineABGR == 0x00ff00ff ? PS_NULL : PS_SOLID, 0, s.clrOutlineABGR);
-		
+
 		rc = GetChannelRect();
 		int nposx = GetThumbRect().right-2;
 		int nposy = r.top;
-		
+
 		ThemeRGB(30, 35, 40, R, G, B);
 		CPen penPlayed1(PS_SOLID,0,RGB(R,G,B));
 		memdc.SelectObject(&penPlayed1);
@@ -355,8 +353,8 @@ void CPlayerSeekBar::OnPaint()
 		ThemeRGB(80, 85, 90, R, G, B);
 		CPen penPlayed2(PS_SOLID,0,RGB(R,G,B));
 		memdc.SelectObject(&penPlayed2);
-		memdc.MoveTo(rc.left -1, rc.top +19);
-		memdc.LineTo(rc.right+2, rc.top +19);
+		memdc.MoveTo(rc.left -1, rc.bottom-1);
+		memdc.LineTo(rc.right+2, rc.bottom-1);
 
 		// buffer
 		r_Lock.SetRect(-1,-1,-1,-1);
@@ -425,9 +423,8 @@ void CPlayerSeekBar::OnPaint()
 					for (DWORD idx = 0; idx < m_pChapterBag->ChapGetCount(); idx++) {
 						CRect r = GetChannelRect();
 						REFERENCE_TIME rt;
-						CComBSTR name;
 
-						if (FAILED(m_pChapterBag->ChapGet(idx, &rt, &name))) {
+						if (FAILED(m_pChapterBag->ChapGet(idx, &rt, NULL))) {
 							continue;
 						}
 
@@ -436,7 +433,7 @@ void CPlayerSeekBar::OnPaint()
 						}
 
 						int x = r.left + (int)((m_start < m_stop) ? (__int64)r.Width() * (rt - m_start) / (m_stop - m_start) : 0);
-			
+
 						// можно вместо рисования руками иконку как маркер подтянуть
 						// HICON appIcon = (HICON)::LoadImage(AfxGetResourceHandle(), MAKEINTRESOURCE(IDR_MARKERS), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
 						// ::DrawIconEx(memdc, x, rc2.top + 10, appIcon, 0,0, 0, NULL, DI_NORMAL);
@@ -459,22 +456,9 @@ void CPlayerSeekBar::OnPaint()
 			CFont font2;
 			ThemeRGB(135, 140, 145, R, G, B);
 			memdc.SetTextColor(RGB(R,G,B));
-			font2.CreateFont(
-							13,           // nHeight
-							0,            // nWidth
-							0,            // nEscapement
-							0,            // nOrientation
-							FW_NORMAL,    // nWeight
-							FALSE,        // bItalic
-							FALSE,        // bUnderline
-							0,            // cStrikeOut
-							ANSI_CHARSET, // nCharSet
-							OUT_RASTER_PRECIS,          // nOutPrecision
-							CLIP_DEFAULT_PRECIS,        // nClipPrecision
-							ANTIALIASED_QUALITY,        // nQuality
-							VARIABLE_PITCH | FF_MODERN, // nPitchAndFamily
-							_T("Tahoma")                // lpszFacename
-							);
+
+			font2.CreateFont(int(13 * s.scalefont), 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
+ 					  OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH|FF_DONTCARE, _T("Tahoma"));
 
 			CFont* oldfont2 = memdc.SelectObject(&font2);
 			SetBkMode(memdc, TRANSPARENT);
@@ -633,7 +617,7 @@ void CPlayerSeekBar::OnLButtonUp(UINT nFlags, CPoint point)
 	__int64 pos = CalculatePosition(point);
 
 	if (((CMainFrame*)GetParentFrame())->ValidateSeek(pos, m_stop)) {
-	
+
 		if (AfxGetAppSettings().fDisableXPToolbars && m_fEnabled) {
 			GetParent()->PostMessage(WM_HSCROLL, MAKEWPARAM((short)m_pos, SB_THUMBPOSITION), (LPARAM)m_hWnd);
 		}
@@ -678,7 +662,7 @@ void CPlayerSeekBar::UpdateTooltip(CPoint point)
 			TrackMouseEvent(&tme);
 
 			m_tooltipState = TOOLTIP_TRIGGERED;
-			m_tooltipTimer = SetTimer(m_tooltipTimer, pFrame->m_wndView2.IsWindowVisible() ? 10 : SHOW_DELAY, NULL);
+			m_tooltipTimer = SetTimer(m_tooltipTimer, pFrame->m_wndPreView.IsWindowVisible() ? 10 : SHOW_DELAY, NULL);
 		}
 	} else {
 		HideToolTip();
@@ -686,7 +670,7 @@ void CPlayerSeekBar::UpdateTooltip(CPoint point)
 
 	if (m_tooltipState == TOOLTIP_VISIBLE && m_tooltipPos != m_tooltipLastPos) {
 		UpdateToolTipText();
-		
+
 		if (!pFrame->CanPreviewUse()) UpdateToolTipPosition(point);
 		m_tooltipTimer = SetTimer(m_tooltipTimer, pFrame->CanPreviewUse() ? 10 : AUTOPOP_DELAY, NULL);
 	}
@@ -721,7 +705,7 @@ void CPlayerSeekBar::OnMouseMove(UINT nFlags, CPoint point)
 		if (pFrame->CanPreviewUse()) UpdateToolTipPosition(point);
 	} else {
 		pFrame->PreviewWindowHide();
-	}	
+	}
 	CDialogBar::OnMouseMove(nFlags, point);
 }
 
@@ -756,7 +740,6 @@ BOOL CPlayerSeekBar::OnEraseBkgnd(CDC* pDC)
 
 BOOL CPlayerSeekBar::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
-	
 	CPoint p;
 	GetCursorPos(&p);
 	ScreenToClient(&p);
@@ -765,8 +748,8 @@ BOOL CPlayerSeekBar::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 
 		return TRUE;
 	}
-	
-	
+
+
 	if (m_fEnabled && m_start < m_stop && m_stop != 100) {
 		::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_HAND));
 
@@ -838,7 +821,7 @@ void CPlayerSeekBar::UpdateToolTipPosition(CPoint& point)
 
 	if (pFrame->CanPreviewUse()) {
 		CRect Rect;
-		pFrame->m_wndView2.GetWindowRect(Rect);
+		pFrame->m_wndPreView.GetWindowRect(Rect);
 		int r_width  = Rect.Width();
 		int r_height = Rect.Height();
 
@@ -862,7 +845,7 @@ void CPlayerSeekBar::UpdateToolTipPosition(CPoint& point)
 			}
 		}
 
-		pFrame->m_wndView2.MoveWindow(point.x, point.y, r_width, r_height);
+		pFrame->m_wndPreView.MoveWindow(point.x, point.y, r_width, r_height);
 	} else {
 		CSize size = m_tooltip.GetBubbleSize(&m_ti);
 		CRect r;
@@ -905,7 +888,7 @@ void CPlayerSeekBar::UpdateToolTipText()
 		m_ti.lpszText = (LPTSTR)(LPCTSTR)tooltipText;
 		m_tooltip.SendMessage(TTM_SETTOOLINFO, 0, (LPARAM)&m_ti);
 	} else {
-		pFrame->m_wndView2.SetWindowText(tooltipText);
+		pFrame->m_wndPreView.SetWindowText(tooltipText);
 	}
 
 	{
@@ -933,7 +916,7 @@ void CPlayerSeekBar::OnMButtonDown(UINT nFlags, CPoint point)
 {
 	CMainFrame* pFrame = ((CMainFrame*)GetParentFrame());
 
-	if (pFrame->m_wndView2) {
+	if (pFrame->m_wndPreView) {
 		pFrame->PreviewWindowHide();
 		AfxGetAppSettings().fSmartSeek = !AfxGetAppSettings().fSmartSeek;
 		OnMouseMove(nFlags,point);

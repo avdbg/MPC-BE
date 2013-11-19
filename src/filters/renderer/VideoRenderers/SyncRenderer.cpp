@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -67,7 +65,7 @@ CBaseAP::CBaseAP(HWND hWnd, bool bFullscreen, HRESULT& hr, CString &_Error):
 	m_TextScale(1.0),
 	m_dMainThreadId(0),
 	m_bNeedCheckSample(true),
-	m_hEvtQuit(INVALID_HANDLE_VALUE),
+	m_hEvtQuit(NULL),
 	m_bIsFullscreen(bFullscreen),
 	m_uSyncGlitches(0),
 	m_pGenlock(NULL),
@@ -1127,8 +1125,7 @@ HRESULT CBaseAP::InitResizers(float bicubicA, bool bNeedScreenSizeTexture)
 			ASSERT(0);
 			m_pScreenSizeTemporaryTexture[0] = NULL; // will do 1 pass then
 		}
-	}
-	if (m_bicubicA || bNeedScreenSizeTexture) {
+
 		if (FAILED(m_pD3DDev->CreateTexture(
 					   min(m_ScreenSize.cx, (int)m_caps.MaxTextureWidth), min(max(m_ScreenSize.cy, m_NativeVideoSize.cy), (int)m_caps.MaxTextureHeight), 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
 					   D3DPOOL_DEFAULT, &m_pScreenSizeTemporaryTexture[1], NULL))) {
@@ -1914,8 +1911,10 @@ void CBaseAP::DrawText(const RECT &rc, const CString &strText, int _Priority)
 		return;
 	}
 	int Quality = 1;
-	D3DXCOLOR Color1(1.0f, 0.2f, 0.2f, 1.0f );
-	D3DXCOLOR Color0(0.0f, 0.0f, 0.0f, 1.0f );
+	//D3DXCOLOR Color1(1.0f, 0.2f, 0.2f, 1.0f); // red
+	//D3DXCOLOR Color1(1.0f, 1.0f, 1.0f, 1.0f); // white
+	D3DXCOLOR Color1(1.0f, 0.8f, 0.0f, 1.0f); // yellow
+	D3DXCOLOR Color0(0.0f, 0.0f, 0.0f, 1.0f); // black
 	RECT Rect1 = rc;
 	RECT Rect2 = rc;
 	if (Quality == 1) {
@@ -2114,10 +2113,6 @@ void CBaseAP::DrawStats()
 			OffsetRect(&rc, 0, TextHeight);
 
 			strText.Format(L"%-13s: %s", GetDXVAVersion(), GetDXVADecoderDescription());
-			DrawText(rc, strText, 1);
-			OffsetRect(&rc, 0, TextHeight);
-
-			strText.Format(L"DirectX SDK  : %u", GetRenderersData()->GetDXSdkRelease());
 			DrawText(rc, strText, 1);
 			OffsetRect(&rc, 0, TextHeight);
 
@@ -2395,14 +2390,14 @@ CSyncAP::CSyncAP(HWND hWnd, bool bFullscreen, HRESULT& hr, CString &_Error): CBa
 	HMODULE		hLib;
 	CRenderersSettings& s = GetRenderersSettings();
 
-	m_nResetToken = 0;
-	m_hRenderThread  = INVALID_HANDLE_VALUE;
-	m_hMixerThread= INVALID_HANDLE_VALUE;
-	m_hEvtFlush = INVALID_HANDLE_VALUE;
-	m_hEvtQuit = INVALID_HANDLE_VALUE;
-	m_hEvtSkip = INVALID_HANDLE_VALUE;
-	m_bEvtQuit = 0;
-	m_bEvtFlush = 0;
+	m_nResetToken   = 0;
+	m_hRenderThread = NULL;
+	m_hMixerThread  = NULL;
+	m_hEvtFlush     = NULL;
+	m_hEvtQuit      = NULL;
+	m_hEvtSkip      = NULL;
+	m_bEvtQuit      = 0;
+	m_bEvtFlush     = 0;
 
 	if (FAILED (hr)) {
 		_Error += L"SyncAP failed\n";
@@ -2517,28 +2512,28 @@ void CSyncAP::StopWorkerThreads()
 		m_bEvtQuit = true;
 		SetEvent(m_hEvtSkip);
 		m_bEvtSkip = true;
-		if ((m_hRenderThread != INVALID_HANDLE_VALUE) && (WaitForSingleObject (m_hRenderThread, 10000) == WAIT_TIMEOUT)) {
+		if (m_hRenderThread && WaitForSingleObject (m_hRenderThread, 10000) == WAIT_TIMEOUT) {
 			ASSERT (FALSE);
 			TerminateThread (m_hRenderThread, 0xDEAD);
 		}
-		if (m_hRenderThread != INVALID_HANDLE_VALUE) {
+		if (m_hRenderThread) {
 			CloseHandle (m_hRenderThread);
 		}
-		if ((m_hMixerThread != INVALID_HANDLE_VALUE) && (WaitForSingleObject (m_hMixerThread, 10000) == WAIT_TIMEOUT)) {
+		if (m_hMixerThread && WaitForSingleObject (m_hMixerThread, 10000) == WAIT_TIMEOUT) {
 			ASSERT (FALSE);
 			TerminateThread (m_hMixerThread, 0xDEAD);
 		}
-		if (m_hMixerThread != INVALID_HANDLE_VALUE) {
+		if (m_hMixerThread) {
 			CloseHandle (m_hMixerThread);
 		}
 
-		if (m_hEvtFlush != INVALID_HANDLE_VALUE) {
+		if (m_hEvtFlush) {
 			CloseHandle(m_hEvtFlush);
 		}
-		if (m_hEvtQuit != INVALID_HANDLE_VALUE) {
+		if (m_hEvtQuit) {
 			CloseHandle(m_hEvtQuit);
 		}
-		if (m_hEvtSkip != INVALID_HANDLE_VALUE) {
+		if (m_hEvtSkip) {
 			CloseHandle(m_hEvtSkip);
 		}
 
@@ -2942,24 +2937,8 @@ HRESULT CSyncAP::CreateProposedOutputType(IMFMediaType* pMixerType, IMFMediaType
 	m_AspectRatio.cx *= VideoFormat->videoInfo.dwWidth;
 	m_AspectRatio.cy *= VideoFormat->videoInfo.dwHeight;
 
-	bool bDoneSomething = true;
-
 	if (m_AspectRatio.cx >= 1 && m_AspectRatio.cy >= 1) {
-		while (bDoneSomething) {
-			bDoneSomething = false;
-			INT MinNum = min(m_AspectRatio.cx, m_AspectRatio.cy);
-			INT i;
-			for (i = 2; i < MinNum+1; ++i) {
-				if (m_AspectRatio.cx%i == 0 && m_AspectRatio.cy%i ==0) {
-					break;
-				}
-			}
-			if (i != MinNum + 1) {
-				m_AspectRatio.cx = m_AspectRatio.cx / i;
-				m_AspectRatio.cy = m_AspectRatio.cy / i;
-				bDoneSomething = true;
-			}
-		}
+		ReduceDim(m_AspectRatio);
 	}
 
 	pMixerType->FreeRepresentation(FORMAT_MFVideoFormat, (void*)pAMMedia);

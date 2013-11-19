@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -173,6 +171,13 @@ HRESULT CDX7AllocatorPresenter::CreateDevice()
 			ddsd.ddpfPixelFormat.dwRGBBitCount <= 8) {
 		return DDERR_INVALIDMODE;
 	}
+	
+	// HACK: This fixes an issue when multiple display is connected, and
+	// primary display has lower resolution than secondary one.
+	// 2048 -- it's a max surface size for DD.
+	// ToDo: better to use EnumDisplayModes.
+	ddsd.dwWidth = 2048;
+	ddsd.dwHeight = 2048;	
 
 	m_ScreenSize.SetSize(ddsd.dwWidth, ddsd.dwHeight);
 

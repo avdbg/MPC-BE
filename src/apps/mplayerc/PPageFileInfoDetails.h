@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -34,27 +32,25 @@ class CPPageFileInfoDetails : public CPropertyPage
 	DECLARE_DYNAMIC(CPPageFileInfoDetails)
 
 private:
-	CComPtr<IFilterGraph> m_pFG;
-	CComPtr<ISubPicAllocatorPresenter> m_pCAP;
+	HICON	m_hIcon;
 
-	HICON m_hIcon;
+	CStatic	m_icon;
+	CString	m_fn;
+	CString	m_type;
+	CString	m_size;
+	CString	m_time;
+	CString	m_res;
+	CString	m_created;
+	CString m_encodingText;
+	CEdit	m_encoding;
 
-	void InitEncoding();
+	void InitEncoding(IFilterGraph* pFG);
 
 public:
 	CPPageFileInfoDetails(CString fn, IFilterGraph* pFG, ISubPicAllocatorPresenter* pCAP);
 	virtual ~CPPageFileInfoDetails();
 
 	enum { IDD = IDD_FILEPROPDETAILS };
-
-	CStatic m_icon;
-	CString m_fn;
-	CString m_type;
-	CString m_size;
-	CString m_time;
-	CString m_res;
-	CString m_created;
-	CEdit   m_encoding;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);

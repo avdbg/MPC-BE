@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -33,13 +31,10 @@
 
 #define ISVALIDPID(pid)		(pid >= 0x10 && pid < 0x1fff)
 
-#define MVC_SUPPORT			0 // set 1 to enable MVC splitting support
-
 class CMpegSplitterFile : public CBaseSplitterFileEx
 {
 	CAtlMap<WORD, BYTE> m_pid2pes;
 	CAtlMap<WORD, CMpegSplitterFile::avchdr> avch;
-	bool m_bIsHdmv;
 	bool m_init;
 
 	HRESULT Init(IAsyncReader* pAsyncReader);
@@ -47,8 +42,9 @@ class CMpegSplitterFile : public CBaseSplitterFileEx
 	void OnComplete(IAsyncReader* pAsyncReader);
 
 public:
+	bool m_bIsBD;
 	CHdmvClipInfo &m_ClipInfo;
-	CMpegSplitterFile(IAsyncReader* pAsyncReader, HRESULT& hr, bool bIsHdmv, CHdmvClipInfo &ClipInfo, bool ForcedSub, int AC3CoreOnly, bool m_AlternativeDuration, bool SubEmptyPin);
+	CMpegSplitterFile(IAsyncReader* pAsyncReader, HRESULT& hr, CHdmvClipInfo &ClipInfo, bool bIsBD, bool ForcedSub, int AC3CoreOnly, bool m_AlternativeDuration, bool SubEmptyPin);
 
 	REFERENCE_TIME NextPTS(DWORD TrackNum);
 
@@ -82,12 +78,7 @@ public:
 		}
 	};
 
-	enum {video, audio, subpic,
-#if MVC_SUPPORT
-		  stereo,
-#endif
-		  unknown
-		 };
+	enum stream_type { video, audio, subpic, stereo, unknown };
 
 	class CStreamList : public CAtlList<stream>
 	{
@@ -142,9 +133,7 @@ public:
 				type == video	? L"Video" :
 				type == audio	? L"Audio" :
 				type == subpic	? L"Subtitle" :
-#if MVC_SUPPORT
 				type == stereo	? L"Stereo" :
-#endif
 				L"Unknown";
 		}
 
@@ -166,9 +155,10 @@ public:
 	void  AddHdmvPGStream(WORD pid, const char* language_code);
 	CAtlList<stream>* GetMasterStream();
 	bool IsHdmv() {
-		return m_bIsHdmv;
+		return m_ClipInfo.IsHdmv();
 	};
 
+	// program map table - mpeg-ts
 	struct program {
 		WORD program_number;
 		struct stream {
@@ -185,13 +175,16 @@ public:
 			memset(this, 0, sizeof(*this));
 		}
 	};
-
 	CAtlMap<WORD, program> m_programs;
 
 	void SearchPrograms(__int64 start, __int64 stop);
 	void UpdatePrograms(const trhdr& h, bool UpdateLang = true);
 	void UpdatePrograms(CGolombBuffer gb, WORD pid, bool UpdateLang = true);
 	const program* FindProgram(WORD pid, int &iStream, const CHdmvClipInfo::Stream * &_pClipInfo);
+
+	// program stream map - mpeg-ps
+	PES_STREAM_TYPE m_psm[256];
+	void UpdatePSM();
 
 	CAtlMap<DWORD, CStringA> m_pPMT_Lang;
 

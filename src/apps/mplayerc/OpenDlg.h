@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -71,7 +69,7 @@ class COpenFileDlg : public CFileDialog
 
 private:
 	TCHAR* m_buff;
-	TCHAR* m_InitialDir; 
+	TCHAR* m_InitialDir;
 	CAtlArray<CString>& m_mask;
 
 public:

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,6 +21,7 @@
 
 #include "stdafx.h"
 #include "AppSettings.h"
+#include <atlpath.h>
 #include "MiniDump.h"
 #include "../../DSUtil/SysVersion.h"
 
@@ -36,101 +35,106 @@ CAppSettings::CAppSettings()
 	, fIsFSWindow(false)
 	, fShadersNeedSave(false)
 	, fReset(false)
+	, scalefont(1.0)
 	, p_MainWnd(NULL)
 {
 	// Internal source filter
-	SrcFiltersKeys[SRC_CDDA] = _T("SRC_CDDA");
-	SrcFiltersKeys[SRC_CDXA] = _T("SRC_CDXA");
-	SrcFiltersKeys[SRC_VTS] = _T("SRC_VTS");
-	SrcFiltersKeys[SRC_FLIC] = _T("SRC_FLIC");
-	SrcFiltersKeys[SRC_D2V] = _T("SRC_D2V");
-	SrcFiltersKeys[SRC_DTS] = _T("SRC_DTS");
-	SrcFiltersKeys[SRC_DTSAC3] = _T("SRC_DTSAC3");
-	SrcFiltersKeys[SRC_MATROSKA] = _T("SRC_MATROSKA");
-	SrcFiltersKeys[SRC_SHOUTCAST] = _T("SRC_SHOUTCAST");
-	SrcFiltersKeys[SRC_REALMEDIA] = _T("SRC_REALMEDIA");
-	SrcFiltersKeys[SRC_ROQ] = _T("SRC_ROQ");
-	SrcFiltersKeys[SRC_AVI] = _T("SRC_AVI");
-	SrcFiltersKeys[SRC_OGG] = _T("SRC_OGG");
-	SrcFiltersKeys[SRC_MPEG] = _T("SRC_MPEG");
-	SrcFiltersKeys[SRC_MPA] = _T("SRC_MPA");
-	SrcFiltersKeys[SRC_DSM] = _T("SRC_DSM");
-	SrcFiltersKeys[SRC_SUBS] = _T("SRC_SUBS");
-	SrcFiltersKeys[SRC_MP4] = _T("SRC_MP4");
-	SrcFiltersKeys[SRC_FLV] = _T("SRC_FLV");
-	SrcFiltersKeys[SRC_FLAC] = _T("SRC_FLAC");
-	SrcFiltersKeys[SRC_WPAC] = _T("SRC_WPAC");
-	SrcFiltersKeys[SRC_MPAC] = _T("SRC_MPAC");
-	SrcFiltersKeys[SRC_AMR] = _T("SRC_AMR");
-	SrcFiltersKeys[SRC_TTA] = _T("SRC_TTA");
+	SrcFiltersKeys[SRC_CDDA]		= _T("SRC_CDDA");
+	SrcFiltersKeys[SRC_CDXA]		= _T("SRC_CDXA");
+	SrcFiltersKeys[SRC_VTS]			= _T("SRC_VTS");
+	SrcFiltersKeys[SRC_FLIC]		= _T("SRC_FLIC");
+	SrcFiltersKeys[SRC_DTS]			= _T("SRC_DTS");
+	SrcFiltersKeys[SRC_DTSAC3]		= _T("SRC_DTSAC3");
+	SrcFiltersKeys[SRC_MATROSKA]	= _T("SRC_MATROSKA");
+	SrcFiltersKeys[SRC_SHOUTCAST]	= _T("SRC_SHOUTCAST");
+	SrcFiltersKeys[SRC_REALMEDIA]	= _T("SRC_REALMEDIA");
+	SrcFiltersKeys[SRC_ROQ]			= _T("SRC_ROQ");
+	SrcFiltersKeys[SRC_AVI]			= _T("SRC_AVI");
+	SrcFiltersKeys[SRC_OGG]			= _T("SRC_OGG");
+	SrcFiltersKeys[SRC_MPEG]		= _T("SRC_MPEG");
+	SrcFiltersKeys[SRC_MPA]			= _T("SRC_MPA");
+	SrcFiltersKeys[SRC_DSM]			= _T("SRC_DSM");
+	SrcFiltersKeys[SRC_SUBS]		= _T("SRC_SUBS");
+	SrcFiltersKeys[SRC_MP4]			= _T("SRC_MP4");
+	SrcFiltersKeys[SRC_FLV]			= _T("SRC_FLV");
+	SrcFiltersKeys[SRC_FLAC]		= _T("SRC_FLAC");
+	SrcFiltersKeys[SRC_WPAC]		= _T("SRC_WPAC");
+	SrcFiltersKeys[SRC_MPAC]		= _T("SRC_MPAC");
+	SrcFiltersKeys[SRC_AMR]			= _T("SRC_AMR");
+	SrcFiltersKeys[SRC_TTA]			= _T("SRC_TTA");
+	SrcFiltersKeys[SRC_UDP]			= _T("SRC_UDP");
+	SrcFiltersKeys[SRC_TAK]			= _T("SRC_TAK");
+	SrcFiltersKeys[SRC_RAWVIDEO]	= _T("SRC_RAWVIDEO");
 
 	// Internal decoders
-	TraFiltersKeys[TRA_MPEG1] = _T("TRA_MPEG1");
-	TraFiltersKeys[TRA_MPEG2] = _T("TRA_MPEG2");
-	TraFiltersKeys[TRA_RA] = _T("TRA_RA");
-	TraFiltersKeys[TRA_DTS] = _T("TRA_DTS");
-	TraFiltersKeys[TRA_LPCM] = _T("TRA_LPCM");
-	TraFiltersKeys[TRA_AC3] = _T("TRA_AC3");
-	TraFiltersKeys[TRA_PS2AUD] = _T("TRA_PS2AUD");
-	TraFiltersKeys[TRA_PCM] = _T("TRA_PCM");
+	TraFiltersKeys[TRA_MPEG1]		= _T("TRA_MPEG1");
+	TraFiltersKeys[TRA_MPEG2]		= _T("TRA_MPEG2");
+	TraFiltersKeys[TRA_RA]			= _T("TRA_RA");
+	TraFiltersKeys[TRA_DTS]			= _T("TRA_DTS");
+	TraFiltersKeys[TRA_LPCM]		= _T("TRA_LPCM");
+	TraFiltersKeys[TRA_AC3]			= _T("TRA_AC3");
+	TraFiltersKeys[TRA_PS2AUD]		= _T("TRA_PS2AUD");
+	TraFiltersKeys[TRA_PCM]			= _T("TRA_PCM");
 
 	// Internal DXVA decoders
-	DXVAFiltersKeys[TRA_DXVA_H264] = _T("TRA_DXVA_H264");
-	DXVAFiltersKeys[TRA_DXVA_VC1] = _T("TRA_DXVA_VC1");
-	DXVAFiltersKeys[TRA_DXVA_WMV3] = _T("TRA_DXVA_WMV3");
-	DXVAFiltersKeys[TRA_DXVA_MPEG2] = _T("TRA_DXVA_MPEG2");
+	DXVAFiltersKeys[TRA_DXVA_H264]	= _T("TRA_DXVA_H264");
+	DXVAFiltersKeys[TRA_DXVA_VC1]	= _T("TRA_DXVA_VC1");
+	DXVAFiltersKeys[TRA_DXVA_WMV3]	= _T("TRA_DXVA_WMV3");
+	DXVAFiltersKeys[TRA_DXVA_MPEG2]	= _T("TRA_DXVA_MPEG2");
 
 	// Internal FFMpeg decoders
-	FFMFiltersKeys[FFM_MPA] = _T("FFM_MPA");
-	FFMFiltersKeys[FFM_AAC] = _T("FFM_AAC");
-	FFMFiltersKeys[FFM_ALAC] = _T("FFM_ALAC");
-	FFMFiltersKeys[FFM_ALS] = _T("FFM_ALS");
-	FFMFiltersKeys[FFM_VORBIS] = _T("FFM_VORBIS");
-	FFMFiltersKeys[FFM_NELLY] = _T("FFM_NELLY");
-	FFMFiltersKeys[FFM_AMR] = _T("FFM_AMR");
-	FFMFiltersKeys[FFM_H264] = _T("FFM_H264");
-	FFMFiltersKeys[FFM_VC1] = _T("FFM_VC1");
-	FFMFiltersKeys[FFM_FLAC] = _T("FFM_FLAC");
-	FFMFiltersKeys[FFM_FLV4] = _T("FFM_FLV4");
-	FFMFiltersKeys[FFM_VP356] = _T("FFM_VP356");
-	FFMFiltersKeys[FFM_VP8] = _T("FFM_VP8");
-	FFMFiltersKeys[FFM_XVID] = _T("FFM_XVID");
-	FFMFiltersKeys[FFM_DIVX] = _T("FFM_DIVX");
-	FFMFiltersKeys[FFM_MSMPEG4] = _T("FFM_MSMPEG4");
-	FFMFiltersKeys[FFM_WMV] = _T("FFM_WMV");
-	FFMFiltersKeys[FFM_SVQ3] = _T("FFM_SVQ3");
-	FFMFiltersKeys[FFM_H263] = _T("FFM_H263");
-	FFMFiltersKeys[FFM_DIRAC] = _T("FFM_DIRAC");
-	FFMFiltersKeys[FFM_DV] = _T("FFM_DV");
-	FFMFiltersKeys[FFM_THEORA] = _T("FFM_THEORA");
-	FFMFiltersKeys[FFM_AMVV] = _T("FFM_AMVV");
-	FFMFiltersKeys[FFM_MJPEG] = _T("FFM_MJPEG");
-	FFMFiltersKeys[FFM_INDEO] = _T("FFM_INDEO");
-	FFMFiltersKeys[FFM_SCREC] = _T("FFM_SCREC");
-	FFMFiltersKeys[FFM_UTVD] = _T("FFM_UTVD");
-	FFMFiltersKeys[FFM_LAGARITH] = _T("FFM_LAGARITH");
-	FFMFiltersKeys[FFM_WPAC] = _T("FFM_WPAC");
-	FFMFiltersKeys[FFM_MPAC] = _T("FFM_MPAC");
-	FFMFiltersKeys[FFM_QDM2] = _T("FFM_QDM2");
-	FFMFiltersKeys[FFM_APE] = _T("FFM_APE");
-	FFMFiltersKeys[FFM_TTA] = _T("FFM_TTA");
-	FFMFiltersKeys[FFM_PRORES] = _T("FFM_PRORES");
-	FFMFiltersKeys[FFM_TRUESPEECH] = _T("FFM_TRUESPEECH");
-	FFMFiltersKeys[FFM_WMAPRO] = _T("FFM_WMAPRO");
-	FFMFiltersKeys[FFM_WMA2] = _T("FFM_WMA2");
-	FFMFiltersKeys[FFM_WMALOSS] = _T("FFM_WMALOSS");
-	FFMFiltersKeys[FFM_BINKV] = _T("FFM_BINKV");
-	FFMFiltersKeys[FFM_BINKA] = _T("FFM_BINKA");
-	FFMFiltersKeys[FFM_IAC] = _T("FFM_IAC");
-	FFMFiltersKeys[FFM_OPUS] = _T("FFM_OPUS");
-	FFMFiltersKeys[FFM_PNG] = _T("FFM_PNG");
-	FFMFiltersKeys[FFM_WMAVOICE] = _T("FFM_WMAVOICE");
-	FFMFiltersKeys[FFM_CLLC] = _T("FFM_CLLC");
-	FFMFiltersKeys[FFM_SPEEX] = _T("FFM_SPEEX");
-	FFMFiltersKeys[FFM_RV] = _T("FFM_RV");
-	FFMFiltersKeys[FFM_V210] = _T("FFM_V210");
-	FFMFiltersKeys[FFM_MPEG2] = _T("FFM_MPEG2");
-	FFMFiltersKeys[FFM_MPEG1] = _T("FFM_MPEG1");
+	FFMFiltersKeys[FFM_MPA]			= _T("FFM_MPA");
+	FFMFiltersKeys[FFM_AAC]			= _T("FFM_AAC");
+	FFMFiltersKeys[FFM_ALAC]		= _T("FFM_ALAC");
+	FFMFiltersKeys[FFM_ALS]			= _T("FFM_ALS");
+	FFMFiltersKeys[FFM_VORBIS]		= _T("FFM_VORBIS");
+	FFMFiltersKeys[FFM_NELLY]		= _T("FFM_NELLY");
+	FFMFiltersKeys[FFM_AMR]			= _T("FFM_AMR");
+	FFMFiltersKeys[FFM_H264]		= _T("FFM_H264");
+	FFMFiltersKeys[FFM_VC1]			= _T("FFM_VC1");
+	FFMFiltersKeys[FFM_FLAC]		= _T("FFM_FLAC");
+	FFMFiltersKeys[FFM_FLV4]		= _T("FFM_FLV4");
+	FFMFiltersKeys[FFM_VP356]		= _T("FFM_VP356");
+	FFMFiltersKeys[FFM_VP8]			= _T("FFM_VP8");
+	FFMFiltersKeys[FFM_XVID]		= _T("FFM_XVID");
+	FFMFiltersKeys[FFM_DIVX]		= _T("FFM_DIVX");
+	FFMFiltersKeys[FFM_MSMPEG4]		= _T("FFM_MSMPEG4");
+	FFMFiltersKeys[FFM_WMV]			= _T("FFM_WMV");
+	FFMFiltersKeys[FFM_SVQ3]		= _T("FFM_SVQ3");
+	FFMFiltersKeys[FFM_H263]		= _T("FFM_H263");
+	FFMFiltersKeys[FFM_DIRAC]		= _T("FFM_DIRAC");
+	FFMFiltersKeys[FFM_DV]			= _T("FFM_DV");
+	FFMFiltersKeys[FFM_THEORA]		= _T("FFM_THEORA");
+	FFMFiltersKeys[FFM_AMVV]		= _T("FFM_AMVV");
+	FFMFiltersKeys[FFM_MJPEG]		= _T("FFM_MJPEG");
+	FFMFiltersKeys[FFM_INDEO]		= _T("FFM_INDEO");
+	FFMFiltersKeys[FFM_SCREC]		= _T("FFM_SCREC");
+	FFMFiltersKeys[FFM_UTVD]		= _T("FFM_UTVD");
+	FFMFiltersKeys[FFM_LAGARITH]	= _T("FFM_LAGARITH");
+	FFMFiltersKeys[FFM_WPAC]		= _T("FFM_WPAC");
+	FFMFiltersKeys[FFM_MPAC]		= _T("FFM_MPAC");
+	FFMFiltersKeys[FFM_QDM2]		= _T("FFM_QDM2");
+	FFMFiltersKeys[FFM_APE]			= _T("FFM_APE");
+	FFMFiltersKeys[FFM_TAK]			= _T("FFM_TAK");
+	FFMFiltersKeys[FFM_TTA]			= _T("FFM_TTA");
+	FFMFiltersKeys[FFM_PRORES]		= _T("FFM_PRORES");
+	FFMFiltersKeys[FFM_TRUESPEECH]	= _T("FFM_TRUESPEECH");
+	FFMFiltersKeys[FFM_WMAPRO]		= _T("FFM_WMAPRO");
+	FFMFiltersKeys[FFM_WMA2]		= _T("FFM_WMA2");
+	FFMFiltersKeys[FFM_WMALOSS]		= _T("FFM_WMALOSS");
+	FFMFiltersKeys[FFM_BINKV]		= _T("FFM_BINKV");
+	FFMFiltersKeys[FFM_BINKA]		= _T("FFM_BINKA");
+	FFMFiltersKeys[FFM_IAC]			= _T("FFM_IAC");
+	FFMFiltersKeys[FFM_OPUS]		= _T("FFM_OPUS");
+	FFMFiltersKeys[FFM_PNG]			= _T("FFM_PNG");
+	FFMFiltersKeys[FFM_WMAVOICE]	= _T("FFM_WMAVOICE");
+	FFMFiltersKeys[FFM_CLLC]		= _T("FFM_CLLC");
+	FFMFiltersKeys[FFM_SPEEX]		= _T("FFM_SPEEX");
+	FFMFiltersKeys[FFM_RV]			= _T("FFM_RV");
+	FFMFiltersKeys[FFM_V210]		= _T("FFM_V210");
+	FFMFiltersKeys[FFM_MPEG2]		= _T("FFM_MPEG2");
+	FFMFiltersKeys[FFM_MPEG1]		= _T("FFM_MPEG1");
+	FFMFiltersKeys[FFM_HEVC]		= _T("FFM_HEVC");
 }
 
 void CAppSettings::CreateCommands()
@@ -278,6 +282,7 @@ void CAppSettings::CreateCommands()
 	ADDCMD((ID_STREAM_SUB_PREV,					'S', FVIRTKEY|FSHIFT|FNOINVERT,			IDS_AG_PREV_SUBTITLE));
 	ADDCMD((ID_STREAM_SUB_ONOFF,				'W', FVIRTKEY|FNOINVERT,				IDS_MPLAYERC_85));
 	ADDCMD((ID_SUBTITLES_SUBITEM_START+3,		  0, FVIRTKEY|FNOINVERT,				IDS_MPLAYERC_86));
+	ADDCMD((ID_FILE_ISDB_DOWNLOAD,				'D', FVIRTKEY|FNOINVERT,				IDS_DOWNLOAD_SUBS));
 	ADDCMD((ID_OGM_AUDIO_NEXT,					  0, FVIRTKEY|FNOINVERT,				IDS_MPLAYERC_87));
 	ADDCMD((ID_OGM_AUDIO_PREV,					  0, FVIRTKEY|FNOINVERT,				IDS_MPLAYERC_88));
 	ADDCMD((ID_OGM_SUB_NEXT,					  0, FVIRTKEY|FNOINVERT,				IDS_MPLAYERC_89));
@@ -341,16 +346,13 @@ CAppSettings::~CAppSettings()
 
 bool CAppSettings::IsD3DFullscreen() const
 {
-	if (nCLSwitches&CLSW_D3DFULLSCREEN) {
-		return true;
-	} else if  (iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS ||
-				iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM ||
-				iDSVideoRendererType == VIDRNDT_DS_MADVR ||
-				iDSVideoRendererType == VIDRNDT_DS_SYNC) {
-		return fD3DFullscreen;
-	} else {
-		return false;
+	if (iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS
+			|| iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM
+			|| iDSVideoRendererType == VIDRNDT_DS_SYNC) {
+		return fD3DFullscreen || (nCLSwitches & CLSW_D3DFULLSCREEN);
 	}
+
+	return false;
 }
 
 CString CAppSettings::SelectedAudioRenderer() const
@@ -519,7 +521,9 @@ void CAppSettings::SaveSettings()
 
 	UpdateRenderersData(true);
 
-	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_AUDIORENDERERTYPE, CString(strAudioRendererDisplayName));
+	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_AUDIORENDERERTYPE, strAudioRendererDisplayName);
+	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_SECONDAUDIORENDERER, strSecondAudioRendererDisplayName);
+	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_DUALAUDIOOUTPUT, fDualAudioOutput);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOLOADAUDIO, fAutoloadAudio);
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_AUDIOPATHS, strAudioPaths);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOLOADSUBTITLES, fAutoloadSubtitles);
@@ -531,12 +535,15 @@ void CAppSettings::SaveSettings()
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_BLOCKVSFILTER, fBlockVSFilter);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEWORKERTHREADFOROPENING, fEnableWorkerThreadForOpening);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_REPORTFAILEDPINS, fReportFailedPins);
+
+	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_RTSPHANDLER, iRtspHandler);
+	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_RTSPFILEEXTFIRST, fRtspFileExtFirst);
+
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_DVDPATH, strDVDPath);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_USEDVDPATH, fUseDVDPath);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MENULANG, idMenuLang);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUDIOLANG, idAudioLang);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANG, idSubtitlesLang);
-	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOSPEAKERCONF, fAutoSpeakerConf);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_CLOSEDCAPTIONS, fClosedCaptions);
 	CString style;
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_SPLOGFONT, style <<= subdefstyle);
@@ -548,6 +555,7 @@ void CAppSettings::SaveSettings()
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_FORCEDSUBTITLES, fForcedSubtitles);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_PRIORITIZEEXTERNALSUBTITLES, fPrioritizeExternalSubtitles);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_DISABLEINTERNALSUBTITLES, fDisableInternalSubtitles);
+	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUTORELOADEXTSUBTITLES, fAutoReloadExtSubtitles);
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_SUBTITLEPATHS, strSubtitlePaths);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_USEDEFAULTSUBTITLESSTYLE, fUseDefaultSubtitlesStyle);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEAUDIOSWITCHER, fEnableAudioSwitcher);
@@ -670,7 +678,6 @@ void CAppSettings::SaveSettings()
 	}
 
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_DVD_START_MAIN_TITLE, (int)fStartMainTitle);
-	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_DVD_MADVR_CHANGE, (int)fmadVRchange);
 
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_LASTFULLSCREEN, (int)fLastFullScreen);
 
@@ -781,12 +788,13 @@ void CAppSettings::SaveSettings()
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_ISDB, strISDb);
 
 	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_LAST_OPEN_FILTER_DIR, strLastOpenFilterDir);
-	pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_LAST_OPEN_SUB_DIR, strLastOpenSubDir);
 
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_YOUTUBE_TAG, iYoutubeTag);
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_YOUTUBE_SOURCE, iYoutubeSource);
 
 	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_REMAINING_TIME, fRemainingTime);
+
+	pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_LASTFILEINFOPAGE, nLastFileInfoPage);
 
 	if (pApp->m_pszRegistryKey) {
 		// WINBUG: on win2k this would crash WritePrivateProfileString
@@ -895,7 +903,7 @@ void CAppSettings::LoadSettings()
 	}
 
 	// Set interface language first!
-	CString langcode = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LANGUAGE, _T(""));
+	CString langcode = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LANGUAGE);
 	iLanguage = CMPlayerCApp::GetLanguageIndex(langcode);
 	if (iLanguage < 0) {
 		iLanguage = CMPlayerCApp::GetDefLanguage();
@@ -928,18 +936,25 @@ void CAppSettings::LoadSettings()
 
 	UpdateRenderersData(false);
 
-	strAudioRendererDisplayName = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIORENDERERTYPE, _T(""));
+	strAudioRendererDisplayName			= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIORENDERERTYPE);
+	strSecondAudioRendererDisplayName	= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SECONDAUDIORENDERER);
+	fDualAudioOutput					= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_DUALAUDIOOUTPUT, FALSE);
+
 	fAutoloadAudio = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOLOADAUDIO, TRUE);
 	strAudioPaths = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIOPATHS, DEFAULT_AUDIO_PATHS);
 	fAutoloadSubtitles = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOLOADSUBTITLES, !CMPlayerCApp::IsVSFilterInstalled() || (IsWinVistaOrLater() && CMPlayerCApp::HasEVR()) );
 
-	strSubtitlesLanguageOrder		= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANGORDER, _T(""));
-	strAudiosLanguageOrder			= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIOSLANGORDER, _T(""));
+	strSubtitlesLanguageOrder		= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANGORDER);
+	strAudiosLanguageOrder			= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_AUDIOSLANGORDER);
 	fUseInternalSelectTrackLogic	= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_INTERNALSELECTTRACKLOGIC, TRUE);
 
 	fBlockVSFilter = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_BLOCKVSFILTER, TRUE);
 	fEnableWorkerThreadForOpening = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEWORKERTHREADFOROPENING, TRUE);
 	fReportFailedPins = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_REPORTFAILEDPINS, TRUE);
+
+	iRtspHandler		= (engine_t)AfxGetApp()->GetProfileInt(IDS_R_SETTINGS, IDS_RS_RTSPHANDLER, (int)RealMedia);
+	fRtspFileExtFirst	= !!AfxGetApp()->GetProfileInt(IDS_R_SETTINGS, IDS_RS_RTSPFILEEXTFIRST, TRUE);
+
 	iMultipleInst = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MULTIINST, 1);
 	if (iMultipleInst < 0 || iMultipleInst > 2) {
 		iMultipleInst = 1;
@@ -953,9 +968,9 @@ void CAppSettings::LoadSettings()
 	nShowBarsWhenFullScreenTimeOut = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FULLSCREENCTRLSTIMEOUT, 0);
 
 	//Multi-monitor code
-	strFullScreenMonitor = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_FULLSCREENMONITOR, _T(""));
+	strFullScreenMonitor = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_FULLSCREENMONITOR);
 	// DeviceID
-	strFullScreenMonitorID = pApp->GetProfileString(IDS_R_SETTINGS, _T("FullScreenMonitorID"), _T(""));
+	strFullScreenMonitorID = pApp->GetProfileString(IDS_R_SETTINGS, _T("FullScreenMonitorID"));
 
 	// Prevent Minimize when in Fullscreen mode on non default monitor
 	fPreventMinimize = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_PREVENT_MINIMIZE, 0);
@@ -1000,7 +1015,7 @@ void CAppSettings::LoadSettings()
 	fRestoreResAfterExit = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_RESTORERESAFTEREXIT, 1);
 	fRememberWindowPos = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_REMEMBERWINDOWPOS, 0);
 	fRememberWindowSize = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_REMEMBERWINDOWSIZE, 0);
-	CString str = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_PANSCANZOOM, _T(""));
+	CString str = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_PANSCANZOOM);
 	if ( _stscanf_s(str, _T("%f,%f"), &dZoomX, &dZoomY) == 2 &&
 			dZoomX >=0.196 && dZoomX <=3.06 && // 0.196 = 0.2 / 1.02
 			dZoomY >=0.196 && dZoomY <=3.06) { // 3.06 = 3 * 1.02
@@ -1032,16 +1047,18 @@ void CAppSettings::LoadSettings()
 	bFavRememberPos = !!pApp->GetProfileInt(IDS_R_FAVORITES, IDS_RS_FAV_REMEMBERPOS, TRUE);
 	bFavRelativeDrive = !!pApp->GetProfileInt(IDS_R_FAVORITES, IDS_RS_FAV_RELATIVEDRIVE, FALSE);
 
-	strDVDPath = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_DVDPATH, _T(""));
+	strDVDPath = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_DVDPATH);
 	fUseDVDPath = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_USEDVDPATH, 0);
-	idMenuLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MENULANG, 0);
-	idAudioLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUDIOLANG, 0);
-	idSubtitlesLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANG, 0);
-	fAutoSpeakerConf = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOSPEAKERCONF, 1);
+	
+	LANGID langID = GetUserDefaultUILanguage();
+	idMenuLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MENULANG, langID);
+	idAudioLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUDIOLANG, langID);
+	idSubtitlesLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANG, langID);
+
 	fClosedCaptions = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_CLOSEDCAPTIONS, 0);
 	// TODO: rename subdefstyle -> defStyle, IDS_RS_SPLOGFONT -> IDS_RS_SPSTYLE
 	{
-		CString temp = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SPLOGFONT, _T(""));
+		CString temp = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SPLOGFONT);
 		subdefstyle <<= temp;
 		if (temp.IsEmpty()) {
 			subdefstyle.relativeTo = 1;    //default "Position subtitles relative to the video frame" option is checked
@@ -1056,6 +1073,7 @@ void CAppSettings::LoadSettings()
 	fForcedSubtitles = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FORCEDSUBTITLES, FALSE);
 	fPrioritizeExternalSubtitles = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_PRIORITIZEEXTERNALSUBTITLES, TRUE);
 	fDisableInternalSubtitles = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_DISABLEINTERNALSUBTITLES, FALSE);
+	fAutoReloadExtSubtitles = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUTORELOADEXTSUBTITLES, FALSE);
 	strSubtitlePaths = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SUBTITLEPATHS, DEFAULT_SUBTITLE_PATHS);
 	fUseDefaultSubtitlesStyle = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_USEDEFAULTSUBTITLESSTYLE, FALSE);
 	fEnableAudioSwitcher = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEAUDIOSWITCHER, TRUE);
@@ -1115,9 +1133,9 @@ void CAppSettings::LoadSettings()
 			UINT j = pApp->GetProfileInt(key, _T("SourceType"), -1);
 			if (j == 0) {
 				f->type = FilterOverride::REGISTERED;
-				f->dispname = CStringW(pApp->GetProfileString(key, _T("DisplayName"), _T("")));
+				f->dispname = CStringW(pApp->GetProfileString(key, _T("DisplayName")));
 				f->name = pApp->GetProfileString(key, _T("Name"), _T(""));
-				f->clsid = GUIDFromCString(pApp->GetProfileString(key, _T("CLSID"), _T("")));
+				f->clsid = GUIDFromCString(pApp->GetProfileString(key, _T("CLSID")));
 				if (f->clsid == CLSID_NULL) {
 					CComPtr<IBaseFilter> pBF;
 					CStringW FriendlyName;
@@ -1128,9 +1146,9 @@ void CAppSettings::LoadSettings()
 				}
 			} else if (j == 1) {
 				f->type = FilterOverride::EXTERNAL;
-				f->path = pApp->GetProfileString(key, _T("Path"), _T(""));
-				f->name = pApp->GetProfileString(key, _T("Name"), _T(""));
-				f->clsid = GUIDFromCString(pApp->GetProfileString(key, _T("CLSID"), _T("")));
+				f->path = pApp->GetProfileString(key, _T("Path"));
+				f->name = pApp->GetProfileString(key, _T("Name"));
+				f->clsid = GUIDFromCString(pApp->GetProfileString(key, _T("CLSID")));
 			} else {
 				pApp->WriteProfileString(key, NULL, 0);
 				break;
@@ -1140,7 +1158,7 @@ void CAppSettings::LoadSettings()
 			for (unsigned int i = 0; ; i++) {
 				CString val;
 				val.Format(_T("org%04u"), i);
-				CString guid = pApp->GetProfileString(key, val, _T(""));
+				CString guid = pApp->GetProfileString(key, val);
 				if (guid.IsEmpty()) {
 					break;
 				}
@@ -1151,7 +1169,7 @@ void CAppSettings::LoadSettings()
 			for (unsigned int i = 0; ; i++) {
 				CString val;
 				val.Format(_T("mod%04u"), i);
-				CString guid = pApp->GetProfileString(key, val, _T(""));
+				CString guid = pApp->GetProfileString(key, val);
 				if (guid.IsEmpty()) {
 					break;
 				}
@@ -1179,7 +1197,7 @@ void CAppSettings::LoadSettings()
 	for (int i = 0; i < (ID_PANNSCAN_PRESETS_END - ID_PANNSCAN_PRESETS_START); i++) {
 		CString str;
 		str.Format(_T("Preset%d"), i);
-		str = pApp->GetProfileString(IDS_R_SETTINGS _T("\\") IDS_RS_PNSPRESETS, str, _T(""));
+		str = pApp->GetProfileString(IDS_R_SETTINGS _T("\\") IDS_RS_PNSPRESETS, str);
 		if (str.IsEmpty()) {
 			break;
 		}
@@ -1187,14 +1205,14 @@ void CAppSettings::LoadSettings()
 	}
 
 	if (m_pnspresets.IsEmpty()) {
-		double _4p3 = 4.0/3.0;
-		double _16p9 = 16.0/9.0;
-		double _185p1 = 1.85/1.0;
-		double _235p1 = 2.35/1.0;
-		UNREFERENCED_PARAMETER(_185p1);
+		double _4p3		= 4.0/3.0;
+		double _16p9	= 16.0/9.0;
+		double _235p1	= 2.35/1.0;
+		//double _185p1	= 1.85/1.0;
+		//UNREFERENCED_PARAMETER(_185p1);
 
 		CString str;
-		str.Format(ResStr(IDS_SCALE_16_9), 0.5, 0.5, _4p3/_4p3, _16p9/_4p3);
+		str.Format(ResStr(IDS_SCALE_16_9), 0.5, 0.5, 1, _16p9/_4p3);
 		m_pnspresets.Add(str);
 		str.Format(ResStr(IDS_SCALE_WIDESCREEN), 0.5, 0.5, _16p9/_4p3, _16p9/_4p3);
 		m_pnspresets.Add(str);
@@ -1205,7 +1223,7 @@ void CAppSettings::LoadSettings()
 	for (int i = 0; i < wmcmds.GetCount(); i++) {
 		CString str;
 		str.Format(_T("CommandMod%d"), i);
-		str = pApp->GetProfileString(IDS_R_COMMANDS, str, _T(""));
+		str = pApp->GetProfileString(IDS_R_COMMANDS, str);
 		if (str.IsEmpty()) {
 			break;
 		}
@@ -1288,7 +1306,7 @@ void CAppSettings::LoadSettings()
 		FFmpegFilters[f] = !!pApp->GetProfileInt(IDS_R_INTERNAL_FILTERS, FFMFiltersKeys[f], 1);
 	}
 
-	strLogoFileName = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LOGOFILE, _T(""));
+	strLogoFileName = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LOGOFILE);
 	nLogoId = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_LOGOID, DEF_LOGO);
 	fLogoExternal = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_LOGOEXT, 0);
 
@@ -1306,7 +1324,7 @@ void CAppSettings::LoadSettings()
 	fWebServerLocalhostOnly = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_WEBSERVERLOCALHOSTONLY, FALSE);
 	strWebRoot = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_WEBROOT, _T("*./webroot"));
 	strWebDefIndex = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_WEBDEFINDEX, _T("index.html;index.php"));
-	strWebServerCGI = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_WEBSERVERCGI, _T(""));
+	strWebServerCGI = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_WEBSERVERCGI);
 
 	CString MyPictures;
 
@@ -1345,8 +1363,8 @@ void CAppSettings::LoadSettings()
 	iHue			= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_COLOR_HUE, 0);
 	iSaturation		= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_COLOR_SATURATION, 0);
 
-	strShaderList				= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SHADERLIST, _T(""));
-	strShaderListScreenSpace	= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SHADERLISTSCREENSPACE, _T(""));
+	strShaderList				= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SHADERLIST);
+	strShaderListScreenSpace	= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SHADERLISTSCREENSPACE);
 	fToggleShader				= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_TOGGLESHADER, 0);
 	fToggleShaderScreenSpace	= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_TOGGLESHADERSSCREENSPACE, 0);
 
@@ -1370,10 +1388,10 @@ void CAppSettings::LoadSettings()
 	strAnalogAudio			= pApp->GetProfileString(IDS_R_CAPTURE, IDS_RS_AUDIO_DISP_NAME, _T("dummy"));
 	iAnalogCountry			= pApp->GetProfileInt(IDS_R_CAPTURE, IDS_RS_COUNTRY, 1);
 
-	strBDANetworkProvider	= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_NETWORKPROVIDER, _T(""));
-	strBDATuner				= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_TUNER, _T(""));
-	strBDAReceiver			= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_RECEIVER, _T(""));
-	//sBDAStandard			= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_STANDARD, _T(""));
+	strBDANetworkProvider	= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_NETWORKPROVIDER);
+	strBDATuner				= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_TUNER);
+	strBDAReceiver			= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_RECEIVER);
+	//sBDAStandard			= pApp->GetProfileString(IDS_R_DVB, IDS_RS_BDA_STANDARD);
 	iBDAScanFreqStart		= pApp->GetProfileInt(IDS_R_DVB, IDS_RS_BDA_SCAN_FREQ_START, 474000);
 	iBDAScanFreqEnd			= pApp->GetProfileInt(IDS_R_DVB, IDS_RS_BDA_SCAN_FREQ_END, 858000);
 	iBDABandwidth			= pApp->GetProfileInt(IDS_R_DVB, IDS_RS_BDA_BANDWIDTH, 8);
@@ -1387,7 +1405,7 @@ void CAppSettings::LoadSettings()
 		CString strChannel;
 		CDVBChannel	Channel;
 		strTemp.Format(_T("%d"), iChannel);
-		strChannel = pApp->GetProfileString(IDS_R_DVB, strTemp, _T(""));
+		strChannel = pApp->GetProfileString(IDS_R_DVB, strTemp);
 		if (strChannel.IsEmpty()) {
 			break;
 		}
@@ -1404,7 +1422,7 @@ void CAppSettings::LoadSettings()
 		CString		strValue;
 
 		strDVDPos.Format (_T("DVD Position %d"), i);
-		strValue = pApp->GetProfileString(IDS_R_SETTINGS, strDVDPos, _T(""));
+		strValue = pApp->GetProfileString(IDS_R_SETTINGS, strDVDPos);
 		if (strValue.GetLength()/2 == sizeof(DVD_POSITION)) {
 			DeserializeHex(strValue, (BYTE*)&DvdPosition[i], sizeof(DVD_POSITION));
 		}
@@ -1418,24 +1436,25 @@ void CAppSettings::LoadSettings()
 		CString		strValue;
 
 		strFilePos.Format (_T("File Name %d"), i);
-		FilePosition[i].strFile = pApp->GetProfileString(IDS_R_SETTINGS, strFilePos, _T(""));
+		FilePosition[i].strFile = pApp->GetProfileString(IDS_R_SETTINGS, strFilePos);
 
 		strFilePos.Format (_T("File Position %d"), i);
-		strValue = pApp->GetProfileString(IDS_R_SETTINGS, strFilePos, _T(""));
+		strValue = pApp->GetProfileString(IDS_R_SETTINGS, strFilePos);
 		FilePosition[i].llPosition = _tstoi64 (strValue);
 	}
 
 	fStartMainTitle			= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_DVD_START_MAIN_TITLE, 0);
-	fmadVRchange			= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_DVD_MADVR_CHANGE, 0);
+	fNormalStartDVD			= true;
 	fLastFullScreen			= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_LASTFULLSCREEN, 0);
 
 	fRemainingTime			= !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_REMAINING_TIME, FALSE);
 
-	strLastOpenFilterDir	= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LAST_OPEN_FILTER_DIR, _T(""));
-	strLastOpenSubDir		= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LAST_OPEN_SUB_DIR, _T(""));
+	strLastOpenFilterDir	= pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LAST_OPEN_FILTER_DIR);
 
 	iYoutubeTag				= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_YOUTUBE_TAG, 0);
 	iYoutubeSource			= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_YOUTUBE_SOURCE, 0);
+
+	nLastFileInfoPage		= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_LASTFILEINFOPAGE, 0);
 
 	if (fLaunchfullscreen && !IsD3DFullscreen()) {
 		nCLSwitches |= CLSW_FULLSCREEN;
@@ -1537,6 +1556,59 @@ int CAppSettings::GetMultiInst()
 	return multiinst;
 }
 
+engine_t CAppSettings::GetRtspHandler(bool& lookext)
+{
+	lookext = fRtspFileExtFirst;
+	return iRtspHandler;
+}
+
+void CAppSettings::SetRtspHandler(engine_t e, bool lookext)
+{
+	iRtspHandler		= e;
+	fRtspFileExtFirst	= lookext;
+}
+
+bool CAppSettings::IsUsingRtspEngine(CString path, engine_t e)
+{
+	return (GetRtspEngine(path) == e);
+}
+
+engine_t CAppSettings::GetRtspEngine(CString path)
+{
+	path.Trim().MakeLower();
+
+	if (!fRtspFileExtFirst && path.Find(_T("rtsp://")) == 0) {
+		return iRtspHandler;
+	}
+
+	CString ext = CPath(path).GetExtension();
+	ext.MakeLower();
+
+	if (!ext.IsEmpty()) {
+		if (path.Find(_T("rtsp://")) == 0) {
+			if (ext == _T(".ram") || ext == _T(".rm") || ext == _T(".ra")) {
+				return RealMedia;
+			}
+			if (ext == _T(".qt") || ext == _T(".mov")) {
+				return QuickTime;
+			}
+		}
+
+		for (size_t i = 0; i < m_Formats.GetCount(); i++) {
+			CMediaFormatCategory& mfc = m_Formats.GetAt(i);
+			if (mfc.FindExt(ext)) {
+				return mfc.GetEngineType();
+			}
+		}
+	}
+
+	if (fRtspFileExtFirst && path.Find(_T("rtsp://")) == 0) {
+		return iRtspHandler;
+	}
+
+	return DirectShow;
+}
+
 void CAppSettings::UpdateRenderersData(bool fSave)
 {
 	CWinApp* pApp = AfxGetApp();
@@ -1547,8 +1619,8 @@ void CAppSettings::UpdateRenderersData(bool fSave)
 		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_APSURACEFUSAGE, r.iAPSurfaceUsage);
 		// pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_VMRSYNCFIX, fVMRSyncFix);
 		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_DX9_RESIZER, r.iDX9Resizer);
-		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_VMR9MIXERMODE, r.fVMR9MixerMode);
-		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_VMR9MIXERYUV, r.fVMR9MixerYUV);
+		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_VMRMIXERMODE, r.fVMRMixerMode);
+		pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_VMRMIXERYUV, r.fVMRMixerYUV);
 
 		pApp->WriteProfileInt(IDS_R_SETTINGS, _T("VMRAlternateVSync"), ars.fVMR9AlterativeVSync);
 		pApp->WriteProfileInt(IDS_R_SETTINGS, _T("VMRVSyncOffset"), ars.iVMR9VSyncOffset);
@@ -1597,8 +1669,8 @@ void CAppSettings::UpdateRenderersData(bool fSave)
 		r.iAPSurfaceUsage = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_APSURACEFUSAGE, (IsWinVistaOrLater() ? VIDRNDT_AP_TEXTURE3D : VIDRNDT_AP_TEXTURE2D));
 		//fVMRSyncFix = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_VMRSYNCFIX, FALSE);
 		r.iDX9Resizer = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_DX9_RESIZER, 1);
-		r.fVMR9MixerMode = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_VMR9MIXERMODE, TRUE);
-		r.fVMR9MixerYUV = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_VMR9MIXERYUV, FALSE);
+		r.fVMRMixerMode = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_VMRMIXERMODE, IsWinVistaOrLater() ? TRUE : FALSE);
+		r.fVMRMixerYUV = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_VMRMIXERYUV, IsWinVistaOrLater() ? TRUE : FALSE);
 
 		CRenderersSettings::CAdvRendererSettings DefaultSettings;
 		ars.fVMR9AlterativeVSync = !!pApp->GetProfileInt(IDS_R_SETTINGS, _T("VMRAlternateVSync"), DefaultSettings.fVMR9AlterativeVSync);
@@ -1654,7 +1726,7 @@ void CAppSettings::UpdateRenderersData(bool fSave)
 		r.fSPCAllowAnimationWhenBuffering = !!pApp->GetProfileInt(IDS_R_SETTINGS, _T("SPCAllowAnimationWhenBuffering"), TRUE);
 
 		r.iEvrBuffers		= pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_EVR_BUFFERS, 5);
-		r.D3D9RenderDevice = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_D3D9RENDERDEVICE, _T(""));
+		r.D3D9RenderDevice = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_D3D9RENDERDEVICE);
 	}
 }
 
@@ -1826,8 +1898,8 @@ void CAppSettings::ParseCommandLine(CAtlList<CString>& cmdln)
 			} else if (sw == _T("dub") && pos) {
 				slDubs.AddTail(ParseFileName(cmdln.GetNext(pos)));
 			} else if (sw == _T("dubdelay") && pos) {
-				CString		strFile = ParseFileName(cmdln.GetNext(pos));
-				int			nPos  = strFile.Find (_T("DELAY"));
+				CString strFile	= ParseFileName(cmdln.GetNext(pos));
+				int nPos		= strFile.Find (_T("DELAY"));
 				if (nPos != -1) {
 					rtShift = 10000 * _tstol(strFile.Mid(nPos + 6));
 				}
@@ -1882,10 +1954,10 @@ void CAppSettings::ParseCommandLine(CAtlList<CString>& cmdln)
 				nCLSwitches |= CLSW_D3DFULLSCREEN;
 			} else if (sw == _T("adminoption")) {
 				nCLSwitches |= CLSW_ADMINOPTION;
-				iAdminOption = _ttoi (cmdln.GetNext(pos));
-			} else if (sw == _T("slave")) {
+				iAdminOption = _ttoi(cmdln.GetNext(pos));
+			} else if (sw == _T("slave") && pos) {
 				nCLSwitches |= CLSW_SLAVE;
-				hMasterWnd = (HWND)_ttol (cmdln.GetNext(pos));
+				hMasterWnd = (HWND)IntToPtr(_ttoi(cmdln.GetNext(pos)));
 			} else if (sw == _T("fixedsize") && pos) {
 				CAtlList<CString> sl;
 				Explode(cmdln.GetNext(pos), sl, ',', 2);
@@ -1945,7 +2017,7 @@ void CAppSettings::GetFav(favtype ft, CAtlList<CString>& sl)
 	for (int i = 0; ; i++) {
 		CString s;
 		s.Format(_T("Name%d"), i);
-		s = AfxGetApp()->GetProfileString(root, s, NULL);
+		s = AfxGetApp()->GetProfileString(root, s);
 		if (s.IsEmpty()) {
 			break;
 		}
@@ -2023,25 +2095,24 @@ void CAppSettings::CRecentFileAndURLList::Add(LPCTSTR lpszPathName)
 	ASSERT(lpszPathName != NULL);
 	ASSERT(AfxIsValidString(lpszPathName));
 
-	if (CString(lpszPathName).MakeLower().Find(_T("@device:")) >= 0) {
+	CString pathName = lpszPathName;
+	if (pathName.MakeLower().Find(_T("@device:")) >= 0) {
 		return;
 	}
 
-	bool fURL = (CString(lpszPathName).Find(_T("://")) >= 0);
+	bool fURL = (pathName.Find(_T("://")) >= 0);
 
 	// fully qualify the path name
-	TCHAR szTemp[1024];
-	if (fURL) {
-		_tcscpy_s(szTemp, lpszPathName);
-	} else {
-		AfxFullPath(szTemp, lpszPathName);
+	if (!fURL) {
+		AfxFullPath(pathName.GetBufferSetLength(pathName.GetLength() + 1024), lpszPathName);
+		pathName.ReleaseBuffer();
 	}
 
 	// update the MRU list, if an existing MRU string matches file name
 	int iMRU;
 	for (iMRU = 0; iMRU < m_nSize-1; iMRU++) {
-		if ((fURL && !_tcscmp(m_arrNames[iMRU], szTemp))
-				|| AfxComparePath(m_arrNames[iMRU], szTemp)) {
+		if ((fURL && !_tcscmp(m_arrNames[iMRU], pathName))
+				|| AfxComparePath(m_arrNames[iMRU], pathName)) {
 			break;    // iMRU will point to matching entry
 		}
 	}
@@ -2052,5 +2123,5 @@ void CAppSettings::CRecentFileAndURLList::Add(LPCTSTR lpszPathName)
 		m_arrNames[iMRU] = m_arrNames[iMRU-1];
 	}
 	// place this one at the beginning
-	m_arrNames[0] = szTemp;
+	m_arrNames[0] = pathName;
 }

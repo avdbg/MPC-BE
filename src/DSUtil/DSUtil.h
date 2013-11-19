@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,18 +23,24 @@
 
 #include <afxstr.h>
 #include "NullRenderers.h"
-#include "HdmvClipInfo.h"
 #include "H264Nalu.h"
 #include "MediaTypeEx.h"
 #include "vd.h"
 #include "text.h"
-
-#define ResStr(id)			CString(MAKEINTRESOURCE(id))
+#include "..\..\include\basestruct.h"
 
 #define LCID_NOSUBTITLES	-1
 #define INVALID_TIME		_I64_MIN
 
-extern void DumpStreamConfig(TCHAR* fn, IAMStreamConfig* pAMVSCCap);
+#ifndef FCC
+#define FCC(ch4) ((((DWORD)(ch4) & 0xFF) << 24) |     \
+                  (((DWORD)(ch4) & 0xFF00) << 8) |    \
+                  (((DWORD)(ch4) & 0xFF0000) >> 8) |  \
+                  (((DWORD)(ch4) & 0xFF000000) >> 24))
+#endif
+
+extern CString ResStr(UINT nID);
+
 extern int CountPins(IBaseFilter* pBF, int& nIn, int& nOut, int& nInC, int& nOutC);
 extern bool IsSplitter(IBaseFilter* pBF, bool fCountConnectedOnly = false);
 extern bool IsMultiplexer(IBaseFilter* pBF, bool fCountConnectedOnly = false);
@@ -72,7 +76,14 @@ extern bool IsCLSIDRegistered(LPCTSTR clsid);
 extern bool IsCLSIDRegistered(const CLSID& clsid);
 extern void CStringToBin(CString str, CAtlArray<BYTE>& data);
 extern CString BinToCString(const BYTE* ptr, size_t len);
-typedef enum {CDROM_NotFound, CDROM_Audio, CDROM_VideoCD, CDROM_DVDVideo, CDROM_Unknown} cdrom_t;
+typedef enum {
+	CDROM_NotFound,
+	CDROM_Audio,
+	CDROM_VideoCD,
+	CDROM_DVDVideo,
+	CDROM_BDVideo,
+	CDROM_Unknown
+} cdrom_t;
 extern cdrom_t GetCDROMType(TCHAR drive, CAtlList<CString>& files);
 extern CString GetDriveLabel(TCHAR drive);
 extern bool GetKeyFrames(CString fn, CUIntArray& kfs);
@@ -99,12 +110,17 @@ extern CString GetMediaTypeName(const GUID& guid);
 extern GUID GUIDFromCString(CString str);
 extern HRESULT GUIDFromCString(CString str, GUID& guid);
 extern CString CStringFromGUID(const GUID& guid);
-extern CStringW UTF8To16(LPCSTR utf8);
-extern CStringA UTF16To8(LPCWSTR utf16);
-extern CStringW UTF8ToStringW(const char* S);
-extern CStringW LocalToStringW(const char* S);
+extern CString ConvertStr(LPCSTR lpMultiByteStr, UINT CodePage);
+extern CString UTF8ToString(LPCSTR lpMultiByteStr);
+extern CStringA StringToUTF8(LPCWSTR lpWideCharStr);
+extern CString LocalToString(LPCSTR lpMultiByteStr);
+extern CStringW AltUTF8ToStringW(const char* S); // Use if MultiByteToWideChar() function does not work.
 extern CString ISO6391ToLanguage(LPCSTR code);
 extern CString ISO6392ToLanguage(LPCSTR code);
+
+extern bool IsISO639Language(LPCSTR code);
+extern CString ISO639XToLanguage(LPCSTR code, bool bCheckForFullLangName = false);
+
 extern LCID    ISO6391ToLcid(LPCSTR code);
 extern LCID    ISO6392ToLcid(LPCSTR code);
 extern CString ISO6391To6392(LPCSTR code);
@@ -136,10 +152,10 @@ extern void		CorrectComboListWidth(CComboBox& m_pComboBox);
 extern void		getExtraData(const BYTE *format, const GUID *formattype, const size_t formatlen, BYTE *extra, unsigned int *extralen);
 extern void		audioFormatTypeHandler(const BYTE *format, const GUID *formattype, DWORD *pnSamples, WORD *pnChannels, WORD *pnBitsPerSample, WORD *pnBlockAlign, DWORD *pnBytesPerSec);
 
-extern void		CreateMPEG2VIfromAVC(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TIME AvgTimePerFrame, CSize aspect, BYTE* extra, size_t extralen);
+extern HRESULT	CreateMPEG2VIfromAVC(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TIME AvgTimePerFrame, CSize aspect, BYTE* extra, size_t extralen);
+extern HRESULT	CreateMPEG2VISimple(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TIME AvgTimePerFrame, CSize aspect, BYTE* extra, size_t extralen);
 
 // log function
-extern void		DumpBuffer(BYTE* pBuffer, int nSize);
 extern void		HexDump(CString fName, BYTE* buf, int size);
 extern void		LOG2FILE(LPCTSTR fmt, ...);
 
@@ -266,18 +282,21 @@ inline int LNKO(int a, int b)
 	return a;
 }
 
-inline void ReduceDim(CSize &dim)
+inline void ReduceDim(int& a, int& b)
+{
+	int lnko = LNKO(a, b);
+	if (lnko > 1) {
+		a /= lnko, b /= lnko;
+	}
+}
+
+inline void ReduceDim(SIZE &dim)
 {
 	int lnko = LNKO(dim.cx, dim.cy);
 	if (lnko > 1) {
 		dim.cx /= lnko, dim.cy /= lnko;
 	}
 }
-
-struct AV_Rational {
-	int num;
-	int den;
-};
 
 #ifndef uint8
 	typedef unsigned char		uint8;
@@ -304,11 +323,21 @@ struct Chapters {
 	}
 };
 
-extern bool ParseCUESheet(CString cueData, CAtlList<Chapters> &ChaptersList);
+extern bool ParseCUESheet(CString cueData, CAtlList<Chapters> &ChaptersList, CString& Title, CString& Performer);
 
 extern CString GetFileOnly(LPCTSTR Path);
 extern CString GetFolderOnly(LPCTSTR Path);
 extern CString AddSlash(LPCTSTR Path);
 extern CString RemoveSlash(LPCTSTR Path);
-
+extern CString GetFileExt(LPCTSTR Path);
+extern CString RenameFileExt(LPCTSTR Path, LPCTSTR Ext);
 extern BOOL GetTemporaryFilePath(CString strExtension, CString& strFileName);
+
+static const TCHAR* subext[] = {
+	L"srt", L"sub", L"smi", L"psb",
+	L"ssa", L"ass", L"idx", L"usf",
+	L"xss", L"txt", L"rt",  L"sup",
+	L"mks"
+};
+
+extern void CorrectWaveFormatEx(CMediaType *pmt);

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -323,9 +321,9 @@ void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur
 #endif
 
 		if (fHighPrecision) {
-			posstr.AppendFormat(_T(".%03d"), (rtNow/10000)%1000);
-			durstr.AppendFormat(_T(".%03d"), (rtDur/10000)%1000);
-			rstr.AppendFormat(_T(".%03d"), ((rtDur - rtNow)/10000)%1000);
+			posstr.AppendFormat(_T(".%03I64d"), (rtNow/10000)%1000);
+			durstr.AppendFormat(_T(".%03I64d"), (rtDur/10000)%1000);
+			rstr.AppendFormat(_T(".%03I64d"), ((rtDur - rtNow)/10000)%1000);
 		}
 	} else if (*pTimeFormat == TIME_FORMAT_FRAME) {
 		posstr.Format(_T("%I64d"), rtNow);
@@ -453,7 +451,7 @@ void CPlayerStatusBar::OnPaint()
 		CPen penPlayed1(PS_SOLID,0,RGB(0,0,0));
 		memdc.SelectObject(&penPlayed1);
 		memdc.MoveTo(r.left, r.top +1);
-		memdc.LineTo(r.right, r.top +1);	
+		memdc.LineTo(r.right, r.top +1);
 		memdc.MoveTo(r.left, r.top +2);
 		memdc.LineTo(r.right, r.top +2);
 
@@ -466,22 +464,9 @@ void CPlayerStatusBar::OnPaint()
 		CFont font2;
 		ThemeRGB(165, 170, 175, R, G, B);
 		memdc.SetTextColor(RGB(R,G,B));
-		font2.CreateFont(
-						13,				// nHeight
-						0,				// nWidth
-						0,				// nEscapement
-						0,				// nOrientation
-						FW_NORMAL,			// nWeight
-						FALSE,				// bItalic
-						FALSE,				// bUnderline
-						0,				// cStrikeOut
-						ANSI_CHARSET,			// nCharSet
-						OUT_RASTER_PRECIS,		// nOutPrecision
-						CLIP_DEFAULT_PRECIS,		// nClipPrecision
-						ANTIALIASED_QUALITY,        	// nQuality
-						VARIABLE_PITCH | FF_MODERN, 	// nPitchAndFamily
-						_T("Tahoma")              	// lpszFacename
-						);
+
+		font2.CreateFont(int(13 * s.scalefont), 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
+ 					  OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH|FF_DONTCARE, _T("Tahoma"));
 
 		memdc.SelectObject(&font2);
 		CString str;

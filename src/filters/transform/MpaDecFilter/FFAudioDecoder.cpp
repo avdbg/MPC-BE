@@ -1,4 +1,5 @@
 /*
+ * 
  * (C) 2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -45,7 +46,7 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	{ &MEDIASUBTYPE_SAMR,              AV_CODEC_ID_AMR_NB },
 	{ &MEDIASUBTYPE_SAWB,              AV_CODEC_ID_AMR_WB },
 	// AAC
-	{ &MEDIASUBTYPE_AAC,               AV_CODEC_ID_AAC },
+	{ &MEDIASUBTYPE_RAW_AAC1,          AV_CODEC_ID_AAC },
 	{ &MEDIASUBTYPE_MP4A,              AV_CODEC_ID_AAC },
 	{ &MEDIASUBTYPE_mp4a,              AV_CODEC_ID_AAC },
 	{ &MEDIASUBTYPE_AAC_ADTS,          AV_CODEC_ID_AAC },
@@ -63,11 +64,11 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	// FLV ADPCM
 	{ &MEDIASUBTYPE_ADPCM_SWF,         AV_CODEC_ID_ADPCM_SWF },
 	// AMV IMA ADPCM
-	{ &MEDIASUBTYPE_ADPCM_AMV,         AV_CODEC_ID_ADPCM_IMA_AMV },
+	{ &MEDIASUBTYPE_IMA_AMV,           AV_CODEC_ID_ADPCM_IMA_AMV },
 	// MPEG Audio
-	{ &MEDIASUBTYPE_MPEG1Packet,       AV_CODEC_ID_MP2 },
-	{ &MEDIASUBTYPE_MPEG1Payload,      AV_CODEC_ID_MP2 },
-	{ &MEDIASUBTYPE_MPEG1AudioPayload, AV_CODEC_ID_MP2 },
+	{ &MEDIASUBTYPE_MPEG1Packet,       AV_CODEC_ID_MP1 },
+	{ &MEDIASUBTYPE_MPEG1Payload,      AV_CODEC_ID_MP1 },
+	{ &MEDIASUBTYPE_MPEG1AudioPayload, AV_CODEC_ID_MP1 },
 	{ &MEDIASUBTYPE_MPEG2_AUDIO,       AV_CODEC_ID_MP2 },
 	{ &MEDIASUBTYPE_MP3,               AV_CODEC_ID_MP3 },
 	// RealMedia Audio
@@ -88,7 +89,7 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	{ &MEDIASUBTYPE_MLP,               AV_CODEC_ID_MLP    },
 	// DTS
 	{ &MEDIASUBTYPE_DTS,               AV_CODEC_ID_DTS },
-	{ &MEDIASUBTYPE_WAVE_DTS,          AV_CODEC_ID_DTS },
+	{ &MEDIASUBTYPE_DTS2,              AV_CODEC_ID_DTS },
 	// FLAC
 	{ &MEDIASUBTYPE_FLAC_FRAMED,       AV_CODEC_ID_FLAC },
 	// QDM2
@@ -100,6 +101,8 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	{ &MEDIASUBTYPE_MPC8,              AV_CODEC_ID_MUSEPACK8 },
 	// APE
 	{ &MEDIASUBTYPE_APE,               AV_CODEC_ID_APE },
+	// TAK
+	{ &MEDIASUBTYPE_TAK,               AV_CODEC_ID_TAK },
 	// TTA
 	{ &MEDIASUBTYPE_TTA1,              AV_CODEC_ID_TTA },
 	// TRUESPEECH
@@ -217,16 +220,18 @@ bool CFFAudioDecoder::Init(enum AVCodecID nCodecId, CTransformInputPin* pInput)
 		m_pAVCtx = avcodec_alloc_context3(m_pAVCodec);
 		CheckPointer(m_pAVCtx, false);
 
-		m_pAVCtx->sample_rate           = nSamples;
-		m_pAVCtx->channels              = nChannels;
-		m_pAVCtx->bit_rate              = nBytesPerSec << 3;
-		m_pAVCtx->bits_per_coded_sample = nBitsPerSample;
-		m_pAVCtx->block_align           = nBlockAlign;
-
-		m_pAVCtx->err_recognition       = AV_EF_CAREFUL;
-		m_pAVCtx->codec_id              = nCodecId;
+		m_pAVCtx->sample_rate			= nSamples;
+		m_pAVCtx->channels				= nChannels;
+		m_pAVCtx->bit_rate				= nBytesPerSec << 3;
+		m_pAVCtx->bits_per_coded_sample	= nBitsPerSample;
+		m_pAVCtx->block_align			= nBlockAlign;
+		m_pAVCtx->err_recognition		= AV_EF_CAREFUL;
+		m_pAVCtx->thread_count			= 1;
+		m_pAVCtx->thread_type			= 0;
+		m_pAVCtx->codec_id				= nCodecId;
+		m_pAVCtx->refcounted_frames		= 1;
 		if (m_pAVCodec->capabilities & CODEC_CAP_TRUNCATED) {
-			m_pAVCtx->flags            |= CODEC_FLAG_TRUNCATED;
+			m_pAVCtx->flags				|= CODEC_FLAG_TRUNCATED;
 		}
 
 		if (nCodecId != AV_CODEC_ID_AAC) {
@@ -273,7 +278,8 @@ bool CFFAudioDecoder::Init(enum AVCodecID nCodecId, CTransformInputPin* pInput)
 		}
 
 		if (avcodec_open2(m_pAVCtx, m_pAVCodec, NULL) >= 0) {
-			m_pFrame = avcodec_alloc_frame();
+			m_pFrame = av_frame_alloc();
+			CheckPointer(m_pFrame, false);
 			bRet     = true;
 		}
 	}
@@ -295,7 +301,7 @@ void CFFAudioDecoder::SetDRC(bool fDRC)
 	}
 }
 
-HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, int& size, CAtlArray<BYTE>& BuffOut, enum AVSampleFormat& samplefmt)
+HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, int& size, CAtlArray<BYTE>& BuffOut, SampleFormat& samplefmt)
 {
 	size = 0;
 
@@ -329,6 +335,8 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 			int ret2 = avcodec_decode_audio4(m_pAVCtx, m_pFrame, &got_frame, &avpkt);
 			if (ret2 < 0) {
 				TRACE(_T("FFAudioDecoder: decoding failed despite successfull parsing\n"));
+
+				av_frame_unref(m_pFrame);
 				return S_FALSE;
 			}
 		}
@@ -341,6 +349,8 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 		if (used_bytes < 0) {
 			TRACE(_T("FFAudioDecoder: decoding failed\n"));
 			Init(nCodecId, NULL);
+
+			av_frame_unref(m_pFrame);
 			return E_FAIL;
 		} else if (used_bytes == 0 && !got_frame) {
 			TRACE(_T("FFAudioDecoder: could not process buffer while decoding\n"));
@@ -348,6 +358,8 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 			// sometimes avcodec_decode_audio4 cannot identify the garbage and produces incorrect data.
 			// this code does not solve the problem, it only reduces the likelihood of crash.
 			// do it better!
+
+			av_frame_unref(m_pFrame);
 			return E_FAIL;
 		}
 		ASSERT(buffsize >= used_bytes);
@@ -366,11 +378,11 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 			} else {
 				dwChannelMask = GetDefChannelMask(nChannels);
 			}*/
-			samplefmt = m_pAVCtx->sample_fmt;
-			size_t monosize = nSamples * av_get_bytes_per_sample(samplefmt);
+			samplefmt = (SampleFormat)m_pAVCtx->sample_fmt;
+			size_t monosize = nSamples * av_get_bytes_per_sample(m_pAVCtx->sample_fmt);
 			BuffOut.SetCount(monosize * nChannels);
 
-			if (av_sample_fmt_is_planar(samplefmt)) {
+			if (av_sample_fmt_is_planar(m_pAVCtx->sample_fmt)) {
 				BYTE* pOut = BuffOut.GetData();
 				for (int ch = 0; ch < nChannels; ++ch) {
 					memcpy(pOut, m_pFrame->extended_data[ch], monosize);
@@ -380,6 +392,8 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 				memcpy(BuffOut.GetData(), m_pFrame->data[0], BuffOut.GetCount());
 			}
 		}
+
+		av_frame_unref(m_pFrame);
 	}
 
 	return S_OK;
@@ -415,7 +429,7 @@ void CFFAudioDecoder::StreamFinish()
 	}
 
 	if (m_pFrame) {
-		av_freep(&m_pFrame);
+		av_frame_free(&m_pFrame);
 	}
 }
 
@@ -429,7 +443,7 @@ HRESULT CFFAudioDecoder::ParseRealAudioHeader(const BYTE* extra, const int extra
 	if (version == 3) {
 		TRACE(_T("FFAudioDecoder: RealAudio Header version 3 unsupported\n"));
 		return VFW_E_UNSUPPORTED_AUDIO;
-	} else if (version == 4 || version == 5 && extralen > 50) {
+	} else if (version == 4 || (version == 5 && extralen > 50)) {
 		// main format block
 		fmt += 2;  // word - unused (always 0)
 		fmt += 4;  // byte[4] - .ra4/.ra5 signature
@@ -443,6 +457,7 @@ HRESULT CFFAudioDecoder::ParseRealAudioHeader(const BYTE* extra, const int extra
 		fmt += 12; // byte[12] - unknown
 		m_raData.sub_packet_h = AV_RB16(fmt);
 		fmt += 2;  // word - sub packet h
+		m_raData.audio_framesize = AV_RB16(fmt);
 		fmt += 2;  // word - frame size
 		m_raData.sub_packet_size = m_pAVCtx->block_align = AV_RB16(fmt);
 		fmt += 2;  // word - subpacket size
@@ -488,7 +503,7 @@ HRESULT CFFAudioDecoder::RealPrepare(BYTE* p, int buffsize, CPaddedArray& BuffOu
 {
 	if (m_raData.deint_id == MAKEFOURCC('r', 'n', 'e', 'g') || m_raData.deint_id == MAKEFOURCC('r', 'p', 'i', 's')) {
 
-		int w   = m_raData.coded_frame_size;
+		int w   = m_raData.audio_framesize;
 		int h   = m_raData.sub_packet_h;
 		int len = w * h;
 
@@ -560,9 +575,9 @@ enum AVCodecID CFFAudioDecoder::GetCodecId()
 	return AV_CODEC_ID_NONE;
 }
 
-enum AVSampleFormat CFFAudioDecoder::GetSampleFmt()
+SampleFormat CFFAudioDecoder::GetSampleFmt()
 {
-	return m_pAVCtx->sample_fmt;
+	return (SampleFormat)m_pAVCtx->sample_fmt;
 }
 
 DWORD CFFAudioDecoder::GetSampleRate()

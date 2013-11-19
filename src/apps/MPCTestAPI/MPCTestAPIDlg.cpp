@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2008-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -264,7 +262,7 @@ BOOL CRegisterCopyDataDlg::OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruc
 	CString strMsg;
 
 	if (pCopyDataStruct->dwData == CMD_CONNECT) {
-		m_hWndMPC = (HWND)_wtol((LPCTSTR)pCopyDataStruct->lpData);
+		m_hWndMPC = (HWND)IntToPtr(_ttoi((LPCTSTR)pCopyDataStruct->lpData));
 	}
 
 	strMsg.Format(_T("%s : %s"), GetMPCCommandName((MPCAPI_COMMAND)pCopyDataStruct->dwData), (LPCTSTR)pCopyDataStruct->lpData);

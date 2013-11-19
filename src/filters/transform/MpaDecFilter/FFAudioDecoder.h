@@ -1,4 +1,5 @@
 /*
+ * 
  * (C) 2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -22,6 +23,7 @@
 
 #include <atlcoll.h>
 #include "PaddedArray.h"
+#include "SampleFormat.h"
 
 struct AVCodec;
 struct AVCodecContext;
@@ -41,6 +43,7 @@ protected:
 	struct {
 		int flavor;
 		int coded_frame_size;
+		int audio_framesize;
 		int sub_packet_h;
 		int sub_packet_size;
 		unsigned int deint_id;
@@ -57,13 +60,13 @@ public:
 	void    SetDRC(bool fDRC);
 
 	HRESULT RealPrepare(BYTE* p, int buffsize, CPaddedArray& BuffOut);
-	HRESULT Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, int& size, CAtlArray<BYTE>& BuffOut, enum AVSampleFormat& samplefmt);
+	HRESULT Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, int& size, CAtlArray<BYTE>& BuffOut, SampleFormat& samplefmt);
 	void    FlushBuffers();
 	void    StreamFinish();
 
 	// info
-	enum AVCodecID      GetCodecId();   // safe
-	enum AVSampleFormat GetSampleFmt(); // unsafe
+	enum AVCodecID GetCodecId(); // safe
+	SampleFormat GetSampleFmt(); // unsafe
 	DWORD GetSampleRate();  // unsafe
 	WORD  GetChannels();    // unsafe
 	DWORD GetChannelMask(); // unsafe

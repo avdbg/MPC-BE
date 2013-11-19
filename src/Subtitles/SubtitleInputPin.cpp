@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -82,7 +80,7 @@ HRESULT CSubtitleInputPin::CompleteConnect(IPin* pReceivePin)
 		}
 		CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)m_pSubStream;
 		pRTS->m_name = CString(GetPinName(pReceivePin)) + _T(" (embeded)");
-		pRTS->m_dstScreenSize = CSize(384, 288);
+		pRTS->m_dstScreenSize = DEFSCREENSIZE;
 		pRTS->CreateDefaultStyle(DEFAULT_CHARSET);
 	} else if (IsHdmvSub(&m_mt)
 			|| m_mt.majortype == MEDIATYPE_Subtitle
@@ -130,10 +128,10 @@ HRESULT CSubtitleInputPin::CompleteConnect(IPin* pReceivePin)
 			CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)m_pSubStream;
 			pRTS->m_name = name;
 			pRTS->m_lcid = lcid;
-			pRTS->m_dstScreenSize = CSize(384, 288);
+			pRTS->m_dstScreenSize = DEFSCREENSIZE;
 			pRTS->CreateDefaultStyle(DEFAULT_CHARSET);
 
-			if (dwOffset > 0 && m_mt.cbFormat - dwOffset > 0) {
+			if (dwOffset > 0 && m_mt.cbFormat != dwOffset) {
 				CMediaType mt = m_mt;
 				if (mt.pbFormat[dwOffset+0] != 0xef
 						&& mt.pbFormat[dwOffset+1] != 0xbb
@@ -214,12 +212,12 @@ STDMETHODIMP CSubtitleInputPin::NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME
 	CAutoLock cAutoLock(&m_csReceive);
 
 	if (m_mt.majortype == MEDIATYPE_Text
-			|| m_mt.majortype == MEDIATYPE_Subtitle
+			|| (m_mt.majortype == MEDIATYPE_Subtitle
 			&& (m_mt.subtype == MEDIASUBTYPE_UTF8
 				/*|| m_mt.subtype == MEDIASUBTYPE_USF*/
 				|| m_mt.subtype == MEDIASUBTYPE_SSA
 				|| m_mt.subtype == MEDIASUBTYPE_ASS
-				|| m_mt.subtype == MEDIASUBTYPE_ASS2)) {
+				|| m_mt.subtype == MEDIASUBTYPE_ASS2))) {
 		CAutoLock cAutoLock(m_pSubLock);
 		CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)m_pSubStream;
 		pRTS->RemoveAll();
@@ -353,7 +351,7 @@ STDMETHODIMP CSubtitleInputPin::Receive(IMediaSample* pSample)
 		if (m_mt.subtype == MEDIASUBTYPE_UTF8) {
 			CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)m_pSubStream;
 
-			CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
+			CStringW str = UTF8ToString(CStringA((LPCSTR)pData, len)).Trim();
 			if (!str.IsEmpty()) {
 				pRTS->Add(str, true, (int)(tStart / 10000), (int)(tStop / 10000));
 				fInvalidate = true;
@@ -361,7 +359,7 @@ STDMETHODIMP CSubtitleInputPin::Receive(IMediaSample* pSample)
 		} else if (m_mt.subtype == MEDIASUBTYPE_SSA || m_mt.subtype == MEDIASUBTYPE_ASS || m_mt.subtype == MEDIASUBTYPE_ASS2) {
 			CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)m_pSubStream;
 
-			CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
+			CStringW str = UTF8ToString(CStringA((LPCSTR)pData, len)).Trim();
 			if (!str.IsEmpty()) {
 				STSEntry stse;
 

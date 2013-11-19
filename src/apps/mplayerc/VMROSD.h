@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -28,6 +26,7 @@
 #include <vmr9.h>
 #include <madVRAllocatorPresenter.h>
 #include "PngImage.h"
+#include "..\..\DSUtil\DSMPropertyBag.h"
 //#include <Gdiplus.h>
 
 #define WM_HIDE			(WM_USER + 1001)
@@ -94,6 +93,8 @@ public:
 
 	OSD_TYPE GetOSDType() { return m_OSDType; };
 
+	void SetChapterBag(CComPtr<IDSMChapterBag>& pCB);
+
 	DECLARE_DYNAMIC(CVMROSD)
 
 private :
@@ -114,6 +115,7 @@ private :
 	CPen	m_penCursor;
 	CBrush	m_brushBack;
 	CBrush	m_brushBar;
+	CBrush	m_brushChapter;
 	CPen	m_debugPenBorder;
 	CBrush	m_debugBrushBack;
 	int		m_FontSize;
@@ -157,6 +159,9 @@ private :
 	CString			m_strMessageCashed;
 	OSD_MESSAGEPOS	m_nMessagePos;
 	CList<CString>	m_debugMessages;
+
+	CCritSec				m_CBLock;
+	CComPtr<IDSMChapterBag>	m_pChapterBag;
 
 	void UpdateBitmap();
 	void CalcRect();

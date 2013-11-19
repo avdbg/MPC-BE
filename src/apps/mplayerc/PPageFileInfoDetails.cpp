@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -25,53 +23,6 @@
 #include "PPageFileInfoDetails.h"
 #include <atlbase.h>
 #include <moreuuids.h>
-
-
-// CPPageFileInfoDetails dialog
-
-IMPLEMENT_DYNAMIC(CPPageFileInfoDetails, CPropertyPage)
-CPPageFileInfoDetails::CPPageFileInfoDetails(CString fn, IFilterGraph* pFG, ISubPicAllocatorPresenter* pCAP)
-	: CPropertyPage(CPPageFileInfoDetails::IDD, CPPageFileInfoDetails::IDD)
-	, m_fn(fn)
-	, m_pFG(pFG)
-	, m_pCAP(pCAP)
-	, m_hIcon(NULL)
-	, m_type(ResStr(IDS_AG_NOT_KNOWN))
-	, m_size(ResStr(IDS_AG_NOT_KNOWN))
-	, m_time(ResStr(IDS_AG_NOT_KNOWN))
-	, m_res(ResStr(IDS_AG_NOT_KNOWN))
-	, m_created(ResStr(IDS_AG_NOT_KNOWN))
-{
-}
-
-CPPageFileInfoDetails::~CPPageFileInfoDetails()
-{
-	if (m_hIcon) {
-		DestroyIcon(m_hIcon);
-	}
-}
-
-void CPPageFileInfoDetails::DoDataExchange(CDataExchange* pDX)
-{
-	__super::DoDataExchange(pDX);
-
-	DDX_Control(pDX, IDC_DEFAULTICON, m_icon);
-	DDX_Text(pDX, IDC_EDIT1, m_fn);
-	DDX_Text(pDX, IDC_EDIT4, m_type);
-	DDX_Text(pDX, IDC_EDIT3, m_size);
-	DDX_Text(pDX, IDC_EDIT2, m_time);
-	DDX_Text(pDX, IDC_EDIT5, m_res);
-	DDX_Text(pDX, IDC_EDIT6, m_created);
-	DDX_Control(pDX, IDC_EDIT7, m_encoding);
-}
-
-#define SETPAGEFOCUS WM_APP+252 // arbitrary number, can be changed if necessary
-BEGIN_MESSAGE_MAP(CPPageFileInfoDetails, CPropertyPage)
-	ON_WM_SIZE()
-	ON_MESSAGE(SETPAGEFOCUS, OnSetPageFocus)
-END_MESSAGE_MAP()
-
-// CPPageFileInfoDetails message handlers
 
 static bool GetProperty(IFilterGraph* pFG, LPCOLESTR propName, VARIANT* vt)
 {
@@ -99,45 +50,22 @@ static CString FormatDateTime(FILETIME tm)
 	return ret;
 }
 
-BOOL CPPageFileInfoDetails::OnInitDialog()
+// CPPageFileInfoDetails dialog
+
+IMPLEMENT_DYNAMIC(CPPageFileInfoDetails, CPropertyPage)
+CPPageFileInfoDetails::CPPageFileInfoDetails(CString fn, IFilterGraph* pFG, ISubPicAllocatorPresenter* pCAP)
+	: CPropertyPage(CPPageFileInfoDetails::IDD, CPPageFileInfoDetails::IDD)
+	, m_fn(fn)
+	, m_hIcon(NULL)
+	, m_type(ResStr(IDS_AG_NOT_KNOWN))
+	, m_size(ResStr(IDS_AG_NOT_KNOWN))
+	, m_time(ResStr(IDS_AG_NOT_KNOWN))
+	, m_res(ResStr(IDS_AG_NOT_KNOWN))
+	, m_created(ResStr(IDS_AG_NOT_KNOWN))
 {
-	__super::OnInitDialog();
-
-	if (m_fn.IsEmpty()) {
-		BeginEnumFilters(m_pFG, pEF, pBF) {
-			CComQIPtr<IFileSourceFilter> pFSF = pBF;
-			if (pFSF) {
-				LPOLESTR pFN = NULL;
-				AM_MEDIA_TYPE mt;
-				if (SUCCEEDED(pFSF->GetCurFile(&pFN, &mt)) && pFN && *pFN) {
-					m_fn = CStringW(pFN);
-					CoTaskMemFree(pFN);
-				}
-				break;
-			}
-		}
-		EndEnumFilters
-	}
-
-	CString ext = m_fn.Left(m_fn.Find(_T("://"))+1).TrimRight(':');
-
-	if (ext.IsEmpty() || !ext.CompareNoCase(_T("file"))) {
-		ext = _T(".") + m_fn.Mid(m_fn.ReverseFind('.')+1);
-	}
-
-	m_hIcon = LoadIcon(m_fn, false);
-
-	if (m_hIcon) {
-		m_icon.SetIcon(m_hIcon);
-	}
-
-	if (!LoadType(ext, m_type)) {
-		m_type = ResStr(IDS_AG_NOT_KNOWN);
-	}
-
 	CComVariant vt;
 
-	if (::GetProperty(m_pFG, L"CurFile.TimeCreated", &vt)) {
+	if (::GetProperty(pFG, L"CurFile.TimeCreated", &vt)) {
 		if (V_VT(&vt) == VT_UI8) {
 			ULARGE_INTEGER uli;
 			uli.QuadPart = V_UI8(&vt);
@@ -156,7 +84,7 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 	if (hFind != INVALID_HANDLE_VALUE) {
 		FindClose(hFind);
 
-		__int64 size = (__int64(wfd.nFileSizeHigh)<<32)|wfd.nFileSizeLow;
+		__int64 size = (__int64(wfd.nFileSizeHigh) << 32) | wfd.nFileSizeLow;
 		const int MAX_FILE_SIZE_BUFFER = 65;
 		WCHAR szFileSize[MAX_FILE_SIZE_BUFFER];
 		StrFormatByteSizeW(size, szFileSize, MAX_FILE_SIZE_BUFFER);
@@ -168,7 +96,7 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 	}
 
 	REFERENCE_TIME rtDur = 0;
-	CComQIPtr<IMediaSeeking> pMS = m_pFG;
+	CComQIPtr<IMediaSeeking> pMS = pFG;
 
 	if (pMS && SUCCEEDED(pMS->GetDuration(&rtDur)) && rtDur > 0) {
 		m_time = ReftimeToString2(rtDur);
@@ -176,13 +104,13 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 
 	CSize wh(0, 0), arxy(0, 0);
 
-	if (m_pCAP) {
-		wh = m_pCAP->GetVideoSize(false);
-		arxy = m_pCAP->GetVideoSize(true);
+	if (pCAP) {
+		wh		= pCAP->GetVideoSize(false);
+		arxy	= pCAP->GetVideoSize(true);
 	} else {
-		if (CComQIPtr<IBasicVideo> pBV = m_pFG) {
+		if (CComQIPtr<IBasicVideo> pBV = pFG) {
 			if (SUCCEEDED(pBV->GetVideoSize(&wh.cx, &wh.cy))) {
-				if (CComQIPtr<IBasicVideo2> pBV2 = m_pFG) {
+				if (CComQIPtr<IBasicVideo2> pBV2 = pFG) {
 					pBV2->GetPreferredAspectRatio(&arxy.cx, &arxy.cy);
 				}
 			} else {
@@ -191,7 +119,7 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 		}
 
 		if (wh.cx == 0 && wh.cy == 0) {
-			BeginEnumFilters(m_pFG, pEF, pBF) {
+			BeginEnumFilters(pFG, pEF, pBF) {
 				if (CComQIPtr<IBasicVideo> pBV = pBF) {
 					pBV->GetVideoSize(&wh.cx, &wh.cy);
 					if (CComQIPtr<IBasicVideo2> pBV2 = pBF) {
@@ -221,6 +149,57 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 		}
 	}
 
+	InitEncoding(pFG);
+}
+
+CPPageFileInfoDetails::~CPPageFileInfoDetails()
+{
+	if (m_hIcon) {
+		DestroyIcon(m_hIcon);
+	}
+}
+
+void CPPageFileInfoDetails::DoDataExchange(CDataExchange* pDX)
+{
+	__super::DoDataExchange(pDX);
+
+	DDX_Control(pDX, IDC_DEFAULTICON, m_icon);
+	DDX_Text(pDX, IDC_EDIT1, m_fn);
+	DDX_Text(pDX, IDC_EDIT4, m_type);
+	DDX_Text(pDX, IDC_EDIT3, m_size);
+	DDX_Text(pDX, IDC_EDIT2, m_time);
+	DDX_Text(pDX, IDC_EDIT5, m_res);
+	DDX_Text(pDX, IDC_EDIT6, m_created);
+	DDX_Control(pDX, IDC_EDIT7, m_encoding);
+}
+
+#define SETPAGEFOCUS WM_APP + 252	// arbitrary number, can be changed if necessary
+BEGIN_MESSAGE_MAP(CPPageFileInfoDetails, CPropertyPage)
+	ON_WM_SIZE()
+	ON_MESSAGE(SETPAGEFOCUS, OnSetPageFocus)
+END_MESSAGE_MAP()
+
+// CPPageFileInfoDetails message handlers
+
+BOOL CPPageFileInfoDetails::OnInitDialog()
+{
+	__super::OnInitDialog();
+
+	m_hIcon = LoadIcon(m_fn, false);
+	if (m_hIcon) {
+		m_icon.SetIcon(m_hIcon);
+	}
+
+	CString ext = m_fn.Left(m_fn.Find(_T("://"))+1).TrimRight(':');
+
+	if (ext.IsEmpty() || !ext.CompareNoCase(_T("file"))) {
+		ext = _T(".") + m_fn.Mid(m_fn.ReverseFind('.')+1);
+	}
+
+	if (!LoadType(ext, m_type)) {
+		m_type = ResStr(IDS_AG_NOT_KNOWN);
+	}
+
 	m_fn.TrimRight('/');
 	m_fn.Replace('\\', '/');
 
@@ -235,10 +214,7 @@ BOOL CPPageFileInfoDetails::OnInitDialog()
 
 	UpdateData(FALSE);
 
-	InitEncoding();
-
-	m_pFG = NULL;
-	m_pCAP = NULL;
+	m_encoding.SetWindowText(m_encodingText);
 
 	return TRUE;
 }
@@ -256,14 +232,16 @@ LRESULT CPPageFileInfoDetails::OnSetPageFocus(WPARAM wParam, LPARAM lParam)
 	CPropertySheet* psheet = (CPropertySheet*) GetParent();
 	psheet->GetTabControl()->SetFocus();
 
+	SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, 0, 1);
+
 	return 0;
 }
 
-void CPPageFileInfoDetails::InitEncoding()
+void CPPageFileInfoDetails::InitEncoding(IFilterGraph* pFG)
 {
 	CAtlList<CString> sl;
 
-	BeginEnumFilters(m_pFG, pEF, pBF) {
+	BeginEnumFilters(pFG, pEF, pBF) {
 		CComPtr<IBaseFilter> pUSBF = GetUpStreamFilter(pBF);
 
 		if (GetCLSID(pBF) == CLSID_NetShowSource) {
@@ -317,9 +295,9 @@ void CPPageFileInfoDetails::InitEncoding()
 	}
 	EndEnumFilters;
 
-	CString text = Implode(sl, '\n');
-	text.Replace(_T("\n"), _T("\r\n"));
-	m_encoding.SetWindowText(text);
+	m_encodingText = Implode(sl, '\n');
+	m_encodingText.Replace(_T("\n"), _T("\r\n"));
+	//m_encoding.SetWindowText(text);
 }
 
 void CPPageFileInfoDetails::OnSize(UINT nType, int cx, int cy)
@@ -340,8 +318,8 @@ void CPPageFileInfoDetails::OnSize(UINT nType, int cx, int cy)
 	HDWP hDWP = ::BeginDeferWindowPos(1);
 	for (CWnd *pChild = GetWindow(GW_CHILD); pChild != NULL; pChild = pChild->GetWindow(GW_HWNDNEXT)) {
 		if (pChild != GetDlgItem(IDC_EDIT7) && pChild != GetDlgItem(IDC_DEFAULTICON)) {
-			pChild->GetWindowRect(&r); 
-			ScreenToClient(&r); 
+			pChild->GetWindowRect(&r);
+			ScreenToClient(&r);
 			r.right += dx;
 			::DeferWindowPos(hDWP, pChild->m_hWnd, NULL, 0, 0, r.Width(), r.Height(), SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOZORDER);
 		}

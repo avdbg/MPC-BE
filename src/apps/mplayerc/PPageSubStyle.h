@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -26,31 +24,6 @@
 #include "PPageBase.h"
 #include "../../Subtitles/STS.h"
 
-
-class CColorStatic : public CStatic
-{
-	//DECLARE_DYNAMIC(CColorStatic)
-
-	COLORREF* m_pColor;
-
-public:
-	CColorStatic(CWnd* pParent = NULL) : m_pColor(NULL) {}
-	virtual ~CColorStatic() {}
-
-	void SetColorPtr(COLORREF* pColor) {
-		m_pColor = pColor;
-	}
-
-	//DECLARE_MESSAGE_MAP()
-
-protected:
-	virtual void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct) {
-		CRect r;
-		GetClientRect(r);
-		CDC::FromHandle(lpDrawItemStruct->hDC)->FillSolidRect(r, m_pColor ? *m_pColor : ::GetSysColor(COLOR_BTNFACE));
-	}
-};
-
 // CPPageSubStyle dialog
 
 class CPPageSubStyle : public CPPageBase
@@ -59,8 +32,9 @@ class CPPageSubStyle : public CPPageBase
 
 private:
 	CString m_title;
-	STSStyle m_stss;
-	bool m_fUseDefaultStyle;
+	STSStyle* m_stss;
+	STSStyle m_stss_init;
+	BOOL m_fUseDefaultStyle;
 
 	void AskColor(int i);
 
@@ -68,8 +42,8 @@ public:
 	CPPageSubStyle();
 	virtual ~CPPageSubStyle();
 
-	void InitStyle(CString title, STSStyle& stss);
-	void GetStyle(STSStyle& stss) {
+	void InitSubStyle(CString title, STSStyle* stss);
+	void GetSubStyle(STSStyle* stss) {
 		stss = m_stss;
 	}
 
@@ -108,6 +82,7 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnBnClickedButton1();
+	afx_msg void OnBnClickedButton2();
 	afx_msg void OnStnClickedColorpri();
 	afx_msg void OnStnClickedColorsec();
 	afx_msg void OnStnClickedColoroutl();
@@ -115,4 +90,6 @@ protected:
 	afx_msg void OnBnClickedCheck1();
 	afx_msg void OnCustomDrawBtns(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+
+	void Init();
 };

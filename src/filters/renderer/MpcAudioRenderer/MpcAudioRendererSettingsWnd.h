@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2010-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -25,7 +23,6 @@
 #include "../../filters/InternalPropertyPage.h"
 #include "IMpcAudioRenderer.h"
 #include "resource.h"
-#include <afxcmn.h>
 
 class __declspec(uuid("1E53BA32-3BCC-4dff-9342-34E46BE3F5A5"))
 	CMpcAudioRendererSettingsWnd : public CInternalPropertyPageWnd
@@ -33,26 +30,24 @@ class __declspec(uuid("1E53BA32-3BCC-4dff-9342-34E46BE3F5A5"))
 private :
 	CComQIPtr<IMpcAudioRendererFilter> m_pMAR;
 
-	CStatic   m_txtWasapiMode;
-	CComboBox m_cbWasapiMode;
+	CStatic		m_txtWasapiMode;
+	CComboBox	m_cbWasapiMode;
 
-	CButton   m_cbMuteFastForward;
+	CButton		m_cbUseBitExactOutput;
+	CButton		m_cbUseSystemLayoutChannels;
 
-	CStatic   m_txtSoundDevice;
-	CComboBox m_cbSoundDevice;
-
-	CStatic   m_txtModeText;
+	CStatic		m_txtSoundDevice;
+	CComboBox	m_cbSoundDevice;
 
 	enum {
 		IDC_PP_WASAPI_MODE = 10000,
-		IDC_PP_MUTE_FAST_FORWARD,
 		IDC_PP_SOUND_DEVICE,
-		IDC_PP_WASAPI_MODE_STATUS
+		IDC_PP_USE_BITEXACT_OUTPUT,
+		IDC_PP_USE_SYSTEM_LAYOUT_CHANNELS
 	};
 
 public:
 	CMpcAudioRendererSettingsWnd(void);
-
 
 	bool OnConnect(const CInterfaceList<IUnknown, &IID_IUnknown>& pUnks);
 	void OnDisconnect();
@@ -63,7 +58,51 @@ public:
 	HRESULT GetAvailableAudioDevices();
 
 	static LPCTSTR GetWindowTitle() { return MAKEINTRESOURCE(IDS_FILTER_SETTINGS_CAPTION); }
-	static CSize GetWindowSize() { return CSize(340, 160); }
+	static CSize GetWindowSize() { return CSize(340, 135); }
+
+	DECLARE_MESSAGE_MAP()
+
+	afx_msg void OnClickedWasapiMode();
+	afx_msg void OnClickedBitExact();
+};
+
+class __declspec(uuid("E3D0704B-1579-4E9E-8674-2674CB90D07A"))
+	CMpcAudioRendererStatusWnd : public CInternalPropertyPageWnd
+{
+private :
+	CComQIPtr<IMpcAudioRendererFilter> m_pMAR;
+
+	CButton		m_gInput;
+	CButton		m_gOutput;
+
+	CStatic		m_InputFormatLabel;
+	CStatic		m_InputFormatText;
+	CStatic		m_OutputFormatLabel;
+	CStatic		m_OutputFormatText;
+
+	CStatic		m_InputChannelLabel;
+	CStatic		m_InputChannelText;
+	CStatic		m_OutputChannelLabel;
+	CStatic		m_OutputChannelText;
+
+	CStatic		m_InputRateLabel;
+	CStatic		m_InputRateText;
+	CStatic		m_OutputRateLabel;
+	CStatic		m_OutputRateText;
+
+	CStatic		m_txtModeText;
+
+public:
+	CMpcAudioRendererStatusWnd(void);
+
+
+	bool OnConnect(const CInterfaceList<IUnknown, &IID_IUnknown>& pUnks);
+	void OnDisconnect();
+	bool OnActivate();
+	void OnDeactivate();
+
+	static LPCTSTR GetWindowTitle() { return MAKEINTRESOURCE(IDS_ARS_WASAPI_MODE_STATUS); }
+	static CSize GetWindowSize() { return CSize(340, 135); }
 
 	DECLARE_MESSAGE_MAP()
 };

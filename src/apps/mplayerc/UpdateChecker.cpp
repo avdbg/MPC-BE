@@ -1,7 +1,5 @@
 /*
- * $Id$
- *
- * (C) 2013 see Authors.txt
+ * Copyright (C) 2013 Sergey "Exodus8" (rusguy6@gmail.com)
  *
  * This file is part of MPC-BE.
  *
@@ -22,8 +20,9 @@
 
 #include "stdafx.h"
 #include "UpdateChecker.h"
+#include "PlayerYouTube.h"
 
-const Version UpdateChecker::MPC_VERSION = {MPC_VERSION_MAJOR, MPC_VERSION_MINOR, MPC_VERSION_PATCH, MPC_VERSION_STATUS};
+const Version UpdateChecker::MPC_VERSION = {MPC_VERSION_REV};
 
 UpdateChecker::UpdateChecker(CString versionFileURL)
 	: versionFileURL(versionFileURL)
@@ -36,42 +35,90 @@ UpdateChecker::~UpdateChecker(void)
 
 Update_Status UpdateChecker::isUpdateAvailable(const Version& currentVersion)
 {
-	Update_Status updateAvailable = UPDATER_LATEST_STABLE;
+	char* final = NULL;
 
-	try {
-		CInternetSession internet;
-		CHttpFile* versionFile = (CHttpFile*)internet.OpenURL(versionFileURL, 1, INTERNET_FLAG_TRANSFER_ASCII | INTERNET_FLAG_DONT_CACHE | INTERNET_FLAG_RELOAD, NULL, 0);
+	HINTERNET f, s = InternetOpen(L"MPC-BE Update Checker", 0, NULL, NULL, 0);
+	if (s) {
+		f = InternetOpenUrl(s, versionFileURL, NULL, 0, INTERNET_FLAG_TRANSFER_BINARY | INTERNET_FLAG_EXISTING_CONNECT | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_RELOAD, 0);
+		if (f) {
+			char *out			= NULL;
+			DWORD dwBytesRead	= 0;
+			DWORD dataSize		= 0;
 
-		if (versionFile) {
-			CString latestVersionStr;
-			char buffer[101];
-			UINT br = 0;
-
-			while ((br = versionFile->Read(buffer, 50)) > 0) {
-				buffer[br] = '\0';
-				latestVersionStr += buffer;
-			}
-
-			if (!parseVersion(latestVersionStr)) {
-				updateAvailable = UPDATER_ERROR;
-			} else {
-				int comp = compareVersion(currentVersion, latestVersion);
-
-				if (comp < 0) {
-					updateAvailable = UPDATER_UPDATE_AVAILABLE;
-				} else if (comp > 0) {
-					updateAvailable = UPDATER_NEWER_VERSION;
+			do {
+				char buffer[4096];
+				if (InternetReadFile(f, (LPVOID)buffer, _countof(buffer), &dwBytesRead) == FALSE) {
+					break;
 				}
-			}
 
-			versionFile->Close();
-			delete versionFile;
-		} else {
-			updateAvailable = UPDATER_ERROR;
+				char *tempData = DNew char[dataSize + dwBytesRead];
+				memcpy(tempData, out, dataSize);
+				memcpy(tempData + dataSize, buffer, dwBytesRead);
+				delete[] out;
+				out = tempData;
+				dataSize += dwBytesRead;
+
+				if (strstr(out, "dev build ")) {
+					break;
+				}
+			} while (dwBytesRead);
+
+			final = DNew char[dataSize + 1];
+			memset(final, 0, dataSize + 1);
+			memcpy(final, out, dataSize);
+			delete [] out;
+
+			InternetCloseHandle(f);
 		}
-	} catch (CInternetException* pEx) {
+		InternetCloseHandle(s);
+	}
+
+	Update_Status updateAvailable = UPDATER_NEWER_VERSION;
+
+	if (!final || !f || !s) {
 		updateAvailable = UPDATER_ERROR;
-		pEx->Delete();
+		return updateAvailable;
+	}
+
+	char *str = NULL;
+	int t_start = 0, t_stop = 0;
+
+	t_start = strpos(final, "MPC-BE v") + strlen("MPC-BE ");
+	final += t_start;
+	t_stop = strpos(final, "<");
+	str = DNew char[t_stop + 1];
+	memset(str, 0, t_stop + 1);
+	memcpy(str, final, t_stop);
+
+	CString versionStr = CString(str);
+
+	t_start = strpos(final, "build") + strlen("build ");
+	final += t_start;
+	t_stop = strpos(final, "<");
+	str = DNew char[t_stop + 1];
+	memset(str, 0, t_stop + 1);
+	memcpy(str, final, t_stop);
+
+	latestVersion.rev = (UINT)atoi(str);
+
+	final -= 160;
+	t_start = strpos(final, "http");
+	final += t_start;
+	t_stop = strpos(final, "\"");
+	str = DNew char[t_stop + 1];
+	memset(str, 0, t_stop + 1);
+	memcpy(str, final, t_stop);
+
+	latestVersion.url = CString(str);
+
+	delete [] str;
+
+	if (!parseVersion(versionStr)) {
+		updateAvailable = UPDATER_ERROR;
+	} else {
+		if (compareVersion(currentVersion, latestVersion)) {
+			updateAvailable = UPDATER_UPDATE_AVAILABLE;
+		}
 	}
 
 	return updateAvailable;
@@ -87,30 +134,10 @@ bool UpdateChecker::parseVersion(const CString& versionStr)
 	bool success = false;
 
 	if (!versionStr.IsEmpty()) {
-		UINT v[4];
-		int curPos = 0;
-		UINT i = 0;
-		CString resToken = versionStr.Tokenize(_T("."), curPos);
 
-		success = !resToken.IsEmpty();
+		latestVersion.version = versionStr;
 
-		while (!resToken.IsEmpty() && i < _countof(v) && success) {
-			if (1 != _stscanf_s(resToken, _T("%u"), v + i)) {
-				success = false;
-			}
-
-			resToken = versionStr.Tokenize(_T("."), curPos);
-			i++;
-		}
-
-		success = success && (i == _countof(v));
-
-		if (success) {
-			latestVersion.major = v[0];
-			latestVersion.minor = v[1];
-			latestVersion.status = v[2];
-			latestVersion.patch = v[3];
-		}
+		success = true;
 	}
 
 	return success;
@@ -118,22 +145,8 @@ bool UpdateChecker::parseVersion(const CString& versionStr)
 
 int UpdateChecker::compareVersion(const Version& v1, const Version& v2) const
 {
-	if (v1.major > v2.major) {
+	if (v2.rev > v1.rev) {
 		return 1;
-	} else if (v1.major < v2.major) {
-		return -1;
-	} else if (v1.minor > v2.minor) {
-		return 1;
-	} else if (v1.minor < v2.minor) {
-		return -1;
-	} else if (v1.status > v2.status) {
-		return 1;
-	} else if (v1.status < v2.status) {
-		return -1;
-	} else if (v1.patch > v2.patch) {
-		return 1;
-	} else if (v1.patch < v2.patch) {
-		return -1;
 	} else {
 		return 0;
 	}
@@ -144,16 +157,16 @@ IMPLEMENT_DYNAMIC(UpdateCheckerDlg, CDialog)
 UpdateCheckerDlg::UpdateCheckerDlg(Update_Status updateStatus, const Version& latestVersion, CWnd* pParent)
 	: CDialog(UpdateCheckerDlg::IDD, pParent), m_updateStatus(updateStatus)
 {
+	CString VersionStr;
+
 	switch (updateStatus) {
 		case UPDATER_UPDATE_AVAILABLE:
-			m_text.Format(IDS_NEW_UPDATE_AVAILABLE, latestVersion.major, latestVersion.minor, latestVersion.status, latestVersion.patch);
-			break;
-		case UPDATER_LATEST_STABLE:
-			m_text.LoadString(IDS_USING_LATEST_STABLE);
+			latestURL = latestVersion.url;
+			m_text.Format(IDS_NEW_UPDATE_AVAILABLE, latestVersion.version);
 			break;
 		case UPDATER_NEWER_VERSION:
-			m_text.Format(IDS_USING_NEWER_VERSION, UpdateChecker::MPC_VERSION.major, UpdateChecker::MPC_VERSION.minor, UpdateChecker::MPC_VERSION.status, UpdateChecker::MPC_VERSION.patch,
-						latestVersion.major, latestVersion.minor, latestVersion.status, latestVersion.patch);
+			VersionStr.Format(_T("v%u.%u.%u.%u -dev build %u"), MPC_VERSION_MAJOR, MPC_VERSION_MINOR, MPC_VERSION_PATCH, MPC_VERSION_STATUS, MPC_VERSION_REV);
+			m_text.Format(IDS_USING_NEWER_VERSION, VersionStr);
 			break;
 		case UPDATER_ERROR:
 			m_text.LoadString(IDS_UPDATE_ERROR);
@@ -188,7 +201,6 @@ BOOL UpdateCheckerDlg::OnInitDialog()
 		case UPDATER_UPDATE_AVAILABLE:
 			m_icon.SetIcon(LoadIcon(NULL, IDI_QUESTION));
 			break;
-		case UPDATER_LATEST_STABLE:
 		case UPDATER_NEWER_VERSION:
 		case UPDATER_ERROR:
 			m_icon.SetIcon(LoadIcon(NULL, (m_updateStatus == UPDATER_ERROR) ? IDI_WARNING : IDI_INFORMATION));
@@ -206,8 +218,7 @@ BOOL UpdateCheckerDlg::OnInitDialog()
 void UpdateCheckerDlg::OnOK()
 {
 	if (m_updateStatus == UPDATER_UPDATE_AVAILABLE) {
-//		ShellExecute(NULL, _T("open"), _T("http://sourceforge.net/p/mpcbe/download-media-player-classic-hc.html"), NULL, NULL, SW_SHOWNORMAL);
-		ShellExecute(NULL, _T("open"), _T("http://www.xvidvideo.ru/media-player-classic-home-cinema-x86-x64/"), NULL, NULL, SW_SHOWNORMAL);
+		ShellExecute(NULL, _T("open"), latestURL, NULL, NULL, SW_SHOWDEFAULT);
 	}
 
 	__super::OnOK();

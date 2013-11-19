@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -249,7 +247,7 @@ void CPPageExternalFilters::SetupSubTypes(CAtlArray<GUID>& guids)
 	guids.Add(MEDIASUBTYPE_DVD_NAVIGATION_PROVIDER);
 	guids.Add(MEDIASUBTYPE_I420);
 	guids.Add(MEDIASUBTYPE_WAVE_DOLBY_AC3);
-	guids.Add(MEDIASUBTYPE_WAVE_DTS);
+	guids.Add(MEDIASUBTYPE_DTS2);
 }
 
 BEGIN_MESSAGE_MAP(CPPageExternalFilters, CPPageBase)

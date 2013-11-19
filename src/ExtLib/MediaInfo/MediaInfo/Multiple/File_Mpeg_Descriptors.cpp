@@ -1588,7 +1588,7 @@ void File_Mpeg_Descriptors::Descriptor_03()
     Skip_S1(3,                                                  "reserved");
     BS_End();
 
-    FILLING_BEGIN()
+    FILLING_BEGIN();
         if (elementary_PID_IsValid)
         {
             Complete_Stream->Streams[elementary_PID]->Infos["BitRate_Mode"]=variable_rate_audio_indicator?__T("VBR"):__T("CBR");
@@ -1642,9 +1642,7 @@ void File_Mpeg_Descriptors::Descriptor_05()
                         break;
             default    : ;
         }
-    FILLING_END()
-    else
-    {
+    FILLING_ELSE()
         switch (table_id)
         {
             case 0x02 : //program_map_section
@@ -1660,7 +1658,7 @@ void File_Mpeg_Descriptors::Descriptor_05()
                         break;
             default    : ;
         }
-    }
+    FILLING_END();
 }
 
 //---------------------------------------------------------------------------
@@ -2766,6 +2764,22 @@ void File_Mpeg_Descriptors::Descriptor_81()
 //---------------------------------------------------------------------------
 void File_Mpeg_Descriptors::Descriptor_86()
 {
+    if (event_id_IsValid)
+    {
+        Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Eia708_Languages.clear();
+        Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Eia608_IsPresent=false;
+    }
+    else if (elementary_PID_IsValid)
+    {
+        Complete_Stream->Streams[elementary_PID]->Eia708_Languages.clear();
+        Complete_Stream->Streams[elementary_PID]->Eia608_IsPresent=false;
+    }
+    else if (program_number_IsValid)
+    {
+        Complete_Stream->Transport_Streams[transport_stream_id].Programs[program_number].Eia708_Languages.clear();
+        Complete_Stream->Transport_Streams[transport_stream_id].Programs[program_number].Eia608_IsPresent=false;
+    }
+
     //Parsing
     Ztring Text, Language1, Language2;
     int8u number_of_services;
@@ -2777,10 +2791,10 @@ void File_Mpeg_Descriptors::Descriptor_86()
     for (int8u Pos=0; Pos<number_of_services; Pos++)
     {
         Element_Begin1("service");
-        Ztring language;
+        string language;
         int8u caption_service_number;
         bool digital_cc;
-        Get_Local(3, language,                                  "language");
+        Get_String(3, language,                                 "language");
         BS_Begin();
         Get_SB (digital_cc,                                     "digital_cc");
         Skip_SB(                                                "reserved");
@@ -2791,7 +2805,6 @@ void File_Mpeg_Descriptors::Descriptor_86()
             bool line21_field;
             Skip_S1(5,                                          "reserved");
             Get_SB (   line21_field,                            "line21_field");
-            caption_service_number=128+(line21_field?2:1);
         }
         Skip_SB(                                                "easy_reader");
         Skip_SB(                                                "wide_aspect_ratio");
@@ -2801,13 +2814,39 @@ void File_Mpeg_Descriptors::Descriptor_86()
 
         if (event_id_IsValid)
         {
-            if (Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Languages[caption_service_number].empty()) //We use only the first detected value
-                Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Languages[caption_service_number]=language;
+            if (digital_cc)
+            {
+                string &Value=Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Eia708_Languages[caption_service_number];
+                if (!Value.empty())
+                    Value+=" / ";
+                Value+=language;
+            }
+            else
+                Complete_Stream->Sources[table_id_extension].ATSC_EPG_Blocks[Complete_Stream->Streams[pid]->table_type].Events[event_id].Eia608_IsPresent=true;
         }
-        if (elementary_PID_IsValid)
+        else if (elementary_PID_IsValid)
         {
-            if (Complete_Stream->Streams[elementary_PID]->Languages[caption_service_number].empty()) //We use only the first detected value
-                Complete_Stream->Streams[elementary_PID]->Languages[caption_service_number]=language;
+            if (digital_cc)
+            {
+                string &Value=Complete_Stream->Streams[elementary_PID]->Eia708_Languages[caption_service_number];
+                if (!Value.empty())
+                    Value+=" / ";
+                Value+=language;
+            }
+            else
+                Complete_Stream->Streams[elementary_PID]->Eia608_IsPresent=true;
+        }
+        else if (program_number_IsValid)
+        {
+            if (digital_cc)
+            {
+                string &Value=Complete_Stream->Transport_Streams[transport_stream_id].Programs[program_number].Eia708_Languages[caption_service_number];
+                if (!Value.empty())
+                    Value+=" / ";
+                Value+=language;
+            }
+            else
+                Complete_Stream->Transport_Streams[transport_stream_id].Programs[program_number].Eia608_IsPresent=true;
         }
     }
 }

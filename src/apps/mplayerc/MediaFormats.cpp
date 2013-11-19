@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,7 +21,6 @@
 
 #include "stdafx.h"
 #include "MainFrm.h"
-#include <atlpath.h>
 #include "MediaFormats.h"
 #include "OpenImage.h"
 
@@ -210,13 +207,11 @@ void CMediaFormats::UpdateData(bool fSave)
 {
 	if (fSave) {
 		AfxGetApp()->WriteProfileString(_T("FileFormats"), NULL, NULL);
-		AfxGetApp()->WriteProfileInt(_T("FileFormats"), _T("RtspHandler"), m_iRtspHandler);
-		AfxGetApp()->WriteProfileInt(_T("FileFormats"), _T("RtspFileExtFirst"), m_fRtspFileExtFirst);
 	} else {
 		RemoveAll();
 
 #define ADDFMT(f) Add(CMediaFormatCategory##f)
-
+		// video files
 		ADDFMT((_T("avi"),         ResStr(IDS_MFMT_AVI),         _T("avi")));
 		ADDFMT((_T("mpeg"),        ResStr(IDS_MFMT_MPEG),        _T("mpg mpeg mpe m1v m2v mpv2 mp2v pva evo m2p")));
 		ADDFMT((_T("mpegts"),      ResStr(IDS_MFMT_MPEGTS),      _T("ts tp trp m2t m2ts mts rec ssif")));
@@ -239,10 +234,11 @@ void CMediaFormats::UpdateData(bool fSave)
 		ADDFMT((_T("flic"),        ResStr(IDS_MFMT_FLIC),        _T("fli flc flic")));
 		ADDFMT((_T("dsm"),         ResStr(IDS_MFMT_DSM),         _T("dsm dsv dsa dss")));
 		ADDFMT((_T("ivf"),         ResStr(IDS_MFMT_IVF),         _T("ivf")));
-		ADDFMT((_T("dvd2avi"),     ResStr(IDS_MFMT_D2V),         _T("d2v")));
 		ADDFMT((_T("swf"),         ResStr(IDS_MFMT_SWF),         _T("swf"), false, _T("ShockWave ActiveX control"), ShockWave));
 		ADDFMT((_T("other"),       ResStr(IDS_MFMT_OTHER),       _T("divx rmvb amv wtv dvr-ms")));
-		ADDFMT((_T("ac3dts"),      ResStr(IDS_MFMT_AC3),         _T("ac3 dts"), true));
+		ADDFMT((_T("raw video"),   ResStr(IDS_MFMT_RAW_VIDEO),   _T("h264 264 vc1 h265 265 hm10 hevc")));
+		// audio files
+		ADDFMT((_T("ac3dts"),      ResStr(IDS_MFMT_AC3),         _T("ac3 dts dtshd"), true));
 		ADDFMT((_T("aiff"),        ResStr(IDS_MFMT_AIFF),        _T("aif aifc aiff"), true));
 		ADDFMT((_T("alac"),        ResStr(IDS_MFMT_ALAC),        _T("alac"), true));
 		ADDFMT((_T("amr"),         ResStr(IDS_MFMT_AMR),         _T("amr"), true));
@@ -265,73 +261,18 @@ void CMediaFormats::UpdateData(bool fSave)
 		ADDFMT((_T("tta"),         ResStr(IDS_MFMT_TTA),         _T("tta"), true));
 		ADDFMT((_T("wav"),         ResStr(IDS_MFMT_WAV),         _T("wav"), true));
 		ADDFMT((_T("wma"),         ResStr(IDS_MFMT_WMA),         _T("wma"), true));
-		ADDFMT((_T("wavpack"),     ResStr(IDS_MFMT_WV),          _T("wv"), true));
+		ADDFMT((_T("wavpack"),     ResStr(IDS_MFMT_WAVPACK),     _T("wv"), true));
 		ADDFMT((_T("opus"),        ResStr(IDS_MFMT_OPUS),        _T("opus"), true));
 		ADDFMT((_T("speex"),       ResStr(IDS_MFMT_SPEEX),       _T("spx"), true));
+		// playlists
 		ADDFMT((_T("pls"),         ResStr(IDS_MFMT_PLS),         _T("asx m3u m3u8 pls wvx wax wmx mpcpl xspf")));
 		ADDFMT((_T("bdpls"),       ResStr(IDS_MFMT_BDPLS),       _T("mpls bdmv")));
 #undef ADDFMT
-
-		m_iRtspHandler		= (engine_t)AfxGetApp()->GetProfileInt(_T("FileFormats"), _T("RtspHandler"), (int)RealMedia);
-		m_fRtspFileExtFirst	= !!AfxGetApp()->GetProfileInt(_T("FileFormats"), _T("RtspFileExtFirst"), 1);
 	}
 
 	for (size_t i = 0; i < GetCount(); i++) {
 		GetAt(i).UpdateData(fSave);
 	}
-}
-
-engine_t CMediaFormats::GetRtspHandler(bool& fRtspFileExtFirst)
-{
-	fRtspFileExtFirst = m_fRtspFileExtFirst;
-	return m_iRtspHandler;
-}
-
-void CMediaFormats::SetRtspHandler(engine_t e, bool fRtspFileExtFirst)
-{
-	m_iRtspHandler		= e;
-	m_fRtspFileExtFirst	= fRtspFileExtFirst;
-}
-
-bool CMediaFormats::IsUsingEngine(CString path, engine_t e)
-{
-	return (GetEngine(path) == e);
-}
-
-engine_t CMediaFormats::GetEngine(CString path)
-{
-	path.Trim().MakeLower();
-
-	if (!m_fRtspFileExtFirst && path.Find(_T("rtsp://")) == 0) {
-		return m_iRtspHandler;
-	}
-
-	CString ext = CPath(path).GetExtension();
-	ext.MakeLower();
-
-	if (!ext.IsEmpty()) {
-		if (path.Find(_T("rtsp://")) == 0) {
-			if (ext == _T(".ram") || ext == _T(".rm") || ext == _T(".ra")) {
-				return RealMedia;
-			}
-			if (ext == _T(".qt") || ext == _T(".mov")) {
-				return QuickTime;
-			}
-		}
-
-		for (size_t i = 0; i < GetCount(); i++) {
-			CMediaFormatCategory& mfc = GetAt(i);
-			if (mfc.FindExt(ext)) {
-				return mfc.GetEngineType();
-			}
-		}
-	}
-
-	if (m_fRtspFileExtFirst && path.Find(_T("rtsp://")) == 0) {
-		return m_iRtspHandler;
-	}
-
-	return DirectShow;
 }
 
 bool CMediaFormats::FindExt(CString ext, bool fAudioOnly)

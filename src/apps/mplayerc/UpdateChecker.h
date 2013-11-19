@@ -1,7 +1,5 @@
 /*
- * $Id$
- *
- * (C) 2013 see Authors.txt
+ * Copyright (C) 2013 Sergey "Exodus8" (rusguy6@gmail.com)
  *
  * This file is part of MPC-BE.
  *
@@ -23,21 +21,18 @@
 #pragma once
 
 #include <afxwin.h>
-#include <afxinet.h>
 #include "afxdialogex.h"
 
 struct Version
 {
-	UINT major;
-	UINT minor;
-	UINT status;
-	UINT patch;
+	UINT rev;
+	CString version;
+	CString url;
 };
 
 enum Update_Status
 {
 	UPDATER_ERROR = -1,
-	UPDATER_LATEST_STABLE,
 	UPDATER_NEWER_VERSION,
 	UPDATER_UPDATE_AVAILABLE
 };
@@ -78,10 +73,13 @@ protected:
 	afx_msg virtual void OnOK();
 
 	DECLARE_MESSAGE_MAP()
+
 private:
 	Update_Status m_updateStatus;
 	CString m_text;
 	CStatic m_icon;
 	CButton m_okButton;
 	CButton m_cancelButton;
+
+	CString latestURL;
 };

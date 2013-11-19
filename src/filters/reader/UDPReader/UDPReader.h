@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2003-2006 Gabest
  * (C) 2006-2013 see Authors.txt
  *
@@ -23,11 +21,11 @@
 
 #pragma once
 
-#include <atlbase.h>
 #include <AsyncReader/asyncio.h>
 #include <AsyncReader/asyncrdr.h>
+#include "../../../DSUtil/MPCSocket.h"
 
-#define UDPReaderName L"MPC UDP Reader"
+#define UDPReaderName L"MPC UDP/HTTP Reader"
 
 class CUDPStream : public CAsyncStream, public CAMThread
 {
@@ -37,36 +35,47 @@ private:
 	class packet_t
 	{
 	public:
-		BYTE* m_buff;
+		BYTE*   m_buff;
 		__int64 m_start, m_end;
+
 		packet_t(BYTE* p, __int64 start, __int64 end);
 		virtual ~packet_t() {
 			delete [] m_buff;
 		}
 	};
 
-	int m_port;
-	CString m_ip;
-	SOCKET m_socket;
-	GUID m_subtype;
-	__int64 m_pos, m_len;
-	bool m_drop;
+	CString		m_url_str;
+	CUrl		m_url;
+	int			m_protocol;
+	enum {PR_NONE, PR_UDP, PR_HTTP};
+
+	SOCKET		m_UdpSocket;
+	sockaddr_in	m_addr;
+	WSAEVENT	m_WSAEvent[1];
+
+	CMPCSocket	m_HttpSocket;
+	SOCKET		m_HttpSocketTread;
+
+	__int64		m_pos, m_len;
 	CAtlList<packet_t*> m_packets;
+
+	GUID		m_subtype;
 
 	void Clear();
 	void Append(BYTE* buff, int len);
 
-	enum {CMD_EXIT, CMD_RUN};
 	DWORD ThreadProc();
+
+	void CheckBuffer();
 
 public:
 	CUDPStream();
 	virtual ~CUDPStream();
 
+	enum {CMD_INIT, CMD_PAUSE, CMD_RUN, CMD_STOP, CMD_EXIT};
+
+
 	bool Load(const WCHAR* fnw);
-	const GUID& GetSubType() {
-		return m_subtype;
-	}
 
 	HRESULT SetPointer(LONGLONG llPos);
 	HRESULT Read(PBYTE pbBuffer, DWORD dwBytesToRead, BOOL bAlign, LPDWORD pdwBytesRead);
@@ -74,6 +83,8 @@ public:
 	DWORD Alignment();
 	void Lock();
 	void Unlock();
+
+	GUID GetSubtype() { return m_subtype; }
 };
 
 class __declspec(uuid("0E4221A9-9718-48D5-A5CF-4493DAD4A015"))
@@ -82,7 +93,7 @@ class __declspec(uuid("0E4221A9-9718-48D5-A5CF-4493DAD4A015"))
 	, public IFileSourceFilter
 {
 	CUDPStream m_stream;
-	CStringW m_fn;
+	CStringW   m_fn;
 
 public:
 	CUDPReader(IUnknown* pUnk, HRESULT* phr);
@@ -93,6 +104,9 @@ public:
 
 	// CBaseFilter
 	STDMETHODIMP QueryFilterInfo(FILTER_INFO* pInfo);
+	STDMETHODIMP Stop();
+	STDMETHODIMP Pause();
+	STDMETHODIMP Run(REFERENCE_TIME tStart);
 
 	// IFileSourceFilter
 	STDMETHODIMP Load(LPCOLESTR pszFileName, const AM_MEDIA_TYPE* pmt);

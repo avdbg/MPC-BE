@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * (C) 2006-2013 see Authors.txt
  *
  * This file is part of MPC-BE.
@@ -24,44 +22,65 @@
 
 // Internal codec list (use to enable/disable codec in standalone mode)
 
-#define MPCVD_H264			(1ULL << 0)
-#define MPCVD_VC1			(1ULL << 1)
-#define MPCVD_XVID			(1ULL << 2)
-#define MPCVD_DIVX			(1ULL << 3)
-#define MPCVD_WMV			(1ULL << 4)
-#define MPCVD_MSMPEG4		(1ULL << 5)
-#define MPCVD_H263			(1ULL << 6)
-#define MPCVD_SVQ3			(1ULL << 7)
-#define MPCVD_THEORA		(1ULL << 8)
-#define MPCVD_AMVV			(1ULL << 9)
-#define MPCVD_FLASH			(1ULL << 10)
-#define MPCVD_H264_DXVA		(1ULL << 11)
-#define MPCVD_VC1_DXVA		(1ULL << 12)
-#define MPCVD_VP356			(1ULL << 13)
-#define MPCVD_VP8			(1ULL << 14)
-#define MPCVD_MJPEG			(1ULL << 15)
-#define MPCVD_INDEO			(1ULL << 16)
-#define MPCVD_RV			(1ULL << 17)
-#define MPCVD_WMV3_DXVA		(1ULL << 18)
-#define MPCVD_MPEG2_DXVA	(1ULL << 19)
-#define MPCVD_DIRAC			(1ULL << 20)
-#define MPCVD_DV			(1ULL << 21)
-#define MPCVD_UTVD			(1ULL << 22)
-#define MPCVD_SCREC			(1ULL << 23)
-#define MPCVD_LAGARITH		(1ULL << 24)
-#define MPCVD_PRORES		(1ULL << 25)
-#define MPCVD_BINKV			(1ULL << 26)
-#define MPCVD_PNG			(1ULL << 27)
-#define MPCVD_CLLC			(1ULL << 28)
-#define MPCVD_V210			(1ULL << 29)
-#define MPCVD_MPEG2			(1ULL << 30)
-#define MPCVD_MPEG1			(1ULL << 31)
+#define CODEC_H264			(1ULL << 0)
+#define CODEC_MPEG1			(1ULL << 1)
+#define CODEC_MPEG2			(1ULL << 2)
+#define CODEC_VC1			(1ULL << 3)
+#define CODEC_MSMPEG4		(1ULL << 4)
+#define CODEC_XVID			(1ULL << 5)
+#define CODEC_DIVX			(1ULL << 6)
+#define CODEC_WMV			(1ULL << 7)
+#define CODEC_HEVC			(1ULL << 8)
+#define CODEC_VP356			(1ULL << 9)
+#define CODEC_VP89			(1ULL << 10)
+#define CODEC_THEORA		(1ULL << 11)
+#define CODEC_MJPEG			(1ULL << 12)
+#define CODEC_DV			(1ULL << 13)
+#define CODEC_LAGARITH		(1ULL << 14)
+#define CODEC_PRORES		(1ULL << 15)
+#define CODEC_CLLC			(1ULL << 16)
+#define CODEC_SCREC			(1ULL << 17)
+#define CODEC_INDEO			(1ULL << 18)
+#define CODEC_H263			(1ULL << 19)
+#define CODEC_SVQ3			(1ULL << 20)
+#define CODEC_REALV			(1ULL << 21)
+#define CODEC_DIRAC			(1ULL << 22)
+#define CODEC_BINKV			(1ULL << 23)
+#define CODEC_AMVV			(1ULL << 24)
+#define CODEC_FLASH			(1ULL << 25)
+#define CODEC_UTVD			(1ULL << 26)
+#define CODEC_PNG			(1ULL << 27)
+#define CODEC_V210			(1ULL << 28)
+// dxva codecs
+#define CODEC_H264_DXVA		(1ULL << 56)
+#define CODEC_MPEG2_DXVA	(1ULL << 57)
+#define CODEC_VC1_DXVA		(1ULL << 58)
+#define CODEC_WMV3_DXVA		(1ULL << 59)
+
+#define CODECS_SOFT (CODEC_H264|CODEC_MPEG1|CODEC_MPEG2|CODEC_VC1|CODEC_MSMPEG4|CODEC_XVID|CODEC_DIVX|CODEC_WMV|CODEC_HEVC|CODEC_VP356|CODEC_VP89|CODEC_THEORA|CODEC_MJPEG|CODEC_DV|CODEC_LAGARITH|CODEC_PRORES|CODEC_CLLC|CODEC_SCREC|CODEC_INDEO|CODEC_H263|CODEC_SVQ3|CODEC_REALV|CODEC_DIRAC|CODEC_BINKV|CODEC_AMVV|CODEC_FLASH|CODEC_UTVD|CODEC_PNG|CODEC_V210)
+#define CODECS_DXVA (CODEC_H264_DXVA|CODEC_MPEG2_DXVA|CODEC_VC1_DXVA|CODEC_WMV3_DXVA)
+#define CODECS_ALL  (CODECS_SOFT|CODECS_DXVA)
 
 typedef enum MPC_DEINTERLACING_FLAGS {
 	AUTO,
 	TOPFIELD,
 	BOTTOMFIELD,
 	PROGRESSIVE
+};
+
+enum MPCPixelFormat {
+	// YUV formats are grouped according to luma bit depth and sorted in descending order of quality.
+	PixFmt_None = -1,
+	// YUV 8 bit
+	PixFmt_YUY2,  // 16 bit, 4:2:2
+	PixFmt_NV12,  // 12 bit, 4:2:0
+	PixFmt_YV12,  // 12 bit, 4:2:0
+	// YUV 10 bit
+	//PixFmt_P210,  // 4:2:2
+	//PixFmt_P010,  // 4:2:0
+	// RGB
+	PixFmt_RGB32, // 24 bit
+	PixFmt_count
 };
 
 interface __declspec(uuid("CDC3B5B3-A8B0-4c70-A805-9FC80CDEF262"))
@@ -80,8 +99,8 @@ public IUnknown {
 
 	STDMETHOD_(GUID*, GetDXVADecoderGuid()) = 0;
 
-	STDMETHOD(SetActiveCodecs(DWORD nValue)) = 0;
-	STDMETHOD_(DWORD, GetActiveCodecs()) = 0;
+	STDMETHOD(SetActiveCodecs(ULONGLONG nValue)) = 0;
+	STDMETHOD_(ULONGLONG, GetActiveCodecs()) = 0;
 
 	STDMETHOD_(LPCTSTR, GetVideoCardDescription()) = 0;
 
@@ -97,22 +116,27 @@ public IUnknown {
 	// === New swscaler options
 	STDMETHOD(SetSwRefresh(int nValue)) = 0;
 
-	STDMETHOD(SetSwOutputFormats(int nValue)) = 0;
-	STDMETHOD_(int, GetSwOutputFormats()) = 0;
-	STDMETHOD(SetSwChromaToRGB(int nValue)) = 0;
-	STDMETHOD_(int, GetSwChromaToRGB()) = 0;
-	STDMETHOD(SetSwResizeMethodBE(int nValue)) = 0;
-	STDMETHOD_(int, GetSwResizeMethodBE()) = 0;
-	STDMETHOD(SetSwColorspace(int nValue)) = 0;
-	STDMETHOD_(int, GetSwColorspace()) = 0;
+	STDMETHOD(SetSwPixelFormat(MPCPixelFormat pf, bool enable)) = 0;
+	STDMETHOD_(bool, GetSwPixelFormat(MPCPixelFormat pf)) = 0;
+
+	STDMETHOD(SetSwPreset(int nValue)) = 0;
+	STDMETHOD_(int, GetSwPreset()) = 0;
+
+	STDMETHOD(SetSwStandard(int nValue)) = 0;
+	STDMETHOD_(int, GetSwStandard()) = 0;
+
 	STDMETHOD(SetSwInputLevels(int nValue)) = 0;
 	STDMETHOD_(int, GetSwInputLevels()) = 0;
+
 	STDMETHOD(SetSwOutputLevels(int nValue)) = 0;
 	STDMETHOD_(int, GetSwOutputLevels()) = 0;
+
+	STDMETHOD_(int, IsColorTypeConversion()) = 0;
 	//
 
 	STDMETHOD(SetDialogHWND(HWND nValue)) = 0;
-	STDMETHOD_(unsigned __int64, GetOutputFormat()) = 0;	
+
+	STDMETHOD(GetOutputMediaType(CMediaType* pmt)) = 0;
 };
 
 interface __declspec(uuid("F0ABC515-19ED-4D65-9D5F-59E36AE7F2AF"))
