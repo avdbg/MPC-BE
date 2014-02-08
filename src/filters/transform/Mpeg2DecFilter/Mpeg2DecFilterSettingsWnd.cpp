@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -81,7 +81,7 @@ bool CMpeg2DecSettingsWnd::OnActivate()
 	DWORD dwStyle = WS_VISIBLE|WS_CHILD|WS_TABSTOP;
 	CPoint p(10, 10);
 
-	m_planaryuv_check.Create(ResStr(IDS_MPEG2_ENABLE_PLANAR), dwStyle | BS_AUTOCHECKBOX, CRect(p, CSize(IPP_SCALE(300), m_fontheight)), this, IDC_PP_CHECK1);
+	m_planaryuv_check.Create(ResStr(IDS_MPEG2_ENABLE_PLANAR), dwStyle | BS_AUTOCHECKBOX, CRect(p, CSize(IPP_SCALE(335), m_fontheight)), this, IDC_PP_CHECK1);
 	m_planaryuv_check.SetCheck(m_planaryuv ? BST_CHECKED : BST_UNCHECKED);
 	p.y += h20;
 

@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,33 +24,25 @@
 #include "DXVADecoder.h"
 
 #define MAX_SLICE		1024 // Max slice number for Mpeg2 streams
-
 #define MAX_BUFF_TIME	20
-
-typedef struct {
-	REFERENCE_TIME	rtStart;
-	REFERENCE_TIME	rtStop;
-	int				nBuffPos;
-} BUFFER_TIME;
-
 
 class CDXVADecoderMpeg2 : public CDXVADecoder
 {
 public:
 	CDXVADecoderMpeg2(CMPCVideoDecFilter* pFilter, IAMVideoAccelerator*  pAMVideoAccelerator, DXVAMode nMode, int nPicEntryNumber);
 	CDXVADecoderMpeg2(CMPCVideoDecFilter* pFilter, IDirectXVideoDecoder* pDirectXVideoDec, DXVAMode nMode, int nPicEntryNumber, DXVA2_ConfigPictureDecode* pDXVA2Config);
-	virtual ~CDXVADecoderMpeg2(void);
+	virtual ~CDXVADecoderMpeg2();
 
 	// === Public functions
 	virtual HRESULT DecodeFrame(BYTE* pDataIn, UINT nSize, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop);
 	virtual void	CopyBitstream(BYTE* pDXVABuffer, BYTE* pBuffer, UINT& nSize);
 	virtual void	Flush();
-	virtual void	NewSegment();
 
 protected :
 
 	HRESULT			DecodeFrameInternal(BYTE* pDataIn, UINT nSize, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop);
 	virtual int		FindOldestFrame();
+	void			UpdateFrameTime(REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop);
 private:
 	DXVA_PictureParameters	m_PictureParams;
 	DXVA_QmatrixData		m_QMatrixData;
@@ -62,16 +54,19 @@ private:
 
 	REFERENCE_TIME			m_rtLastStart;
 
-	bool 					m_bFrame_repeat_pict;
-
 	// Private functions
 	void					Init();
 	void					UpdatePictureParams(int nSurfaceIndex);
-	void					UpdateFrameTime (REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop);
 
 protected:
 	BYTE*			m_pMPEG2Buffer;
 	int				m_nMPEG2BufferSize;
+
+	struct BUFFER_TIME {
+		REFERENCE_TIME	rtStart;
+		REFERENCE_TIME	rtStop;
+		int				nBuffPos;
+	};
 
 	int				m_nMPEG2BufferPos;
 	int				m_nMPEG2PicEnd;

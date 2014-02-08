@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -102,11 +102,13 @@ BOOL CPPageFileInfoRes::OnInitDialog()
 
 	POSITION pos = m_res.GetHeadPosition();
 	while (pos) {
-		CDSMResource res = m_res.GetNext(pos);
+		CDSMResource res = m_res.GetAt(pos);
 
 		int iItem = m_list.InsertItem(m_list.GetItemCount(), res.name);
 		m_list.SetItemText(iItem, 1, res.mime);
-		m_list.SetItemData(iItem, iItem);
+		m_list.SetItemData(iItem, (DWORD_PTR)pos);
+
+		m_res.GetNext(pos);
 	}
 
 	UpdateData(FALSE);
@@ -119,6 +121,10 @@ void CPPageFileInfoRes::OnSaveAs()
 	int i = m_list.GetSelectionMark();
 
 	if (i < 0) {
+		return;
+	}
+
+	if (m_list.GetItemData(i) == NULL) {
 		return;
 	}
 
@@ -210,7 +216,7 @@ LRESULT CPPageFileInfoRes::OnSetPageFocus(WPARAM wParam, LPARAM lParam)
 	CPropertySheet* psheet = (CPropertySheet*) GetParent();
 	psheet->GetTabControl()->SetFocus();
 
-	SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, 0, 1);
+	SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, 0, 0);
 
 	return 0;
 }

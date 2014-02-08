@@ -20,10 +20,6 @@
 #include "./cost.h"
 #include "../webp/format_constants.h"  // RIFF constants
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 #define SEGMENT_VISU 0
 #define DEBUG_SEARCH 0    // useful to track search convergence
 
@@ -739,7 +735,7 @@ static double GetPSNR(uint64_t mse, uint64_t size) {
 //------------------------------------------------------------------------------
 //  StatLoop(): only collect statistics (number of skips, token usage, ...).
 //  This is used for deciding optimal probabilities. It also modifies the
-//  quantizer value if some target (size, PNSR) was specified.
+//  quantizer value if some target (size, PSNR) was specified.
 
 static void SetLoopParams(VP8Encoder* const enc, float q) {
   // Make sure the quality parameter is inside valid bounds
@@ -1070,6 +1066,3 @@ int VP8EncTokenLoop(VP8Encoder* const enc) {
 
 //------------------------------------------------------------------------------
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

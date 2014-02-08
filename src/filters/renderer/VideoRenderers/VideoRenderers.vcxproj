@@ -111,7 +111,7 @@
   <ItemGroup>
     <ClCompile Include="AllocatorCommon.cpp" />
     <ClCompile Include="AllocatorCommon7.cpp" />
-    <ClCompile Include="CpuUsage.cpp" />
+    <ClCompile Include="CPUUsage.cpp" />
     <ClCompile Include="D3DFont.cpp" />
     <ClCompile Include="Dither.cpp" />
     <ClCompile Include="DX7AllocatorPresenter.cpp" />
@@ -119,6 +119,7 @@
     <ClCompile Include="DX9RenderingEngine.cpp" />
     <ClCompile Include="DXRAllocatorPresenter.cpp" />
     <ClCompile Include="EVRAllocatorPresenter.cpp" />
+    <ClCompile Include="GPUUsage.cpp" />
     <ClCompile Include="IPinHook.cpp" />
     <ClCompile Include="MacrovisionKicker.cpp" />
     <ClCompile Include="madVRAllocatorPresenter.cpp" />
@@ -140,7 +141,7 @@
   <ItemGroup>
     <ClInclude Include="AllocatorCommon.h" />
     <ClInclude Include="AllocatorCommon7.h" />
-    <ClInclude Include="CpuUsage.h" />
+    <ClInclude Include="CPUUsage.h" />
     <ClInclude Include="D3DFont.h" />
     <ClInclude Include="Dither.h" />
     <ClInclude Include="DX7AllocatorPresenter.h" />
@@ -148,6 +149,7 @@
     <ClInclude Include="DX9RenderingEngine.h" />
     <ClInclude Include="DXRAllocatorPresenter.h" />
     <ClInclude Include="EVRAllocatorPresenter.h" />
+    <ClInclude Include="GPUUsage.h" />
     <ClInclude Include="IPinHook.h" />
     <ClInclude Include="MacrovisionKicker.h" />
     <ClInclude Include="madVRAllocatorPresenter.h" />

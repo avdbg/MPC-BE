@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -63,8 +63,8 @@ void CHdmvSub::AllocSegment(int nSize)
 		m_pSegBuffer		= DNew BYTE[nSize];
 		m_nTotalSegBuffer	= nSize;
 	}
-	m_nSegBufferPos	 = 0;
-	m_nSegSize       = nSize;
+	m_nSegBufferPos		= 0;
+	m_nSegSize			= nSize;
 }
 
 POSITION CHdmvSub::GetStartPosition(REFERENCE_TIME rt, double fps, bool CleanOld)
@@ -131,7 +131,7 @@ HRESULT CHdmvSub::ParseSample(BYTE* pData, int lSampleLen, REFERENCE_TIME rtStar
 
 			if (m_nCurSegment != NO_SEGMENT) {
 				if (m_nSegBufferPos < m_nSegSize) {
-					int nSize = min (m_nSegSize-m_nSegBufferPos, lSampleLen);
+					int nSize = min(m_nSegSize-m_nSegBufferPos, lSampleLen);
 					SampleBuffer.ReadBuffer (m_pSegBuffer+m_nSegBufferPos, nSize);
 					m_nSegBufferPos += nSize;
 				}
@@ -302,7 +302,7 @@ void CHdmvSub::ParseObject(CGolombBuffer* pGBuffer, USHORT nUnitSize)
 		return;
 	}
 
-    CompositionObject &pObject = m_ParsedObjects[object_id];
+	CompositionObject &pObject = m_ParsedObjects[object_id];
 
 	pObject.m_version_number	= pGBuffer->ReadByte();
 	BYTE m_sequence_desc		= pGBuffer->ReadByte();
@@ -351,19 +351,23 @@ void CHdmvSub::Render(SubPicDesc& spd, REFERENCE_TIME rt, RECT& bbox)
 
 		if (pObject && rt >= pObject->m_rtStart && rt < pObject->m_rtStop) {
 
-			// To fit in current surface size on render - looks very crooked
-			/*
-			int delta_x = (m_VideoDescriptor.nVideoWidth - (pObject->m_horizontal_position + pObject->m_width)) * spd.w/m_VideoDescriptor.nVideoWidth;
-			int delta_y = (m_VideoDescriptor.nVideoHeight - (pObject->m_vertical_position + pObject->m_height)) * spd.h/m_VideoDescriptor.nVideoHeight;
+			{
+				// To fit in current surface size on render - looks very crooked, but better then nothing ...
+				int delta_y = (m_VideoDescriptor.nVideoHeight - (pObject->m_vertical_position + pObject->m_height)) * spd.h / m_VideoDescriptor.nVideoHeight;
+				if (spd.w < (pObject->m_horizontal_position + pObject->m_width)) {
+					pObject->m_horizontal_position = max(0, spd.w / 2 - pObject->m_width / 2);
+					if (spd.w < (pObject->m_horizontal_position + pObject->m_width)) {
+						pObject->m_horizontal_position = max(0, spd.w - pObject->m_width - 10);
+					}
+				}
 
-			if (spd.w < (pObject->m_horizontal_position + pObject->m_width)) {
-				pObject->m_horizontal_position = max(0, spd.w - pObject->m_width - delta_x);
+				if (spd.h < (pObject->m_vertical_position + pObject->m_height)) {
+					pObject->m_vertical_position = max(0, spd.h - pObject->m_height - delta_y);
+					if (spd.h < (pObject->m_vertical_position + pObject->m_height)) {
+						pObject->m_vertical_position = max(0, spd.h - pObject->m_height - 10);
+					}
+				}
 			}
-
-			if (spd.h < (pObject->m_vertical_position + pObject->m_height)) {
-				pObject->m_vertical_position = max(0, spd.h - pObject->m_height - delta_y);
-			}
-			*/
 
 			if (pObject->GetRLEDataSize() && pObject->m_width > 0 && pObject->m_height > 0 &&
 					spd.w >= (pObject->m_horizontal_position + pObject->m_width) &&

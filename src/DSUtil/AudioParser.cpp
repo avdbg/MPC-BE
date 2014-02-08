@@ -1,5 +1,5 @@
 /*
- * (C) 2011-2013 see Authors.txt
+ * (C) 2011-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -57,7 +57,7 @@ int GetDTSHDFrameSize(const BYTE* buf)
 
 // LATM AAC
 
-inline UINT64 LatmGetValue(CGolombBuffer gb) {
+static inline UINT64 LatmGetValue(CGolombBuffer gb) {
 	int length = gb.BitRead(2);
 	UINT64 value = 0;
 
@@ -69,36 +69,36 @@ inline UINT64 LatmGetValue(CGolombBuffer gb) {
 	return value;
 }
 
-bool ReadAudioConfig(CGolombBuffer gb, int* samplingFrequency, int* channelConfiguration)
+static bool ReadAudioConfig(CGolombBuffer gb, int& samplingFrequency, int& channelConfiguration)
 {
 	static int channels_layout[] = {0, 1, 2, 3, 4, 5, 6, 8};
 	static int freq[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0, 0, 0};
 
-	int sbr_present = -1;
+	int sbr_present = 0;
 
 	int audioObjectType = gb.BitRead(5);
 	if (audioObjectType == 31) {
 		audioObjectType = 32 + gb.BitRead(6);
 	}
 	int samplingFrequencyIndex = gb.BitRead(4);
-	*samplingFrequency = 0;
-	*samplingFrequency = freq[samplingFrequencyIndex];
+	samplingFrequency = 0;
+	samplingFrequency = freq[samplingFrequencyIndex];
 	if (samplingFrequencyIndex == 0x0f) {
-		*samplingFrequency = gb.BitRead(24);
+		samplingFrequency = gb.BitRead(24);
 	}
-	*channelConfiguration = 0;
+	channelConfiguration = 0;
 	int channelconfig = gb.BitRead(4);
 	if (channelconfig < 8) {
-		*channelConfiguration = channels_layout[channelconfig];
+		channelConfiguration = channels_layout[channelconfig];
 	}
 
 	if (audioObjectType == 5) {
 		sbr_present = 1;
 
 		samplingFrequencyIndex = gb.BitRead(4);
-		*samplingFrequency = freq[samplingFrequencyIndex];
+		samplingFrequency = freq[samplingFrequencyIndex];
 		if (samplingFrequencyIndex == 0x0f) {
-			*samplingFrequency = gb.BitRead(24);
+			samplingFrequency = gb.BitRead(24);
 		}
 
 		audioObjectType = gb.BitRead(5);
@@ -111,18 +111,18 @@ bool ReadAudioConfig(CGolombBuffer gb, int* samplingFrequency, int* channelConfi
 		}
 	}
 
-	if (sbr_present == -1) {
-		if (*samplingFrequency <= 24000) {
-			*samplingFrequency *= 2;
+	if (!sbr_present) {
+		if (samplingFrequency <= 24000) {
+			samplingFrequency *= 2;
 		}
 	}
 
 	return true;
 }
 
-bool StreamMuxConfig(CGolombBuffer gb, int* samplingFrequency, int* channelConfiguration, int* nExtraPos)
+static bool StreamMuxConfig(CGolombBuffer gb, int& samplingFrequency, int& channelConfiguration, int& nExtraPos)
 {
-	*nExtraPos = 0;
+	nExtraPos = 0;
 
 	BYTE audio_mux_version_A = 0;
 	BYTE audio_mux_version = gb.BitRead(1);
@@ -141,7 +141,7 @@ bool StreamMuxConfig(CGolombBuffer gb, int* samplingFrequency, int* channelConfi
 
 		if (!audio_mux_version) {
 			// audio specific config.
-			*nExtraPos = gb.GetPos();
+			nExtraPos = gb.GetPos();
 			return ReadAudioConfig(gb, samplingFrequency, channelConfiguration);
 		}
 	} else {
@@ -151,7 +151,7 @@ bool StreamMuxConfig(CGolombBuffer gb, int* samplingFrequency, int* channelConfi
 	return true;
 }
 
-bool ParseAACLatmHeader(const BYTE* buf, int len, int* samplerate, int* channels, BYTE* extra, unsigned int* extralen)
+bool ParseAACLatmHeader(const BYTE* buf, int len, int& samplerate, int& channels, BYTE* extra, unsigned int& extralen)
 {
 	CGolombBuffer gb((BYTE*)buf, len);
 
@@ -159,18 +159,16 @@ bool ParseAACLatmHeader(const BYTE* buf, int len, int* samplerate, int* channels
 		return false;
 	}
 
-	*samplerate = 0;
-	*channels   = 0;
-	if (extralen) {
-		*extralen = 0;
-	}
+	samplerate	= 0;
+	channels	= 0;
+	extralen	= 0;
 
 	int nExtraPos = 0;
 
 	gb.BitRead(13); // muxlength
 	BYTE use_same_mux = gb.BitRead(1);
 	if (!use_same_mux) {
-		bool ret = StreamMuxConfig(gb, samplerate, channels, &nExtraPos);
+		bool ret = StreamMuxConfig(gb, samplerate, channels, nExtraPos);
 		if (!ret) {
 			return ret;
 		}
@@ -178,12 +176,12 @@ bool ParseAACLatmHeader(const BYTE* buf, int len, int* samplerate, int* channels
 		return false;
 	}
 
-	if (*samplerate > 96000 || (*channels < 1 || *channels > 7)) {
+	if (samplerate < 8000 || samplerate > 96000 || channels < 1 || channels > 7) {
 		return false;
 	}
 
-	if (extralen && extra && nExtraPos) {
-		*extralen = 4; // max size of extradata ... TODO - calculate/detect right extralen.
+	if (nExtraPos) {
+		extralen = 4; // max size of extradata ... TODO - calculate/detect right extralen.
 		gb.Reset();
 		gb.SkipBytes(nExtraPos);
 		gb.ReadBuffer(extra, 4);
@@ -265,6 +263,29 @@ DWORD GetVorbisChannelMask(WORD nChannels)
 		default:
 			return 0;
 	}
+}
+
+DWORD CountBits(DWORD v) { // used code from \VirtualDub\h\vd2\system\bitmath.h (VDCountBits)
+	v -= (v >> 1) & 0x55555555;
+	v = ((v & 0xcccccccc) >> 2) + (v & 0x33333333);
+	v = (v + (v >> 4)) & 0x0f0f0f0f;
+	return (v * 0x01010101) >> 24;
+}
+
+// S/PDIF AC3
+
+int ParseAC3IEC61937Header(const BYTE* buf)
+{
+	WORD* wbuf = (WORD*)buf;
+	if (*(DWORD*)buf != IEC61937_SYNC_WORD
+			|| wbuf[2] !=  0x0001
+			|| wbuf[3] == 0
+			|| wbuf[3] >= (6144-8)*8
+			|| wbuf[4] != 0x0B77 ) {
+		return 0;
+	}
+
+	return 6144;
 }
 
 // MPEG Audio
@@ -817,7 +838,8 @@ int ParseADTSAACHeader(const BYTE* buf, audioframe_t* audioframe)
 		audioframe->param1     = headersize; // header size
 		audioframe->samplerate = mp4a_samplerates[(buf[2] & 0x3c) >> 2];
 		BYTE channel_index = ((buf[2] & 0x01) << 2) | ((buf[3] & 0xc0) >> 6);
-		if (audioframe->samplerate == 0 || channel_index == 0 || channel_index >= 8) {
+		if (audioframe->samplerate == 0/* || channel_index == 0*/ || channel_index >= 8) {
+			// Channel Configurations - 0: Defined in AOT Specific Config, so do not ignore it;
 			return 0;
 		}
 		audioframe->channels   = mp4a_channels[channel_index];

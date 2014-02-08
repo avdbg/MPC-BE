@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -30,49 +30,46 @@
 #include <afxsock.h>
 
 // flags for AppSettings::nCS
-enum {
-	CS_NONE=0,
-	CS_SEEKBAR=1,
-	CS_TOOLBAR=CS_SEEKBAR<<1,
-	CS_INFOBAR=CS_TOOLBAR<<1,
-	CS_STATSBAR=CS_INFOBAR<<1,
-	CS_STATUSBAR=CS_STATSBAR<<1,
-	CS_LAST=CS_STATUSBAR
-};
+#define CS_NONE			0
+#define CS_SEEKBAR		(1 << 0)
+#define CS_TOOLBAR		(1 << 1)
+#define CS_INFOBAR		(1 << 2)
+#define CS_STATSBAR		(1 << 3)
+#define CS_STATUSBAR	(1 << 4)
 
-enum {
-	CLSW_NONE=0,
-	CLSW_OPEN=1,
-	CLSW_PLAY=CLSW_OPEN<<1,
-	CLSW_CLOSE=CLSW_PLAY<<1,
-	CLSW_STANDBY=CLSW_CLOSE<<1,
-	CLSW_HIBERNATE=CLSW_STANDBY<<1,
-	CLSW_SHUTDOWN=CLSW_HIBERNATE<<1,
-	CLSW_LOGOFF=CLSW_SHUTDOWN<<1,
-	CLSW_LOCK=CLSW_LOGOFF<<1,
-	CLSW_AFTERPLAYBACK_MASK=CLSW_CLOSE|CLSW_STANDBY|CLSW_SHUTDOWN|CLSW_HIBERNATE|CLSW_LOGOFF|CLSW_LOCK,
-	CLSW_FULLSCREEN=CLSW_LOCK<<1,
-	CLSW_NEW=CLSW_FULLSCREEN<<1,
-	CLSW_HELP=CLSW_NEW<<1,
-	CLSW_DVD=CLSW_HELP<<1,
-	CLSW_CD=CLSW_DVD<<1,
-	CLSW_ADD=CLSW_CD<<1,
-	CLSW_MINIMIZED=CLSW_ADD<<1,
-	CLSW_REGEXTVID=CLSW_MINIMIZED<<1,		// 16
-	CLSW_REGEXTAUD=CLSW_REGEXTVID<<1,
-	CLSW_REGEXTPL=CLSW_REGEXTAUD<<1,
-	CLSW_UNREGEXT=CLSW_REGEXTPL<<1,
-	CLSW_STARTVALID=CLSW_UNREGEXT<<2,
-	CLSW_NOFOCUS=CLSW_STARTVALID<<1,
-	CLSW_FIXEDSIZE=CLSW_NOFOCUS<<1,
-	CLSW_MONITOR=CLSW_FIXEDSIZE<<1,
-	CLSW_D3DFULLSCREEN=CLSW_MONITOR<<1,
-	CLSW_ADMINOPTION=CLSW_D3DFULLSCREEN<<1,
-	CLSW_SLAVE=CLSW_ADMINOPTION<<1,
-	CLSW_AUDIORENDERER=CLSW_SLAVE<<1,
-	CLSW_RESET=CLSW_AUDIORENDERER<<1,
-	CLSW_UNRECOGNIZEDSWITCH=CLSW_RESET<<1 // 30
-};
+#define CLSW_NONE				0
+#define CLSW_OPEN				(1 << 0)
+#define CLSW_PLAY				(1 << 1)
+#define CLSW_CLOSE				(1 << 2)
+#define CLSW_STANDBY			(1 << 3)
+#define CLSW_HIBERNATE			(1 << 4)
+#define CLSW_SHUTDOWN			(1 << 5)
+#define CLSW_LOGOFF				(1 << 6)
+#define CLSW_LOCK				(1 << 7)
+#define CLSW_AFTERPLAYBACK_MASK	(CLSW_CLOSE|CLSW_STANDBY|CLSW_SHUTDOWN|CLSW_HIBERNATE|CLSW_LOGOFF|CLSW_LOCK)
+#define CLSW_FULLSCREEN			(1 << 8)
+#define CLSW_NEW				(1 << 9)
+#define CLSW_HELP				(1 << 10)
+#define CLSW_DVD				(1 << 11)
+#define CLSW_CD					(1 << 12)
+#define CLSW_ADD				(1 << 13)
+#define CLSW_MINIMIZED			(1 << 14)
+
+#define CLSW_REGEXTVID			(1 << 16)
+#define CLSW_REGEXTAUD			(1 << 17)
+#define CLSW_REGEXTPL			(1 << 18)
+#define CLSW_UNREGEXT			(1 << 19)
+
+#define CLSW_STARTVALID			(1 << 21)
+#define CLSW_NOFOCUS			(1 << 22)
+#define CLSW_FIXEDSIZE			(1 << 23)
+#define CLSW_MONITOR			(1 << 24)
+#define CLSW_D3DFULLSCREEN		(1 << 25)
+#define CLSW_ADMINOPTION		(1 << 26)
+#define CLSW_SLAVE				(1 << 27)
+#define CLSW_AUDIORENDERER		(1 << 28)
+#define CLSW_RESET				(1 << 29)
+#define CLSW_UNRECOGNIZEDSWITCH	(1 << 30)
 
 enum {
 	MODE_SHOWCAPTIONMENU,
@@ -84,7 +81,7 @@ enum {
 
 enum {
 	VIDRNDT_DS_DEFAULT,
-	VIDRNDT_DS_OLDRENDERER,
+	VIDRNDT_DS_OLDRENDERER, // obsolete
 	VIDRNDT_DS_OVERLAYMIXER,
 	VIDRNDT_DS_VMR7WINDOWED,
 	VIDRNDT_DS_VMR9WINDOWED,
@@ -136,7 +133,7 @@ enum MCE_RAW_INPUT {
 #define DEFAULT_JUMPDISTANCE_2  5000
 #define DEFAULT_JUMPDISTANCE_3 20000
 
-typedef enum {
+enum dvstype {
 	DVS_HALF,
 	DVS_NORMAL,
 	DVS_DOUBLE,
@@ -145,26 +142,26 @@ typedef enum {
 	DVS_FROMOUTSIDE,
 	DVS_ZOOM1,
 	DVS_ZOOM2
-} dvstype;
+};
 
-typedef enum {
+enum favtype {
 	FAV_FILE,
 	FAV_DVD,
 	FAV_DEVICE
-} favtype;
+};
 
 #define MAX_DVD_POSITION 20
-typedef struct {
+struct DVD_POSITION {
 	ULONGLONG			llDVDGuid;
 	ULONG				lTitle;
 	DVD_HMSF_TIMECODE	Timecode;
-} DVD_POSITION;
+};
 
 #define MAX_FILE_POSITION 20
-typedef struct {
+struct FILE_POSITION {
 	CString				strFile;
 	LONGLONG			llPosition;
-} FILE_POSITION;
+};
 
 enum {
 	TIME_TOOLTIP_ABOVE_SEEKBAR,
@@ -172,30 +169,30 @@ enum {
 };
 
 #pragma pack(push, 1)
-typedef struct {
+struct dispmode {
 	bool fValid;
 	CSize size;
 	int bpp, freq;
 	DWORD dmDisplayFlags;
-} dispmode;
+};
 
-typedef struct {
+struct fpsmode {
 	double vfr_from;
 	double vfr_to;
 	bool fChecked;
 	dispmode dmFSRes;
 	bool fIsData;
-} fpsmode;
+};
 
 #define MaxFpsCount 30
-typedef struct {
+struct AChFR { //AutoChangeFullscrRes
 	int bEnabled;
 	fpsmode dmFullscreenRes[MaxFpsCount];
 	bool bApplyDefault;
 	bool bSetGlobal;
-}	AChFR; //AutoChangeFullscrRes
+};
 
-typedef struct {
+struct AccelTbl {
 	bool bEnable;
 	int cmd;
 	int key;
@@ -205,7 +202,7 @@ typedef struct {
 	int appcmd;
 	int remcmd;
 	int repcnt;
-}	AccelTbl;
+};
 
 #pragma pack(pop)
 
@@ -219,7 +216,27 @@ class wmcmd : public ACCEL
 public:
 	DWORD dwname;
 	UINT appcmd;
-	enum {NONE,LDOWN,LUP,LDBLCLK,MDOWN,MUP,MDBLCLK,RDOWN,RUP,RDBLCLK,X1DOWN,X1UP,X1DBLCLK,X2DOWN,X2UP,X2DBLCLK,WUP,WDOWN,LAST};
+	enum {
+		NONE,
+		LDOWN,
+		LUP,
+		LDBLCLK,
+		MDOWN,
+		MUP,
+		MDBLCLK,
+		RDOWN,
+		RUP,
+		RDBLCLK,
+		X1DOWN,
+		X1UP,
+		X1DBLCLK,
+		X2DOWN,
+		X2UP,
+		X2DBLCLK,
+		WUP,
+		WDOWN,
+		LAST
+	};
 	UINT mouse;
 	UINT mouseFS;
 	CStringA rmcmd;
@@ -318,7 +335,7 @@ public:
 		SetDefault();
 	}
 	void SetDefault() {
-		static CString formats[] = {_T("avi"), _T("mkv"), _T("mpegts"), _T("mpeg"), _T("mp4"), _T("flv"), _T("wmv")};
+		static CString formats[] = {L"avi", L"mkv", L"mpegts", L"mpeg", L"mp4", L"flv", L"wmv"};
 
 		values.RemoveAll();
 		for (size_t i = 0; i < _countof(formats); i++) {
@@ -526,7 +543,10 @@ public:
 	bool			fUseInternalSelectTrackLogic;
 	bool			fEnableWorkerThreadForOpening;
 	bool			fReportFailedPins;
+
+	// Audio
 	bool			fAutoloadAudio;
+	bool			fPrioritizeExternalAudio;
 	CString			strAudioPaths;
 
 	// DVD/OGM
@@ -610,6 +630,7 @@ public:
 	bool			fPrioritizeExternalSubtitles;
 	bool			fDisableInternalSubtitles;
 	bool			fAutoReloadExtSubtitles;
+	bool			fUseSybresync;
 	CString			strISDb;
 
 	// Subtitles - Rendering

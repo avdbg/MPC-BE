@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -50,14 +50,15 @@
 #define CODEC_FLASH			(1ULL << 25)
 #define CODEC_UTVD			(1ULL << 26)
 #define CODEC_PNG			(1ULL << 27)
-#define CODEC_V210			(1ULL << 28)
+#define CODEC_UNCOMPRESSED	(1ULL << 28)
+#define CODEC_DNXHD			(1ULL << 29)
 // dxva codecs
 #define CODEC_H264_DXVA		(1ULL << 56)
 #define CODEC_MPEG2_DXVA	(1ULL << 57)
 #define CODEC_VC1_DXVA		(1ULL << 58)
 #define CODEC_WMV3_DXVA		(1ULL << 59)
 
-#define CODECS_SOFT (CODEC_H264|CODEC_MPEG1|CODEC_MPEG2|CODEC_VC1|CODEC_MSMPEG4|CODEC_XVID|CODEC_DIVX|CODEC_WMV|CODEC_HEVC|CODEC_VP356|CODEC_VP89|CODEC_THEORA|CODEC_MJPEG|CODEC_DV|CODEC_LAGARITH|CODEC_PRORES|CODEC_CLLC|CODEC_SCREC|CODEC_INDEO|CODEC_H263|CODEC_SVQ3|CODEC_REALV|CODEC_DIRAC|CODEC_BINKV|CODEC_AMVV|CODEC_FLASH|CODEC_UTVD|CODEC_PNG|CODEC_V210)
+#define CODECS_SOFT (CODEC_H264|CODEC_MPEG1|CODEC_MPEG2|CODEC_VC1|CODEC_MSMPEG4|CODEC_XVID|CODEC_DIVX|CODEC_WMV|CODEC_HEVC|CODEC_VP356|CODEC_VP89|CODEC_THEORA|CODEC_MJPEG|CODEC_DV|CODEC_LAGARITH|CODEC_PRORES|CODEC_CLLC|CODEC_SCREC|CODEC_INDEO|CODEC_H263|CODEC_SVQ3|CODEC_REALV|CODEC_DIRAC|CODEC_BINKV|CODEC_AMVV|CODEC_FLASH|CODEC_UTVD|CODEC_PNG|CODEC_UNCOMPRESSED|CODEC_DNXHD)
 #define CODECS_DXVA (CODEC_H264_DXVA|CODEC_MPEG2_DXVA|CODEC_VC1_DXVA|CODEC_WMV3_DXVA)
 #define CODECS_ALL  (CODECS_SOFT|CODECS_DXVA)
 
@@ -69,85 +70,72 @@ typedef enum MPC_DEINTERLACING_FLAGS {
 };
 
 enum MPCPixelFormat {
-	// YUV formats are grouped according to luma bit depth and sorted in descending order of quality.
 	PixFmt_None = -1,
 	// YUV 8 bit
-	PixFmt_YUY2,  // 16 bit, 4:2:2
-	PixFmt_NV12,  // 12 bit, 4:2:0
-	PixFmt_YV12,  // 12 bit, 4:2:0
+	PixFmt_NV12,  // 4:2:0, 12 bit
+	PixFmt_YV12,  // 4:2:0, 12 bit
+	PixFmt_YUY2,  // 4:2:2, 16 bit
+	PixFmt_YV16,  // 4:2:2, 16 bit
+	PixFmt_AYUV,  // 4:4:4, 24(32) bit
+	PixFmt_YV24,  // 4:4:4, 24 bit
 	// YUV 10 bit
-	//PixFmt_P210,  // 4:2:2
-	//PixFmt_P010,  // 4:2:0
+	PixFmt_P010,  // 4:2:0, 15(24) bit
+	PixFmt_P210,  // 4:2:2, 20(32) bit
+	PixFmt_Y410,  // 4:4:4, 30(32) bit
+	// YUV 16 bit
+	PixFmt_P016,  // 4:2:0, 24 bit
+	PixFmt_P216,  // 4:2:2, 32 bit
+	PixFmt_Y416,  // 4:4:4, 48(64) bit
 	// RGB
-	PixFmt_RGB32, // 24 bit
+	PixFmt_RGB32, // 24(32) bit
 	PixFmt_count
+};
+
+enum MPCInfo {
+	INFO_MPCVersion,
+	INFO_InputFormat,
+	INFO_FrameSize,
+	INFO_OutputFormat,
+	INFO_GraphicsAdapter
 };
 
 interface __declspec(uuid("CDC3B5B3-A8B0-4c70-A805-9FC80CDEF262"))
 IMPCVideoDecFilter :
 public IUnknown {
-	STDMETHOD(Apply()) = 0;
 
 	STDMETHOD(SetThreadNumber(int nValue)) = 0;
 	STDMETHOD_(int, GetThreadNumber()) = 0;
-
 	STDMETHOD(SetDiscardMode(int nValue)) = 0;
 	STDMETHOD_(int, GetDiscardMode()) = 0;
-
 	STDMETHOD(SetDeinterlacing(MPC_DEINTERLACING_FLAGS nValue)) = 0;
 	STDMETHOD_(MPC_DEINTERLACING_FLAGS, GetDeinterlacing()) = 0;
-
-	STDMETHOD_(GUID*, GetDXVADecoderGuid()) = 0;
-
-	STDMETHOD(SetActiveCodecs(ULONGLONG nValue)) = 0;
-	STDMETHOD_(ULONGLONG, GetActiveCodecs()) = 0;
-
-	STDMETHOD_(LPCTSTR, GetVideoCardDescription()) = 0;
-
 	STDMETHOD(SetARMode(int nValue)) = 0;
 	STDMETHOD_(int, GetARMode()) = 0;
 
 	STDMETHOD(SetDXVACheckCompatibility(int nValue)) = 0;
 	STDMETHOD_(int, GetDXVACheckCompatibility()) = 0;
-
 	STDMETHOD(SetDXVA_SD(int nValue)) = 0;
 	STDMETHOD_(int, GetDXVA_SD()) = 0;
 
-	// === New swscaler options
 	STDMETHOD(SetSwRefresh(int nValue)) = 0;
-
 	STDMETHOD(SetSwPixelFormat(MPCPixelFormat pf, bool enable)) = 0;
 	STDMETHOD_(bool, GetSwPixelFormat(MPCPixelFormat pf)) = 0;
-
 	STDMETHOD(SetSwPreset(int nValue)) = 0;
 	STDMETHOD_(int, GetSwPreset()) = 0;
-
 	STDMETHOD(SetSwStandard(int nValue)) = 0;
 	STDMETHOD_(int, GetSwStandard()) = 0;
+	STDMETHOD(SetSwRGBLevels(int nValue)) = 0;
+	STDMETHOD_(int, GetSwRGBLevels()) = 0;
 
-	STDMETHOD(SetSwInputLevels(int nValue)) = 0;
-	STDMETHOD_(int, GetSwInputLevels()) = 0;
+	STDMETHOD(SetActiveCodecs(ULONGLONG nValue)) = 0;
+	STDMETHOD_(ULONGLONG, GetActiveCodecs()) = 0;
 
-	STDMETHOD(SetSwOutputLevels(int nValue)) = 0;
-	STDMETHOD_(int, GetSwOutputLevels()) = 0;
+	STDMETHOD(SaveSettings()) = 0;
 
-	STDMETHOD_(int, IsColorTypeConversion()) = 0;
-	//
+	STDMETHOD_(CString, GetInformation(MPCInfo index)) = 0;
 
-	STDMETHOD(SetDialogHWND(HWND nValue)) = 0;
-
+	STDMETHOD_(GUID*, GetDXVADecoderGuid()) = 0;
+	STDMETHOD_(int, GetColorSpaceConversion()) = 0;
 	STDMETHOD(GetOutputMediaType(CMediaType* pmt)) = 0;
-};
-
-interface __declspec(uuid("F0ABC515-19ED-4D65-9D5F-59E36AE7F2AF"))
-IMPCVideoDecFilter2 :
-public IUnknown {
 	STDMETHOD_(int, GetFrameType()) = 0;
-};
-
-interface __declspec(uuid("EAAE8911-3EB7-49F4-A255-67D84651EE8F"))
-IMPCVideoDecFilterCodec :
-public IUnknown {
-	STDMETHOD(SetFFMpegCodec(int nCodec, bool bEnabled)) = 0;
-	STDMETHOD(SetDXVACodec(int nCodec, bool bEnabled)) = 0;
 };

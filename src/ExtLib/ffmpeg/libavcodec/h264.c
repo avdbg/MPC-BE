@@ -30,6 +30,8 @@
 #include "libavutil/avassert.h"
 #include "libavutil/imgutils.h"
 #include "libavutil/opt.h"
+#include "libavutil/stereo3d.h"
+#include "libavutil/timer.h"
 #include "internal.h"
 #include "cabac.h"
 #include "cabac_functions.h"
@@ -286,7 +288,7 @@ static void unref_picture(H264Context *h, Picture *pic)
     int off = offsetof(Picture, tf) + sizeof(pic->tf);
     int i;
 
-    if (!pic->f.data[0])
+    if (!pic->f.buf[0])
         return;
 
     ff_thread_release_buffer(h->avctx, &pic->tf);
@@ -308,7 +310,7 @@ static void release_unused_pictures(H264Context *h, int remove_current)
 
     /* release non reference frames */
     for (i = 0; i < MAX_PICTURE_COUNT; i++) {
-        if (h->DPB[i].f.data[0] && !h->DPB[i].reference &&
+        if (h->DPB[i].f.buf[0] && !h->DPB[i].reference &&
             (remove_current || &h->DPB[i] != h->cur_pic_ptr)) {
             unref_picture(h, &h->DPB[i]);
         }
@@ -490,7 +492,7 @@ fail:
 
 static inline int pic_is_unused(H264Context *h, Picture *pic)
 {
-    if (pic->f.data[0] == NULL)
+    if (!pic->f.buf[0])
         return 1;
     if (pic->needs_realloc && !(pic->reference & DELAYED_PIC_REF))
         return 1;
@@ -570,7 +572,7 @@ int ff_h264_check_intra4x4_pred_mode(H264Context *h)
 int ff_h264_check_intra_pred_mode(H264Context *h, int mode, int is_chroma)
 {
     static const int8_t top[4]  = { LEFT_DC_PRED8x8, 1, -1, -1 };
-    static const int8_t left[5] = { TOP_DC_PRED8x8, -1, 2, -1, DC_128_PRED8x8 };
+    static const int8_t left[5] = { TOP_DC_PRED8x8, -1,  2, -1, DC_128_PRED8x8 };
 
     if (mode > 3U) {
         av_log(h->avctx, AV_LOG_ERROR,
@@ -1217,9 +1219,6 @@ static void free_tables(H264Context *h, int free_rbsp)
     av_freep(&h->mb2b_xy);
     av_freep(&h->mb2br_xy);
 
-    for (i = 0; i < 3; i++)
-        av_freep(&h->visualization_buffer[i]);
-
     av_buffer_pool_uninit(&h->qscale_table_pool);
     av_buffer_pool_uninit(&h->mb_type_pool);
     av_buffer_pool_uninit(&h->motion_val_pool);
@@ -1383,8 +1382,8 @@ int ff_h264_alloc_tables(H264Context *h)
         if (!h->DPB)
             return AVERROR(ENOMEM);
         for (i = 0; i < MAX_PICTURE_COUNT; i++)
-            avcodec_get_frame_defaults(&h->DPB[i].f);
-        avcodec_get_frame_defaults(&h->cur_pic.f);
+            av_frame_unref(&h->DPB[i].f);
+        av_frame_unref(&h->cur_pic.f);
     }
 
     return 0;
@@ -1831,7 +1830,7 @@ static int decode_update_thread_context(AVCodecContext *dst,
         h->context_initialized = 0;
 
         memset(&h->cur_pic, 0, sizeof(h->cur_pic));
-        avcodec_get_frame_defaults(&h->cur_pic.f);
+        av_frame_unref(&h->cur_pic.f);
         h->cur_pic.tf.f = &h->cur_pic.f;
 
         ret = ff_h264_alloc_tables(h);
@@ -1867,7 +1866,7 @@ static int decode_update_thread_context(AVCodecContext *dst,
 
     for (i = 0; h->DPB && i < MAX_PICTURE_COUNT; i++) {
         unref_picture(h, &h->DPB[i]);
-        if (h1->DPB[i].f.data[0] &&
+        if (h1->DPB && h1->DPB[i].f.buf[0] &&
             (ret = ref_picture(h, &h->DPB[i], &h1->DPB[i])) < 0)
             return ret;
     }
@@ -1991,6 +1990,10 @@ static int h264_frame_start(H264Context *h)
 
     h->cur_pic_ptr = pic;
     unref_picture(h, &h->cur_pic);
+    if (CONFIG_ERROR_RESILIENCE) {
+        h->er.cur_pic = NULL;
+    }
+
     if ((ret = ref_picture(h, &h->cur_pic, h->cur_pic_ptr)) < 0)
         return ret;
 
@@ -2070,6 +2073,9 @@ static void decode_postinit(H264Context *h, int setup_finished)
     if (h->sps.pic_struct_present_flag) {
         switch (h->sei_pic_struct) {
         case SEI_PIC_STRUCT_FRAME:
+// ==> Start patch MPC
+            cur->f.interlaced_frame = FIELD_OR_MBAFF_PICTURE(h);
+// <== End patch MPC
             break;
         case SEI_PIC_STRUCT_TOP_FIELD:
         case SEI_PIC_STRUCT_BOTTOM_FIELD:
@@ -2125,8 +2131,49 @@ static void decode_postinit(H264Context *h, int setup_finished)
         }
     }
 
+    if (h->sei_frame_packing_present &&
+        h->frame_packing_arrangement_type >= 0 &&
+        h->frame_packing_arrangement_type <= 6 &&
+        h->content_interpretation_type > 0 &&
+        h->content_interpretation_type < 3) {
+        AVStereo3D *stereo = av_stereo3d_create_side_data(&cur->f);
+        if (!stereo)
+            return;
+
+        switch (h->frame_packing_arrangement_type) {
+        case 0:
+            stereo->type = AV_STEREO3D_CHECKERBOARD;
+            break;
+        case 1:
+            stereo->type = AV_STEREO3D_LINES;
+            break;
+        case 2:
+            stereo->type = AV_STEREO3D_COLUMNS;
+            break;
+        case 3:
+            if (h->quincunx_subsampling)
+                stereo->type = AV_STEREO3D_SIDEBYSIDE_QUINCUNX;
+            else
+                stereo->type = AV_STEREO3D_SIDEBYSIDE;
+            break;
+        case 4:
+            stereo->type = AV_STEREO3D_TOPBOTTOM;
+            break;
+        case 5:
+            stereo->type = AV_STEREO3D_FRAMESEQUENCE;
+            break;
+        case 6:
+            stereo->type = AV_STEREO3D_2D;
+            break;
+        }
+
+        if (h->content_interpretation_type == 2)
+            stereo->flags = AV_STEREO3D_FLAG_INVERT;
+    }
+
     cur->mmco_reset = h->mmco_reset;
     h->mmco_reset = 0;
+
     // FIXME do something with unavailable reference frames
 
     /* Sort B-frames into display order */
@@ -3162,12 +3209,6 @@ static int h264_set_parameter_from_sps(H264Context *h)
     if (h->avctx->has_b_frames < 2)
         h->avctx->has_b_frames = !h->low_delay;
 
-    if (h->sps.bit_depth_luma != h->sps.bit_depth_chroma) {
-        avpriv_request_sample(h->avctx,
-                              "Different chroma and luma bit depth");
-        return AVERROR_PATCHWELCOME;
-    }
-
     if (h->avctx->bits_per_raw_sample != h->sps.bit_depth_luma ||
         h->cur_chroma_format_idc      != h->sps.chroma_format_idc) {
         if (h->avctx->codec &&
@@ -3257,17 +3298,31 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
             } else if (h->avctx->colorspace == AVCOL_SPC_YCGCO) {
                 av_log(h->avctx, AV_LOG_WARNING, "Detected unsupported YCgCo colorspace.\n");
             }
+// ==> Start patch MPC
+/*
             return h->avctx->color_range == AVCOL_RANGE_JPEG ? AV_PIX_FMT_YUVJ444P
                                                                 : AV_PIX_FMT_YUV444P;
+*/
+            return AV_PIX_FMT_YUV444P;
+// <== End patch MPC
         } else if (CHROMA422(h)) {
+// ==> Start patch MPC
+/*
             return h->avctx->color_range == AVCOL_RANGE_JPEG ? AV_PIX_FMT_YUVJ422P
                                                              : AV_PIX_FMT_YUV422P;
+*/
+            return AV_PIX_FMT_YUV422P;
+// <== End patch MPC
         } else {
             int i;
             const enum AVPixelFormat * fmt = h->avctx->codec->pix_fmts ?
                                         h->avctx->codec->pix_fmts :
+// ==> Start patch MPC
+/*
                                         h->avctx->color_range == AVCOL_RANGE_JPEG ?
                                         h264_hwaccel_pixfmt_list_jpeg_420 :
+*/
+// <== End patch MPC
                                         h264_hwaccel_pixfmt_list_420;
 
             for (i=0; fmt[i] != AV_PIX_FMT_NONE; i++)
@@ -3429,11 +3484,12 @@ static int h264_slice_header_init(H264Context *h, int reinit)
 
 int ff_set_ref_count(H264Context *h)
 {
+    int ref_count[2], list_count;
     int num_ref_idx_active_override_flag;
 
     // set defaults, might be overridden a few lines later
-    h->ref_count[0] = h->pps.ref_count[0];
-    h->ref_count[1] = h->pps.ref_count[1];
+    ref_count[0] = h->pps.ref_count[0];
+    ref_count[1] = h->pps.ref_count[1];
 
     if (h->slice_type_nos != AV_PICTURE_TYPE_I) {
         unsigned max[2];
@@ -3444,27 +3500,37 @@ int ff_set_ref_count(H264Context *h)
         num_ref_idx_active_override_flag = get_bits1(&h->gb);
 
         if (num_ref_idx_active_override_flag) {
-            h->ref_count[0] = get_ue_golomb(&h->gb) + 1;
+            ref_count[0] = get_ue_golomb(&h->gb) + 1;
             if (h->slice_type_nos == AV_PICTURE_TYPE_B) {
-                h->ref_count[1] = get_ue_golomb(&h->gb) + 1;
+                ref_count[1] = get_ue_golomb(&h->gb) + 1;
             } else
                 // full range is spec-ok in this case, even for frames
-                h->ref_count[1] = 1;
+                ref_count[1] = 1;
         }
 
-        if (h->ref_count[0]-1 > max[0] || h->ref_count[1]-1 > max[1]){
-            av_log(h->avctx, AV_LOG_ERROR, "reference overflow %u > %u or %u > %u\n", h->ref_count[0]-1, max[0], h->ref_count[1]-1, max[1]);
+        if (ref_count[0]-1 > max[0] || ref_count[1]-1 > max[1]){
+            av_log(h->avctx, AV_LOG_ERROR, "reference overflow %u > %u or %u > %u\n", ref_count[0]-1, max[0], ref_count[1]-1, max[1]);
             h->ref_count[0] = h->ref_count[1] = 0;
+            h->list_count   = 0;
             return AVERROR_INVALIDDATA;
         }
 
         if (h->slice_type_nos == AV_PICTURE_TYPE_B)
-            h->list_count = 2;
+            list_count = 2;
         else
-            h->list_count = 1;
+            list_count = 1;
     } else {
-        h->list_count   = 0;
-        h->ref_count[0] = h->ref_count[1] = 0;
+        list_count   = 0;
+        ref_count[0] = ref_count[1] = 0;
+    }
+
+    if (list_count != h->list_count ||
+        ref_count[0] != h->ref_count[0] ||
+        ref_count[1] != h->ref_count[1]) {
+        h->ref_count[0] = ref_count[0];
+        h->ref_count[1] = ref_count[1];
+        h->list_count   = list_count;
+        return 1;
     }
 
     return 0;
@@ -3497,7 +3563,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
     first_mb_in_slice = get_ue_golomb_long(&h->gb);
 
     if (first_mb_in_slice == 0) { // FIXME better field boundary detection
-        if (h0->current_slice && FIELD_PICTURE(h)) {
+        if (h0->current_slice && h->cur_pic_ptr && FIELD_PICTURE(h)) {
             field_end(h, 1);
         }
 
@@ -3530,6 +3596,12 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
     slice_type = golomb_to_pict_type[slice_type];
     h->slice_type     = slice_type;
     h->slice_type_nos = slice_type & 3;
+
+    if (h->nal_unit_type  == NAL_IDR_SLICE &&
+        h->slice_type_nos != AV_PICTURE_TYPE_I) {
+        av_log(h->avctx, AV_LOG_ERROR, "A non-intra slice in an IDR NAL unit.\n");
+        return AVERROR_INVALIDDATA;
+    }
 
     // to make a few old functions happy, it's wrong though
     h->pict_type = h->slice_type;
@@ -3587,9 +3659,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
                      || 16*h->sps.mb_height * (2 - h->sps.frame_mbs_only_flag) != h->avctx->coded_height
                      || h->avctx->bits_per_raw_sample != h->sps.bit_depth_luma
                      || h->cur_chroma_format_idc != h->sps.chroma_format_idc
-                     // ==> Start patch MPC
-                     /*|| av_cmp_q(h->sps.sar, h->avctx->sample_aspect_ratio)))*/
-                     // ==> End patch MPC
+                     || av_cmp_q(h->sps.sar, h->avctx->sample_aspect_ratio)
                      || h->mb_width  != h->sps.mb_width
                      || h->mb_height != h->sps.mb_height * (2 - h->sps.frame_mbs_only_flag)
                     ));
@@ -3668,11 +3738,6 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
         }
     }
 
-    // ==> Start patch MPC
-    h->avctx->sample_aspect_ratio= h->sps.sar;
-    av_assert0(h->avctx->sample_aspect_ratio.den);
-    // ==> End patch MPC
-
     if (h == h0 && h->dequant_coeff_pps != pps_id) {
         h->dequant_coeff_pps = pps_id;
         init_dequant_tables(h);
@@ -3744,7 +3809,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
          * since that can modify h->cur_pic_ptr. */
         if (h0->first_field) {
             assert(h0->cur_pic_ptr);
-            assert(h0->cur_pic_ptr->f.data[0]);
+            assert(h0->cur_pic_ptr->f.buf[0]);
             assert(h0->cur_pic_ptr->reference != DELAYED_PIC_REF);
 
             /* Mark old field/frame as completed */
@@ -3803,8 +3868,11 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
                 for(i=0; i<FF_ARRAY_ELEMS(h->last_pocs); i++)
                     h->last_pocs[i] = INT_MIN;
             ret = h264_frame_start(h);
-            if (ret < 0)
+            if (ret < 0) {
+                h0->first_field = 0;
                 return ret;
+            }
+
             h->prev_frame_num++;
             h->prev_frame_num        %= 1 << h->sps.log2_max_frame_num;
             h->cur_pic_ptr->frame_num = h->prev_frame_num;
@@ -3843,7 +3911,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
          * frame, or to allocate a new one. */
         if (h0->first_field) {
             assert(h0->cur_pic_ptr);
-            assert(h0->cur_pic_ptr->f.data[0]);
+            assert(h0->cur_pic_ptr->f.buf[0]);
             assert(h0->cur_pic_ptr->reference != DELAYED_PIC_REF);
 
             /* figure out if we have a complementary field pair */
@@ -4541,9 +4609,7 @@ static void decode_finish_row(H264Context *h)
 
     ff_h264_draw_horiz_band(h, top, height);
 
-    // ==> Start patch MPC
-    if (h->droppable)
-    // <== End patch MPC
+    if (h->droppable || h->er.error_occurred)
         return;
 
     ff_thread_report_progress(&h->cur_pic_ptr->tf, top + height - 1,
@@ -4573,8 +4639,6 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
                     avctx->codec_id != AV_CODEC_ID_H264 ||
                     (CONFIG_GRAY && (h->flags & CODEC_FLAG_GRAY));
 
-    // ==> Start patch MPC
-    /*
     if (!(h->avctx->active_thread_type & FF_THREAD_SLICE) && h->picture_structure == PICT_FRAME && h->er.error_status_table) {
         const int start_i  = av_clip(h->resync_mb_x + h->resync_mb_y * h->mb_width, 0, h->mb_num - 1);
         if (start_i) {
@@ -4584,8 +4648,6 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
                 h->er.error_occurred = 1;
         }
     }
-    */
-    // <== End patch MPC
 
     if (h->pps.cabac) {
         /* realign */
@@ -4752,6 +4814,8 @@ static int execute_decode_slices(H264Context *h, int context_count)
     H264Context *hx;
     int i;
 
+    av_assert0(h->mb_y < h->mb_height);
+
     // ==> Start patch MPC
     if (h->avctx->using_dxva)
         return 0;
@@ -4890,7 +4954,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size,
                 h->workaround_bugs |= FF_BUG_TRUNCATED;
 
             if (!(h->workaround_bugs & FF_BUG_TRUNCATED))
-                while(dst_length > 0 && ptr[dst_length - 1] == 0)
+                while (dst_length > 0 && ptr[dst_length - 1] == 0)
                     dst_length--;
             bit_length = !dst_length ? 0
                                      : (8 * dst_length -
@@ -5071,8 +5135,13 @@ again:
                 hx->intra_gb_ptr =
                 hx->inter_gb_ptr = NULL;
 
-                if ((err = decode_slice_header(hx, h)) < 0)
+                if ((err = decode_slice_header(hx, h)) < 0) {
+                    /* make sure data_partitioning is cleared if it was set
+                     * before, so we don't try decoding a slice without a valid
+                     * slice header later */
+                    h->data_partitioning = 0;
                     break;
+                }
 
                 hx->data_partitioning = 1;
                 break;
@@ -5141,9 +5210,10 @@ again:
                 context_count = 0;
             }
 
-            if (err < 0)
+            if (err < 0) {
                 av_log(h->avctx, AV_LOG_ERROR, "decode_slice_header error\n");
-            else if (err == 1) {
+                h->ref_count[0] = h->ref_count[1] = h->list_count = 0;
+            } else if (err == 1) {
                 /* Slice could not be decoded in parallel mode, copy down
                  * NAL unit stuff to context 0 and restart. Note that
                  * rbsp_buffer is not transferred, but since we no longer
@@ -5209,8 +5279,8 @@ static int output_frame(H264Context *h, AVFrame *dst, Picture *srcp)
     return 0;
 }
 
-static int decode_frame(AVCodecContext *avctx, void *data,
-                        int *got_frame, AVPacket *avpkt)
+static int h264_decode_frame(AVCodecContext *avctx, void *data,
+                             int *got_frame, AVPacket *avpkt)
 {
     const uint8_t *buf = avpkt->data;
     int buf_size       = avpkt->size;
@@ -5322,7 +5392,7 @@ not_extra:
         }
     }
 
-    assert(pict->data[0] || !*got_frame);
+    assert(pict->buf[0] || !*got_frame);
 
     /* ffdshow custom code (begin) */
     pict->h264_poc_decoded = h->poc_lsb + h->poc_msb;
@@ -5407,7 +5477,7 @@ AVCodec ff_h264_decoder = {
     .priv_data_size        = sizeof(H264Context),
     .init                  = ff_h264_decode_init,
     .close                 = h264_decode_end,
-    .decode                = decode_frame,
+    .decode                = h264_decode_frame,
     .capabilities          = /*CODEC_CAP_DRAW_HORIZ_BAND |*/ CODEC_CAP_DR1 |
                              CODEC_CAP_DELAY | CODEC_CAP_SLICE_THREADS |
                              CODEC_CAP_FRAME_THREADS,
@@ -5427,7 +5497,7 @@ AVCodec ff_h264_vdpau_decoder = {
     .priv_data_size = sizeof(H264Context),
     .init           = ff_h264_decode_init,
     .close          = h264_decode_end,
-    .decode         = decode_frame,
+    .decode         = h264_decode_frame,
     .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_DELAY | CODEC_CAP_HWACCEL_VDPAU,
     .flush          = flush_dpb,
     .pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_VDPAU_H264,

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -128,6 +128,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn3[] = {
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_COOK},
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_DNET},
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_SIPR},
+	{&MEDIATYPE_Audio, &MEDIASUBTYPE_SIPR_WAVE},
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_RAW_AAC1},
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_RAAC},
 	{&MEDIATYPE_Audio, &MEDIASUBTYPE_RACP},
@@ -758,19 +759,19 @@ bool CRealMediaSplitterFilter::DemuxLoop()
 
 		m_pFile->Seek(m_seekfilepos > 0 ? m_seekfilepos : pdc->pos);
 
-		for (UINT32 i = m_seekpacket; i < pdc->nPackets && SUCCEEDED(hr) && !CheckRequest(NULL); i++) {
+		for (UINT32 i = m_seekpacket; (pdc->nPackets ? i < pdc->nPackets : TRUE) && SUCCEEDED(hr) && !CheckRequest(NULL); i++) {
 			MediaPacketHeader mph;
 			if (S_OK != (hr = m_pFile->Read(mph))) {
 				break;
 			}
 
 			CAutoPtr<Packet> p(DNew Packet);
-			p->TrackNumber = mph.stream;
-			p->bSyncPoint = !!(mph.flags&MediaPacketHeader::PN_KEYFRAME_FLAG);
-			p->rtStart = 10000i64*(mph.tStart);
-			p->rtStop = p->rtStart+1;
+			p->TrackNumber	= mph.stream;
+			p->bSyncPoint	= !!(mph.flags & MediaPacketHeader::PN_KEYFRAME_FLAG);
+			p->rtStart		= 10000i64 * mph.tStart;
+			p->rtStop		= p->rtStart + 1;
 			p->Copy(mph.pData);
-			hr = DeliverPacket(p);
+			hr				= DeliverPacket(p);
 		}
 
 		m_seekpacket = 0;
@@ -1915,6 +1916,20 @@ void CRealVideoDecoder::ResizeRow(BYTE* pIn, DWORD wi, DWORD dpi, BYTE* pOut, DW
 	}
 }
 
+static VIDEO_OUTPUT_FORMATS DefaultFormats[] = {
+	{&MEDIASUBTYPE_NV12, 3, 12, FCC('NV12')},
+	{&MEDIASUBTYPE_YV12, 3, 12, FCC('YV12')},
+	{&MEDIASUBTYPE_YUY2, 1, 16, FCC('YUY2')},
+	{&MEDIASUBTYPE_I420, 3, 12, FCC('I420')},
+	{&MEDIASUBTYPE_IYUV, 3, 12, FCC('IYUV')},
+};
+
+void CRealVideoDecoder::GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats)
+{
+	nNumber		= _countof(DefaultFormats);
+	*ppFormats	= DefaultFormats;
+}
+
 HRESULT CRealVideoDecoder::CheckInputType(const CMediaType* mtIn)
 {
 	if (mtIn->majortype != MEDIATYPE_Video
@@ -2310,7 +2325,7 @@ HRESULT CRealAudioDecoder::Receive(IMediaSample* pIn)
 
 				src = m_buff + len;
 				dst = m_buff + len*2;
-			} else if (m_pInput->CurrentMediaType().subtype == MEDIASUBTYPE_SIPR) {
+			} else if (m_pInput->CurrentMediaType().subtype == MEDIASUBTYPE_SIPR || m_pInput->CurrentMediaType().subtype == MEDIASUBTYPE_SIPR_WAVE) {
 				// http://mplayerhq.hu/pipermail/mplayer-dev-eng/2002-August/010569.html
 
 				static BYTE sipr_swaps[38][2]= {
@@ -2412,6 +2427,7 @@ HRESULT CRealAudioDecoder::CheckInputType(const CMediaType* mtIn)
 			&& mtIn->subtype != MEDIASUBTYPE_COOK
 			&& mtIn->subtype != MEDIASUBTYPE_DNET
 			&& mtIn->subtype != MEDIASUBTYPE_SIPR
+			&& mtIn->subtype != MEDIASUBTYPE_SIPR_WAVE
 			&& mtIn->subtype != MEDIASUBTYPE_RAAC
 			&& mtIn->subtype != MEDIASUBTYPE_RACP
 			&& mtIn->subtype != MEDIASUBTYPE_RAW_AAC1) {
@@ -2535,6 +2551,7 @@ HRESULT CRealAudioDecoder::CheckTransform(const CMediaType* mtIn, const CMediaTy
 			|| mtIn->subtype == MEDIASUBTYPE_COOK
 			|| mtIn->subtype == MEDIASUBTYPE_DNET
 			|| mtIn->subtype == MEDIASUBTYPE_SIPR
+			|| mtIn->subtype == MEDIASUBTYPE_SIPR_WAVE
 			|| mtIn->subtype == MEDIASUBTYPE_RAAC
 			|| mtIn->subtype == MEDIASUBTYPE_RACP
 			|| mtIn->subtype == MEDIASUBTYPE_RAW_AAC1)

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -55,6 +55,7 @@ class __declspec(uuid("93A22E7A-5091-45ef-BA61-6DA26156A5D0"))
 	bool AdjustFrameSize(CSize& s);
 
 protected:
+	void GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats);
 	void GetOutputSize(int& w, int& h, int& arx, int& ary, int& RealWidth, int& RealHeight, int& vsfilter);
 	HRESULT Transform(IMediaSample* pIn);
 
@@ -81,6 +82,11 @@ public:
 			StartStreaming(),
 			StopStreaming(),
 			NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME tStop, double dRate);
+
+	HRESULT CheckInputType(const CMediaType* mtIn);
+	HRESULT CheckOutputType(const CMediaType& mtOut);
+	HRESULT CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut);
+	HRESULT	DoCheckTransform(const CMediaType* mtIn, const CMediaType* mtOut, bool checkReconnection);
 
 	CAtlArray<CTextInputPin*> m_pTextInput;
 

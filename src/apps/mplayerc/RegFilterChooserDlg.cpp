@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -23,6 +23,7 @@
 #include <dmo.h>
 #include "RegFilterChooserDlg.h"
 #include "FGFilter.h"
+#include "../../DSUtil/FileHandle.h"
 
 // CRegFilterChooserDlg dialog
 

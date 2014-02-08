@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -631,7 +631,6 @@ void CPlayerSeekBar::OnRButtonDown(UINT nFlags, CPoint point)
 	AppSettings& s = AfxGetAppSettings();
 
 	if (!s.bStatusBarIsVisible) {
-
 		CRect rc = GetChannelRect();
 		CRect rT = rc;
 		rT.left  = rc.right - 140;
@@ -643,6 +642,10 @@ void CPlayerSeekBar::OnRButtonDown(UINT nFlags, CPoint point)
 		if (rT.PtInRect(p)) {
 			s.fRemainingTime = !s.fRemainingTime;
 		}
+	}
+
+	if (CMainFrame* pFrame = (CMainFrame*)GetParentFrame()) {
+		pFrame->PostMessage(WM_COMMAND, ID_PLAY_GOTO);
 	}
 
 	CDialogBar::OnRButtonDown(nFlags, point);
@@ -671,7 +674,9 @@ void CPlayerSeekBar::UpdateTooltip(CPoint point)
 	if (m_tooltipState == TOOLTIP_VISIBLE && m_tooltipPos != m_tooltipLastPos) {
 		UpdateToolTipText();
 
-		if (!pFrame->CanPreviewUse()) UpdateToolTipPosition(point);
+		if (!pFrame->CanPreviewUse()) {
+			UpdateToolTipPosition(point);
+		}
 		m_tooltipTimer = SetTimer(m_tooltipTimer, pFrame->CanPreviewUse() ? 10 : AUTOPOP_DELAY, NULL);
 	}
 }

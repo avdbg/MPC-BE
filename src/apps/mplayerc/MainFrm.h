@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -69,6 +69,7 @@
 #include "../../filters/transform/DecSSFilter/VobFile.h"
 #include <sizecbar/scbarg.h>
 #include <afxinet.h>
+#include <afxmt.h>
 
 #define USE_MEDIAINFO_STATIC
 #include <MediaInfo/MediaInfo.h>
@@ -95,7 +96,7 @@ class OpenFileData : public OpenMediaData
 {
 public:
 	OpenFileData() : rtStart(INVALID_TIME) {}
-	CAtlList<CString> fns;
+	CFileItemList fns;
 	REFERENCE_TIME rtStart;
 };
 
@@ -323,11 +324,12 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 	CInterfaceArray<IUnknown, &IID_IUnknown> m_pparray;
 	CInterfaceArray<IAMStreamSelect> m_ssarray;
 
-	typedef struct AudStreams {
+	struct AudStreams {
 		int iFilter;
 		int iIndex;
 		int iNum;
 		int iSel;
+		bool ExtAudio;
 		bool forced;
 		bool def;
 		CString Name;
@@ -335,11 +337,11 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 		AudStreams() {
 			iFilter = iIndex = 0;
 			iNum = iSel = -1;
-			forced = def = false;
+			ExtAudio = forced = def = false;
 		};
 	};
 
-	typedef struct SubStreams {
+	struct SubStreams {
 		int iFilter;
 		int iIndex;
 		int iNum;
@@ -533,7 +535,7 @@ protected:
 
 	UINT	m_flastnID;
 	bool	m_bfirstPlay;
-	DWORD	m_nLastRunTicket;
+	DWORD	m_dwLastRun;
 
 public:
 	BOOL OpenCurPlaylistItem(REFERENCE_TIME rtStart = INVALID_TIME);
@@ -569,7 +571,7 @@ public:
 	bool LoadSubtitle(CString fn, ISubStream **actualStream = NULL);
 
 	void UpdateSubtitle(bool fDisplayMessage = false, bool fApplyDefStyle = false);
-	void SetSubtitle(ISubStream* pSubStream, bool fApplyDefStyle = false);
+	void SetSubtitle(ISubStream* pSubStream, int iSubtitleSel = -1, bool fApplyDefStyle = false);
 	void ReplaceSubtitle(ISubStream* pSubStreamOld, ISubStream* pSubStreamNew);
 	void InvalidateSubtitle(DWORD_PTR nSubtitleId = -1, REFERENCE_TIME rtInvalidate = -1);
 	void ReloadSubtitle();
@@ -684,7 +686,8 @@ public:
 	afx_msg LRESULT OnGraphNotify(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnResetDevice(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnRepaintRenderLess(WPARAM wParam, LPARAM lParam);
-	afx_msg LRESULT OnResumeFromState(WPARAM wParam, LPARAM lParam);
+
+	afx_msg LRESULT OnPostOpen(WPARAM wParam, LPARAM lParam);
 
 	BOOL OnButton(UINT id, UINT nFlags, CPoint point);
 
@@ -740,11 +743,6 @@ public:
 	afx_msg void OnUpdateMenuNavAudio(CCmdUI* pCmdUI);
 
 	afx_msg void OnUpdatePlayerStatus(CCmdUI* pCmdUI);
-
-	afx_msg void OnFilePostOpenMedia();
-	afx_msg void OnUpdateFilePostOpenMedia(CCmdUI* pCmdUI);
-	afx_msg void OnFilePostCloseMedia();
-	afx_msg void OnUpdateFilePostCloseMedia(CCmdUI* pCmdUI);
 
 	afx_msg void OnBossKey();
 
@@ -1028,6 +1026,9 @@ public:
 	afx_msg void OnLanguage(UINT nID);
 	afx_msg void OnUpdateLanguage(CCmdUI* pCmdUI);
 
+	void OnFilePostOpenMedia(CAutoPtr<OpenMediaData> pOMD);
+	void OnFilePostCloseMedia();
+
 	CMPC_Lcd m_Lcd;
 
 	// Main Window
@@ -1164,6 +1165,9 @@ protected:
 	HANDLE					m_hNotifyRenderThread;
 	HANDLE					m_hStopNotifyRenderThreadEvent;
 	HANDLE					m_hRefreshNotifyRenderThreadEvent;
+
+	::CEvent				m_hGraphThreadEventOpen;
+	::CEvent				m_hGraphThreadEventClose;
 
 public:
 #if (_MSC_VER < 1800)

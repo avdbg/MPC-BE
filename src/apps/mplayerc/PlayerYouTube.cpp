@@ -23,11 +23,23 @@
 #include "PlayerVimeo.h"
 
 #include "../../DSUtil/MPCSocket.h"
+#include "../../DSUtil/Log.h"
 
 #define MATCH_FMT_START			"\"url_encoded_fmt_stream_map\": \""
 #define MATCH_WIDTH_START		"meta property=\"og:video:width\" content=\""
 #define MATCH_DASHMPD_START		"\"dashmpd\": \"http:\\/\\/www.youtube.com\\/api\\/manifest\\/dash\\/"
 #define MATCH_END				"\""
+
+static const YOUTUBE_PROFILES youtubeProfileEmpty = {0, _T(""), _T("N/A"), _T(""), false};
+
+static YOUTUBE_PROFILES getProfile(int iTag) {
+	for (int i = 0; i < _countof(youtubeProfiles); i++)
+		if (iTag == youtubeProfiles[i].iTag) {
+			return youtubeProfiles[i];
+	}
+
+	return youtubeProfileEmpty;
+}
 
 bool PlayerYouTubeCheck(CString fn)
 {
@@ -87,7 +99,7 @@ CString PlayerYouTube(CString fn, CString* out_Title, CString* out_Author)
 		LOG2FILE(_T("------"));
 		LOG2FILE(_T("Youtube parser"));
 #endif
-		
+
 		CString str, Author;
 
 		char* final = NULL;
@@ -101,11 +113,13 @@ CString PlayerYouTube(CString fn, CString* out_Title, CString* out_Author)
 		BOOL match_itag = sApp.iYoutubeTag != 0;
 
 		BOOL bIsFullHD = FALSE;
+#if 0
 		if (sApp.iYoutubeTag == 37) {
 			// Full HD resolution, format .MP4
 			match_itag	= FALSE;
 			bIsFullHD	= TRUE;
 		}
+#endif
 
 		HINTERNET f, s = InternetOpen(L"Googlebot", 0, NULL, NULL, 0);
 		if (s) {
@@ -361,8 +375,9 @@ again:
 			int itagValue = 0;
 			if (_stscanf_s(itagValueStr, _T("%d"), &itagValue) == 1) {
 				YOUTUBE_PROFILES youtubePtofile = getProfile(itagValue);
-				if (youtubePtofile.iTag == 0
-					|| ((youtubePtofile.Container == _T("WebM") && !match_itag))
+				if (youtubePtofile.Visible == false
+					|| youtubePtofile.iTag == 0
+					|| (youtubePtofile.Container == _T("WebM") && !match_itag)
 					|| youtubePtofile.Profile == _T("3D")) {
 					continue;
 				}
@@ -688,7 +703,7 @@ CString PlayerYouTubeReplaceTitle(char* title)
 	Title.Replace(_T(":"), _T(" -"));
 	Title.Replace(_T("/"), _T("-"));
 	Title.Replace(_T("|"), _T("-"));
-	Title.Replace(_T("?"), _T("-"));
+	Title.Replace(_T("—"), _T("-"));
 	Title.Replace(_T("--"), _T("-"));
 	Title.Replace(_T("  "), _T(" "));
 	Title.Replace(_T("\""), _T(""));

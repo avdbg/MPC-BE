@@ -1,5 +1,5 @@
 /*
- * (C) 2011-2013 see Authors.txt
+ * (C) 2011-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -444,4 +444,17 @@ CString GetModulePath(bool bInclModuleName)
 	}
 
 	return path;
+}
+
+BOOL CFileGetStatus(LPCTSTR lpszFileName, CFileStatus& status)
+{
+	try {
+		return CFile::GetStatus(lpszFileName, status);
+	} catch (CException* e) {
+		// MFCBUG: E_INVALIDARG / "Parameter is incorrect" is thrown for certain cds (vs2003)
+		// http://groups.google.co.uk/groups?hl=en&lr=&ie=UTF-8&threadm=OZuXYRzWDHA.536%40TK2MSFTNGP10.phx.gbl&rnum=1&prev=/groups%3Fhl%3Den%26lr%3D%26ie%3DISO-8859-1
+		TRACE(_T("CFile::GetStatus has thrown an exception\n"));
+		e->Delete();
+		return false;
+	}
 }

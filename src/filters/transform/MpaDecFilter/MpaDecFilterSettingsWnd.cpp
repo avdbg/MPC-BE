@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -105,6 +105,7 @@ bool CMpaDecSettingsWnd::OnActivate()
 	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(ResStr(IDS_MPADEC_MONO)),   SPK_MONO);
 	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(ResStr(IDS_MPADEC_STEREO)), SPK_STEREO);
 	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(_T("4.0")), SPK_4_0);
+	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(_T("5.0")), SPK_5_0);
 	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(_T("5.1")), SPK_5_1);
 	m_mixer_layout_combo.SetItemData(m_mixer_layout_combo.AddString(_T("7.1")), SPK_7_1);
 	for (int i = 0; i < m_mixer_layout_combo.GetCount(); i++) {

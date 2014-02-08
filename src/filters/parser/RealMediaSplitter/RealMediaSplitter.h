@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -285,6 +285,8 @@ class __declspec(uuid("238D0F23-5DC9-45A6-9BE2-666160C324DD"))
 	void ResizeRow(BYTE* pIn, DWORD wi, DWORD dpi, BYTE* pOut, DWORD wo, DWORD dpo);
 
 	BYTE* m_pI420, *m_pI420Tmp;
+
+	void GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats);
 
 public:
 	CRealVideoDecoder(LPUNKNOWN lpunk, HRESULT* phr);

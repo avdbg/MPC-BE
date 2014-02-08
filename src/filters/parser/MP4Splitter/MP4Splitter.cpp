@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -79,14 +79,15 @@ STDAPI DllRegisterServer()
 
 	CAtlList<CString> chkbytes;
 
-	// mp4
-	chkbytes.AddTail(_T("4,4,,66747970")); // ftyp
-	chkbytes.AddTail(_T("4,4,,6d6f6f76")); // moov
-	chkbytes.AddTail(_T("4,4,,6d646174")); // mdat
-	chkbytes.AddTail(_T("4,4,,736b6970")); // skip
-	chkbytes.AddTail(_T("4,12,ffffffff00000000ffffffff,77696465027fe3706d646174")); // wide ? mdat
-
-	// mpeg4 video
+	// mov, mp4
+	chkbytes.AddTail(_T("4,4,,66747970")); // '....ftyp'
+	chkbytes.AddTail(_T("4,4,,6d6f6f76")); // '....moov'
+	chkbytes.AddTail(_T("4,4,,6d646174")); // '....mdat'
+	chkbytes.AddTail(_T("4,4,,77696465")); // '....wide'
+	chkbytes.AddTail(_T("4,4,,736b6970")); // '....skip'
+	chkbytes.AddTail(_T("4,4,,66726565")); // '....free'
+	chkbytes.AddTail(_T("4,4,,706e6f74")); // '....pnot'
+	// raw mpeg4 video
 	chkbytes.AddTail(_T("3,3,,000001"));
 
 	RegisterSourceFilter(CLSID_AsyncReader, MEDIASUBTYPE_MP4, chkbytes, NULL);
@@ -656,18 +657,14 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					ReduceDim(Aspect);
 					CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 
-					mts.Add(mt);
-
 					vc_params_t params;
 					if (ParseHEVCDecoderConfigurationRecord(data, size, params, false)) {
 						MPEG2VIDEOINFO* pm2vi	= (MPEG2VIDEOINFO*)mt.pbFormat;
 						pm2vi->dwProfile		= params.profile;
 						pm2vi->dwLevel			= params.level;
 						pm2vi->dwFlags			= params.nal_length_size;
-						CreateSequenceHeaderHEVC(data, size, pm2vi->dwSequenceHeader, pm2vi->cbSequenceHeader);
-
-						mts.InsertAt(0, mt);
 					}
+					mts.Add(mt);
 				}
 			} else if (AP4_StsdAtom* stsd = dynamic_cast<AP4_StsdAtom*>(track->GetTrakAtom()->FindChild("mdia/minf/stbl/stsd"))) {
 				const AP4_DataBuffer& db = stsd->GetDataBuffer();
@@ -730,10 +727,15 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							fourcc = BI_RGB;
 						}
 
+						AP4_Size ExtraSize = db.GetDataSize();
+						if (type == AP4_ATOM_TYPE_FFV1) {
+							ExtraSize = 0;
+						}
+
 						mt.majortype	= MEDIATYPE_Video;
 						mt.formattype	= FORMAT_VideoInfo2;
 
-						vih2							= (VIDEOINFOHEADER2*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER2)+db.GetDataSize());
+						vih2							= (VIDEOINFOHEADER2*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER2) + ExtraSize);
 						memset(vih2, 0, mt.FormatLength());
 						vih2->bmiHeader.biSize			= sizeof(vih2->bmiHeader);
 						vih2->bmiHeader.biWidth			= (LONG)vse->GetWidth();
@@ -752,7 +754,9 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						}
 						SetAspect(vih2, Aspect, vih2->bmiHeader.biWidth, vih2->bmiHeader.biHeight); 
 
-						memcpy(vih2 + 1, db.GetData(), db.GetDataSize());
+						if (ExtraSize) {
+							memcpy(vih2 + 1, db.GetData(), ExtraSize);
+						}
 
 						if (fourcc == BI_RGB) {
 							WORD &bitcount = vih2->bmiHeader.biBitCount;
@@ -787,6 +791,10 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							mt.subtype = FOURCCMap(vih2->bmiHeader.biCompression = typeupr);
 							mts.Add(mt);
 							//b_HasVideo = true;
+						}
+
+						if (vse->m_hasPalette) {
+							track->SetPalette(vse->GetPalette());
 						}
 
 						break;
@@ -1188,18 +1196,6 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 			}
 
 			if (!title.IsEmpty()) {
-				if (!track.IsEmpty()) {
-					title = track + L" - " + title;
-				}
-				if (!album.IsEmpty()) {
-					title = album + L" - " + title;
-				}
-				if (!year.IsEmpty()) {
-					title += L" - " +  year;
-				}
-				if (!gen.IsEmpty()) {
-					title += L" - " + gen;
-				}
 				SetProperty(L"TITL", title);
 			}
 
@@ -1426,7 +1422,20 @@ bool CMP4SplitterFilter::DemuxLoop()
 				}
 			} else {
 				p->SetData(data.GetData(), data.GetDataSize());
+
+				if (track->m_hasPalette) {
+					track->m_hasPalette = false;
+					CAutoPtr<Packet> p2(DNew Packet());
+					p2->SetData(track->GetPalette(), 1024);
+					p->Append(*p2);
+
+					CAutoPtr<Packet> p3(DNew Packet());
+					static BYTE add[13] = {0x00, 0x00, 0x04, 0x00, 0x80, 0x8C, 0x4D, 0x9D, 0x10, 0x8E, 0x25, 0xE9, 0xFE};
+					p3->SetData(add, _countof(add));
+					p->Append(*p3);
+				}
 			}
+
 			hr = DeliverPacket(p);
 		}
 

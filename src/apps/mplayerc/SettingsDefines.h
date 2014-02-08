@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -67,6 +67,7 @@
 #define IDS_RS_PRIORITIZEEXTERNALSUBTITLES	_T("PrioritizeExternalSubtitles")
 #define IDS_RS_DISABLEINTERNALSUBTITLES		_T("DisableInternalSubtitles")
 #define IDS_RS_AUTORELOADEXTSUBTITLES		_T("AutoReloadExtSubtitles")
+#define IDS_RS_USE_SUBRESYNC				_T("UseSubresync")
 #define IDS_RS_SUBTITLEPATHS				_T("SubtitlePaths")
 #define IDS_RS_USEDEFAULTSUBTITLESSTYLE		_T("UseDefaultsubtitlesStyle")
 #define IDS_RS_MPEGINTERLACED				_T("MPEGInterlaced")
@@ -103,7 +104,7 @@
 #define IDS_RS_SPHORPOS						_T("SPHorPos")
 #define IDS_RS_SPVERPOS						_T("SPVerPos")
 #define IDS_RS_SPCSIZE						_T("SPCSize")
-#define IDS_RS_SPCMAXRES					_T("SPCMaxRes")
+#define IDS_RS_SPMAXTEXRES					_T("SPMaxTexRes")
 #define IDS_RS_INTREALMEDIA					_T("IntRealMedia")
 #define IDS_RS_DISABLEXPTOOLBARS			_T("DisableXPToolbars")
 
@@ -142,6 +143,7 @@
 #define IDS_RS_ENABLEWORKERTHREADFOROPENING	_T("EnableWorkerThreadForOpening")
 #define IDS_RS_PNSPRESETS					_T("PnSPresets")
 #define IDS_RS_AUTOLOADAUDIO				_T("AutoloadAudio")
+#define IDS_RS_PRIORITIZEEXTERNALAUDIO		_T("PrioritizeExternalAudio")
 #define IDS_RS_AUDIOPATHS					_T("AudioPaths")
 #define IDS_RS_AUTOLOADSUBTITLES			_T("AutoloadSubtitles")
 #define IDS_RS_SUBTITLESLANGORDER			_T("SubtitlesLanguageOrder")

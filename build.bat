@@ -1,7 +1,7 @@
 @ECHO OFF
 REM $Id$
 REM
-REM (C) 2009-2013 see Authors.txt
+REM (C) 2009-2014 see Authors.txt
 REM
 REM This file is part of MPC-BE.
 REM
@@ -20,18 +20,6 @@ REM along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SETLOCAL
 CD /D %~dp0
-
-IF EXIST "..\..\..\build.user.bat" (
-  CALL ..\..\..\build.user.bat
-)
-
-REM pre-build checks
-
-  IF DEFINED MINGW32 (SET MPCBE_MINGW32=%MINGW32%) ELSE (GOTO MissingVar)
-  IF DEFINED MINGW64 (SET MPCBE_MINGW64=%MINGW64%) ELSE (GOTO MissingVar)
-  IF DEFINED MSYS    (SET MPCBE_MSYS=%MSYS%)       ELSE (GOTO MissingVar)
-
-IF NOT DEFINED VS100COMNTOOLS GOTO MissingVar
 
 SET ARG=%*
 SET ARG=%ARG:/=%
@@ -138,11 +126,11 @@ IF /I "%COMPILER%" == "VS2013" (
 
 IF NOT DEFINED VSCOMNTOOLS GOTO MissingVar
 
-IF EXIST "%~dp0contrib\signinfo.txt" (
-  IF /I "%INSTALLER%" == "True" SET "SIGN=True"
-  IF /I "%ZIP%" == "True"       SET "SIGN=True"
-) ELSE (
-  SET "SIGN=False"
+IF /I "%SIGN%" == "True" (
+  IF NOT EXIST "%~dp0contrib\signinfo.txt" (
+    ECHO WARNING: signinfo.txt not found.
+    SET "SIGN=False"
+  )
 )
 
 :Start
@@ -417,6 +405,7 @@ IF NOT EXIST "%PCKG_NAME%" MD "%PCKG_NAME%"
 
 IF /I "%NAME%" == "MPC-BE" (
   IF NOT EXIST "%PCKG_NAME%\Lang" MD "%PCKG_NAME%\Lang"
+  IF NOT EXIST "%PCKG_NAME%\Shaders" MD "%PCKG_NAME%\Shaders"
   IF /I "%ARCH%" == "x64" (
     COPY /Y /V "%~1_%ARCH%\mpc-be64.exe"        "%PCKG_NAME%\mpc-be64.exe" >NUL
     COPY /Y /V "%~1_%ARCH%\MPCBEShellExt64.dll" "%PCKG_NAME%\MPCBEShellExt64.dll" >NUL
@@ -426,6 +415,7 @@ IF /I "%NAME%" == "MPC-BE" (
   )
   COPY /Y /V "%~1_%ARCH%\mpciconlib.dll"           "%PCKG_NAME%\*.dll" >NUL
   COPY /Y /V "%~1_%ARCH%\Lang\mpcresources.??.dll" "%PCKG_NAME%\Lang\mpcresources.??.dll" >NUL
+  COPY /Y /V "..\distrib\Shaders\*.psh"            "%PCKG_NAME%\Shaders\*.psh" >NUL
 ) ELSE (
   COPY /Y /V "%~1_%ARCH%\*.ax"           "%PCKG_NAME%\*.ax" >NUL
   COPY /Y /V "%~1_%ARCH%\VSFilter.dll"   "%PCKG_NAME%\VSFilter.dll" >NUL
@@ -437,8 +427,6 @@ COPY /Y /V "..\docs\Authors mpc-hc team.txt" "%PCKG_NAME%" >NUL
 COPY /Y /V "..\docs\Changelog.txt"           "%PCKG_NAME%" >NUL
 COPY /Y /V "..\docs\Changelog.Rus.txt"       "%PCKG_NAME%" >NUL
 COPY /Y /V "..\docs\Readme.txt"              "%PCKG_NAME%" >NUL
-IF NOT EXIST "%PCKG_NAME%\Shaders" MD "%PCKG_NAME%\Shaders"
-COPY /Y /V "..\distrib\Shaders\*.psh"        "%PCKG_NAME%\Shaders\*.psh" >NUL
 
 IF /I "%NAME%" == "MPC-BE" (
 TITLE Creating archive %PCKG_NAME%.zip...
@@ -450,7 +438,7 @@ CALL :SubMsg "INFO" "%PCKG_NAME%-installer.zip successfully created"
 
 TITLE Creating archive %PCKG_NAME%.7z...
 START "7z" /B /WAIT "%SEVENZIP%" a -t7z "%PackagesOut%\%MPCBE_VER%\%PCKG_NAME%.(%BUILD%).7z" "%PCKG_NAME%"^
- -m0=lzma2:d128m -mx9 -mmt -ms=on
+ -m0=lzma -mx9 -mmt -ms=on
 IF %ERRORLEVEL% NEQ 0 CALL :SubMsg "ERROR" "Unable to create %PCKG_NAME%.7z!"
 CALL :SubMsg "INFO" "%PCKG_NAME%.7z successfully created"
 

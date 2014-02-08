@@ -1,6 +1,6 @@
 /*
  * 
- * (C) 2013 see Authors.txt
+ * (C) 2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -100,32 +100,44 @@ bool CMixer::Init()
 	int in_ch  = av_popcount(m_in_layout);
 	int out_ch = av_popcount(m_out_layout);
 	m_matrix_dbl = (double*)av_mallocz(in_ch * out_ch * sizeof(*m_matrix_dbl));
+	// expand mono to front left and front right channels
+	if (m_in_layout == AV_CH_LAYOUT_MONO && m_out_layout & (AV_CH_FRONT_LEFT|AV_CH_FRONT_RIGHT)) {
+		int i = 0;
+		m_matrix_dbl[i++] = 1.0;
+		m_matrix_dbl[i++] = 1.0;
+		while (i < out_ch) {
+			m_matrix_dbl[i++] = 0.0;
+		}
+	}
 	// expand stereo
-	if (m_in_layout == AV_CH_LAYOUT_STEREO && (m_out_layout == AV_CH_LAYOUT_QUAD || m_out_layout == AV_CH_LAYOUT_5POINT1 || m_out_layout == AV_CH_LAYOUT_7POINT1)) {
-		m_matrix_dbl[0] = 1.0;
-		m_matrix_dbl[1] = 0.0;
-		m_matrix_dbl[2] = 0.0;
-		m_matrix_dbl[3] = 1.0;
-		if (m_out_layout == AV_CH_LAYOUT_QUAD) {
-			m_matrix_dbl[4] = 0.6666;
-			m_matrix_dbl[5] = (-0.2222);
-			m_matrix_dbl[6] = (-0.2222);
-			m_matrix_dbl[7] = 0.6666;
-		} else if (m_out_layout == AV_CH_LAYOUT_5POINT1 || m_out_layout == AV_CH_LAYOUT_7POINT1) {
-			m_matrix_dbl[4] = 0.5;
-			m_matrix_dbl[5] = 0.5;
-			m_matrix_dbl[6] = 0.0;
-			m_matrix_dbl[7] = 0.0;
-			m_matrix_dbl[8] =  0.6666;
-			m_matrix_dbl[9] =  (-0.2222);
-			m_matrix_dbl[10] = (-0.2222);
-			m_matrix_dbl[11] = 0.6666;
-			if (m_out_layout == AV_CH_LAYOUT_7POINT1) {
-				m_matrix_dbl[12] = 0.6666;
-				m_matrix_dbl[13] = (-0.2222);
-				m_matrix_dbl[14] = (-0.2222);
-				m_matrix_dbl[15] = 0.6666;
-			}
+	else if (m_in_layout == AV_CH_LAYOUT_STEREO && out_ch >= 4
+			&& (m_out_layout & ~(AV_CH_FRONT_LEFT|AV_CH_FRONT_RIGHT|AV_CH_FRONT_CENTER|AV_CH_LOW_FREQUENCY|AV_CH_BACK_LEFT|AV_CH_BACK_RIGHT|AV_CH_SIDE_LEFT|AV_CH_SIDE_RIGHT)) == 0) {
+		int i = 0;
+		if (m_out_layout & (AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT)) {
+			m_matrix_dbl[i++] = 1.0;
+			m_matrix_dbl[i++] = 0.0;
+			m_matrix_dbl[i++] = 0.0;
+			m_matrix_dbl[i++] = 1.0;
+		}
+		if (m_out_layout & AV_CH_FRONT_CENTER) {
+			m_matrix_dbl[i++] = 0.5;
+			m_matrix_dbl[i++] = 0.5;
+		}
+		if (m_out_layout & AV_CH_LOW_FREQUENCY) {
+			m_matrix_dbl[i++] = 0.0;
+			m_matrix_dbl[i++] = 0.0;
+		}
+		if (m_out_layout & (AV_CH_BACK_LEFT | AV_CH_BACK_RIGHT)) {
+			m_matrix_dbl[i++] = 0.6666;
+			m_matrix_dbl[i++] = (-0.2222);
+			m_matrix_dbl[i++] = (-0.2222);
+			m_matrix_dbl[i++] = 0.6666;
+		}
+		if (m_out_layout & (AV_CH_SIDE_LEFT | AV_CH_SIDE_RIGHT)) {
+			m_matrix_dbl[i++] =  0.6666;
+			m_matrix_dbl[i++] =  (-0.2222);
+			m_matrix_dbl[i++] = (-0.2222);
+			m_matrix_dbl[i++] = 0.6666;
 		}
 	} else {
 		const double center_mix_level   = M_SQRT1_2;

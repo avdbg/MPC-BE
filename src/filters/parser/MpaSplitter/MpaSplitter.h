@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -30,7 +30,7 @@
 class __declspec(uuid("0E9D4BF7-CBCB-46C7-BD80-4EF223A3DC2B"))
 	CMpaSplitterFilter : public CBaseSplitterFilter
 {
-	REFERENCE_TIME m_rtStart;
+	REFERENCE_TIME m_rtime;
 
 protected:
 	CAutoPtr<CMpaSplitterFile> m_pFile;

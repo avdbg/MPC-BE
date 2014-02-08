@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -116,7 +116,11 @@ bool IsVideoDecoder(IBaseFilter* pBF, bool fCountConnectedOnly)
 {
 	// All popular video decoders includes in the name the "video"
 	CString filterName = GetFilterName(pBF).MakeLower();
-	if (filterName.Find(_T("video")) < 0) {
+
+	if (filterName.Find(L"directvobsub") == 0) {
+		return true;
+	}
+	if (filterName.Find(L"video") < 0) {
 		return false;
 	}
 
@@ -370,9 +374,9 @@ IPin* FindPin(IBaseFilter* pBF, PIN_DIRECTION direction, const GUID majortype)
 	return NULL;
 }
 
-CStringW GetFilterName(IBaseFilter* pBF)
+CString GetFilterName(IBaseFilter* pBF)
 {
-	CStringW name = _T("");
+	CString name;
 
 	if (pBF) {
 		/*
@@ -431,9 +435,9 @@ CStringW GetFilterName(IBaseFilter* pBF)
 	return name;
 }
 
-CStringW GetPinName(IPin* pPin)
+CString GetPinName(IPin* pPin)
 {
-	CStringW name;
+	CString name;
 	CPinInfo pi;
 	if (pPin && SUCCEEDED(pPin->QueryPinInfo(&pi))) {
 		name = pi.achName;
@@ -908,7 +912,7 @@ cdrom_t GetCDROMType(TCHAR drive, CAtlList<CString>& files)
 			DWORD BytesReturned;
 			CDROM_TOC TOC;
 			if (DeviceIoControl(hDrive, IOCTL_CDROM_READ_TOC, NULL, 0, &TOC, sizeof(TOC), &BytesReturned, 0)) {
-				for (ptrdiff_t i = TOC.FirstTrack; i <= TOC.LastTrack; i++) {
+				for (int i = TOC.FirstTrack; i <= TOC.LastTrack; i++) {
 					// MMC-3 Draft Revision 10g: Table 222 - Q Sub-channel control field
 					TOC.TrackData[i-1].Control &= 5;
 					if (TOC.TrackData[i-1].Control == 0 || TOC.TrackData[i-1].Control == 1) {
@@ -1221,26 +1225,25 @@ bool ExtractDim(const AM_MEDIA_TYPE* pmt, int& w, int& h, int& arx, int& ary)
 
 bool MakeMPEG2MediaType(CMediaType& mt, BYTE* seqhdr, DWORD len, int w, int h)
 {
+	mt = CMediaType();
+
 	if (len < 4 || *(DWORD*)seqhdr != 0xb3010000) {
-		mt = CMediaType();
+		mt.majortype				= MEDIATYPE_Video;
+		mt.subtype					= MEDIASUBTYPE_MPEG2_VIDEO;
+		mt.formattype				= FORMAT_MPEG2Video;
 
-		mt.majortype = MEDIATYPE_Video;
-		mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
-		mt.formattype = FORMAT_MPEG2Video;
-
-		MPEG2VIDEOINFO* vih = (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader));
+		MPEG2VIDEOINFO* vih			= (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader));
 		memset(mt.Format(), 0, mt.FormatLength());
-		vih->hdr.bmiHeader.biSize = sizeof(vih->hdr.bmiHeader);
-		vih->hdr.bmiHeader.biWidth = w;
-		vih->hdr.bmiHeader.biHeight = h;
+		vih->hdr.bmiHeader.biSize	= sizeof(vih->hdr.bmiHeader);
+		vih->hdr.bmiHeader.biWidth	= w;
+		vih->hdr.bmiHeader.biHeight	= h;
 
-		vih->cbSequenceHeader = 0;
+		vih->cbSequenceHeader		= 0;
 
 		return true;
 	}
 
 	BYTE* seqhdr_ext = NULL;
-
 	BYTE* seqhdr_end = seqhdr + 7;
 
 	while (seqhdr_end < (seqhdr + len - 6)) {
@@ -1253,28 +1256,26 @@ bool MakeMPEG2MediaType(CMediaType& mt, BYTE* seqhdr, DWORD len, int w, int h)
 		seqhdr_end++;
 	}
 
-	mt = CMediaType();
+	mt.majortype				= MEDIATYPE_Video;
+	mt.subtype					= MEDIASUBTYPE_MPEG2_VIDEO;
+	mt.formattype				= FORMAT_MPEG2Video;
 
-	mt.majortype = MEDIATYPE_Video;
-	mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
-	mt.formattype = FORMAT_MPEG2Video;
-
-	MPEG2VIDEOINFO* vih = (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + len);
+	MPEG2VIDEOINFO* vih			= (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + len);
 	memset(mt.Format(), 0, mt.FormatLength());
-	vih->hdr.bmiHeader.biSize = sizeof(vih->hdr.bmiHeader);
-	vih->hdr.bmiHeader.biWidth = w;
-	vih->hdr.bmiHeader.biHeight = h;
+	vih->hdr.bmiHeader.biSize	= sizeof(vih->hdr.bmiHeader);
+	vih->hdr.bmiHeader.biWidth	= w;
+	vih->hdr.bmiHeader.biHeight	= h;
 
-	BYTE* pSequenceHeader = (BYTE*)vih->dwSequenceHeader;
+	BYTE* pSequenceHeader		= (BYTE*)vih->dwSequenceHeader;
 	memcpy(pSequenceHeader, seqhdr, len);
-	vih->cbSequenceHeader = len;
+	vih->cbSequenceHeader		= len;
 
-	static char profile[8] = {
+	static DWORD profile[8] = {
 		0, AM_MPEG2Profile_High, AM_MPEG2Profile_SpatiallyScalable, AM_MPEG2Profile_SNRScalable,
 		AM_MPEG2Profile_Main, AM_MPEG2Profile_Simple, 0, 0
 	};
 
-	static char level[16] = {
+	static DWORD level[16] = {
 		0, 0, 0, 0,
 		AM_MPEG2Level_High, 0, AM_MPEG2Level_High1440, 0,
 		AM_MPEG2Level_Main, 0, AM_MPEG2Level_Low, 0,
@@ -1282,38 +1283,14 @@ bool MakeMPEG2MediaType(CMediaType& mt, BYTE* seqhdr, DWORD len, int w, int h)
 	};
 
 	if (seqhdr_ext && (seqhdr_ext[4] & 0xf0) == 0x10) {
-		vih->dwProfile = profile[seqhdr_ext[4] & 0x07];
-		vih->dwLevel = level[seqhdr_ext[5] >> 4];
+		vih->dwProfile	= profile[seqhdr_ext[4] & 0x07];
+		vih->dwLevel	= level[seqhdr_ext[5] >> 4];
 	}
 
 	return true;
 }
 
-unsigned __int64 GetFileVersion(LPCTSTR fn)
-{
-	unsigned __int64 ret = 0;
-
-	DWORD buff[4];
-	VS_FIXEDFILEINFO* pvsf = (VS_FIXEDFILEINFO*)buff;
-	DWORD d; // a variable that GetFileVersionInfoSize sets to zero (but why is it needed ?????????????????????????????? :)
-	DWORD len = GetFileVersionInfoSize((TCHAR*)fn, &d);
-
-	if (len) {
-		TCHAR* b1 = DNew TCHAR[len];
-		if (b1) {
-			UINT uLen;
-			if (GetFileVersionInfo((TCHAR*)fn, 0, len, b1) && VerQueryValue(b1, _T("\\"), (void**)&pvsf, &uLen)) {
-				ret = ((unsigned __int64)pvsf->dwFileVersionMS<<32) | pvsf->dwFileVersionLS;
-			}
-
-			delete [] b1;
-		}
-	}
-
-	return ret;
-}
-
-bool CreateFilter(CStringW DisplayName, IBaseFilter** ppBF, CStringW& FriendlyName)
+bool CreateFilter(CString DisplayName, IBaseFilter** ppBF, CString& FriendlyName)
 {
 	if (!ppBF) {
 		return false;
@@ -1398,9 +1375,9 @@ IBaseFilter* AppendFilter(IPin* pPin, IMoniker* pMoniker, IGraphBuilder* pGB)
 	return NULL;
 }
 
-CStringW GetFriendlyName(CStringW DisplayName)
+CString GetFriendlyName(CString DisplayName)
 {
-	CStringW FriendlyName;
+	CString FriendlyName;
 
 	CComPtr<IBindCtx> pBindCtx;
 	CreateBindCtx(0, &pBindCtx);
@@ -1616,9 +1593,9 @@ CString LocalToString(LPCSTR lpMultiByteStr)
 	return ConvertStr(lpMultiByteStr, CP_ACP);
 }
 
-CStringW AltUTF8ToStringW(const char* S) // Use if MultiByteToWideChar() function does not work.
+CString AltUTF8ToStringW(const char* S) // Use if MultiByteToWideChar() function does not work.
 {
-	CStringW str;
+	CString str;
 	if (S==NULL) {
 		return str;
 	}
@@ -1775,6 +1752,7 @@ static struct {
 	{"Chichewa; Chewa; Nyanja", "nya", "ny"},
 	{"Chinese", "chi", "zh",					MAKELCID( MAKELANGID(LANG_CHINESE, SUBLANG_DEFAULT), SORT_DEFAULT)},
 	{"Chinese", "zho", "zh"},
+	{"Chinese (Simplified)", "chs", "zh",		MAKELCID( MAKELANGID(LANG_CHINESE_SIMPLIFIED, SUBLANG_DEFAULT), SORT_DEFAULT)},
 	{"Chinook jargon", "chn", ""},
 	{"Chipewyan", "chp", ""},
 	{"Choctaw", "cho", ""},
@@ -2447,19 +2425,6 @@ int MakeAACInitData(BYTE* pData, int profile, int freq, int channels)
 	return ret;
 }
 
-BOOL CFileGetStatus(LPCTSTR lpszFileName, CFileStatus& status)
-{
-	try {
-		return CFile::GetStatus(lpszFileName, status);
-	} catch (CException* e) {
-		// MFCBUG: E_INVALIDARG / "Parameter is incorrect" is thrown for certain cds (vs2003)
-		// http://groups.google.co.uk/groups?hl=en&lr=&ie=UTF-8&threadm=OZuXYRzWDHA.536%40TK2MSFTNGP10.phx.gbl&rnum=1&prev=/groups%3Fhl%3Den%26lr%3D%26ie%3DISO-8859-1
-		TRACE(_T("CFile::GetStatus has thrown an exception\n"));
-		e->Delete();
-		return false;
-	}
-}
-
 // filter registration helpers
 
 bool DeleteRegKey(LPCTSTR pszKey, LPCTSTR pszSubkey)
@@ -2538,7 +2503,7 @@ void RegisterSourceFilter(const CLSID& clsid, const GUID& subtype2, const CAtlLi
 	CString subtype = CStringFromGUID(subtype2);
 
 	POSITION pos = chkbytes.GetHeadPosition();
-	for (ptrdiff_t i = 0; pos; i++) {
+	for (int i = 0; pos; i++) {
 		CString idx;
 		idx.Format(_T("%d"), i);
 		SetRegKeyValue(_T("Media Type\\") + majortype, subtype, idx, chkbytes.GetNext(pos));
@@ -2630,9 +2595,9 @@ static const DXVA2_DECODER DXVA2Decoder[] = {
 
 CString GetDXVAMode(const GUID* guidDecoder)
 {
-	int nPos = 0;
+	size_t nPos = 0;
 
-	for (int i=1; i<_countof(DXVA2Decoder); i++) {
+	for (size_t i = 1; i < _countof(DXVA2Decoder); i++) {
 		if (*guidDecoder == *DXVA2Decoder[i].Guid) {
 			nPos = i;
 			break;
@@ -3097,87 +3062,50 @@ HRESULT CreateMPEG2VISimple(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TI
 	return S_OK;
 }
 
-// log function
-void HexDump(CString fileName, BYTE* buf, int size)
+HRESULT CreateAVCfromH264(CMediaType* mt)
 {
-	if (size <= 0) {
-		return;
+	if (mt->formattype != FORMAT_MPEG2_VIDEO) {
+		return E_FAIL;
 	}
 
-	CString dump_str;
-	dump_str.Format(_T("Dump size = %d\n"), size);
-	int len, i, j, c;
-
-	for (i = 0; i < size; i +=16) {
-		len = size - i;
-		if (len > 16) {
-			len = 16;
-		}
-		dump_str.AppendFormat(_T("%08x "), i);
-		for (j = 0; j < 16; j++) {
-			if (j < len) {
-				dump_str.AppendFormat(_T(" %02x"), buf[i+j]);
-			}
-			else {
-				dump_str.Append(_T("   "));
-			}
-		}
-		dump_str.Append(_T(" "));
-		for (j = 0; j < len; j++) {
-			c = buf[i+j];
-			if (c < ' ' || c > '~') {
-				c = '.';
-			}
-			dump_str.AppendFormat(_T("%c"), c);
-		}
-		dump_str.Append(_T("\n"));
+	MPEG2VIDEOINFO* pm2vi = (MPEG2VIDEOINFO*)mt->pbFormat;
+	if (!pm2vi->cbSequenceHeader) {
+		return E_FAIL;
 	}
 
-	dump_str.Append(_T("\n"));
+	BYTE* extra		= (BYTE*)&pm2vi->dwSequenceHeader[0];
+	DWORD extrasize	= pm2vi->cbSequenceHeader;
 
-	if (!fileName.IsEmpty()) {
-		CStdioFile file;
-		if (file.Open(fileName, CFile::modeCreate|CFile::modeWrite)) {
-			file.WriteString(dump_str);
-			file.Close();
-		}
-	} else {
-		TRACE(dump_str);
-	}
-}
+	BYTE* dst		= DNew BYTE[extrasize];
+	DWORD dstSize	= 0;
 
-void LOG2FILE(LPCTSTR fmt, ...)
-{
-	static CString sDesktop;
-	if (sDesktop.IsEmpty()) {
-		TCHAR szPath[MAX_PATH];
-		if(SUCCEEDED(SHGetFolderPath(NULL, CSIDL_DESKTOP, NULL, 0, szPath))) {
-			sDesktop = CString(szPath) + L"\\";
+	CH264Nalu Nalu;
+	Nalu.SetBuffer(extra, extrasize, 0);
+	while (Nalu.ReadNext()) {
+		if (Nalu.GetType() == NALU_TYPE_SPS || Nalu.GetType() == NALU_TYPE_PPS) {
+			size_t nalLength = Nalu.GetDataLength();
+			*(dst + dstSize++) = nalLength >> 8;
+			*(dst + dstSize++) = nalLength & 0xff;
+
+			memcpy(dst + dstSize, Nalu.GetDataBuffer(), Nalu.GetDataLength());
+			dstSize += Nalu.GetDataLength();
 		}
 	}
 
-	va_list args;
-	va_start(args, fmt);
-	size_t len = _vsctprintf(fmt, args) + 1;
-	if (TCHAR* buff = DNew TCHAR[len]) {
-		_vstprintf(buff, len, fmt, args);
-		CString fname = sDesktop + L"mpc-be.log";
-		if (FILE* f = _tfopen(fname, L"at, ccs=UTF-8")) {
-			fseek(f, 0, 2);
+	if (dstSize) {
+		pm2vi = (MPEG2VIDEOINFO*)mt->ReallocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + dstSize);
 
-			SYSTEMTIME st;
-			::GetLocalTime(&st);
+		mt->subtype = MEDIASUBTYPE_AVC1;
+		pm2vi->hdr.bmiHeader.biCompression = mt->subtype.Data1;
 
-			CString lt;
-			lt.Format(L"%04d.%02d.%02d %02d:%02d:%02d.%03d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-
-			_ftprintf_s(f, _T("%s : %s\n"), lt, buff);
-			fclose(f);
-		}
-		delete [] buff;
+		pm2vi->cbSequenceHeader = dstSize;
+		memcpy(&pm2vi->dwSequenceHeader[0], dst, dstSize);
 	}
-	va_end(args);
-}
+
+	delete[] dst;
+
+	return dstSize ? S_OK : E_FAIL;
+} 
 
 CStringA VobSubDefHeader(int w, int h, CStringA palette)
 {
@@ -3192,204 +3120,6 @@ CStringA VobSubDefHeader(int w, int h, CStringA palette)
 		w, h, !palette.IsEmpty() ? palette : def_palette);
 
 	return hdr;
-}
-
-static CString GetCueCommand(CString& ln)
-{
-	CString c;
-	int i = ln.Find(' ');
-	if (i < 0) {
-		c = ln;
-		ln.Empty();
-	} else {
-		c = ln.Left(i);
-		ln.Delete(0, i+1);
-		ln.TrimLeft();
-	}
-	return c;
-}
-
-static void MakeCUETitle(CString &Title, CString title, CString performer, int track_no)
-{
-	if (!performer.IsEmpty() || !title.IsEmpty()) {
-		Title.Format(_T("%02d. %s - %s"), track_no, performer, title);
-	} else if (!performer.IsEmpty()) {
-		Title.Format(_T("%02d. %s"), track_no, performer);
-	} else if (!title.IsEmpty()) {
-		Title.Format(_T("%02d. %s"), track_no, title);
-	}
-}
-
-bool ParseCUESheet(CString cueData, CAtlList<Chapters> &ChaptersList, CString& Title, CString& Performer)
-{
-	BOOL fAudioTrack;
-	int track_no = -1, /*index, */index_cnt = 0;
-	REFERENCE_TIME rt = _I64_MAX;
-	CString TrackTitle;
-	CString title, performer;
-
-	Title.Empty();
-	Performer.Empty();
-
-	CAtlList<CString> cuelines;
-	Explode(cueData, cuelines, '\n');
-
-	if (cuelines.GetCount() <= 1) {
-		return false;
-	}
-
-	while (cuelines.GetCount()) {
-		CString cueLine	= cuelines.RemoveHead().Trim();
-		CString cmd		= GetCueCommand(cueLine);
-
-		if (cmd == _T("TRACK")) {
-			if (rt != _I64_MAX && track_no != -1 && index_cnt) {
-				MakeCUETitle(TrackTitle, title, performer, track_no);
-				if (!TrackTitle.IsEmpty()) {
-					ChaptersList.AddTail(Chapters(TrackTitle, rt));
-				}
-			}
-			rt = _I16_MAX;
-			index_cnt = 0;
-
-			TCHAR type[256];
-			swscanf_s(cueLine, _T("%d %s"), &track_no, type, _countof(type)-1);
-			fAudioTrack = (wcscmp(type, _T("AUDIO")) == 0);
-			TrackTitle.Format(_T("Track %02d"), track_no);
-		} else if (cmd == _T("TITLE")) {
-			cueLine.Trim(_T(" \""));
-			title = cueLine;
-
-			if (track_no == -1) {
-				Title = title;
-			}
-		} else if (cmd == _T("PERFORMER")) {
-			cueLine.Trim(_T(" \""));
-			performer = cueLine;
-
-			if (track_no == -1) {
-				Performer = performer;
-			}
-		} else if (cmd == _T("INDEX")) {
-			int idx, mm, ss, ff;
-			swscanf_s(cueLine, _T("%d %d:%d:%d"), &idx, &mm, &ss, &ff);
-
-			if (fAudioTrack) {
-				index_cnt++;
-
-				rt = MILLISECONDS_TO_100NS_UNITS((mm*60+ss)*1000);
-			}
-		}
-	}
-
-	if (rt != _I64_MAX && track_no != -1 && index_cnt) {
-		MakeCUETitle(TrackTitle, title, performer, track_no);
-		if (!TrackTitle.IsEmpty()) {
-			ChaptersList.AddTail(Chapters(TrackTitle, rt));
-		}
-	}
-
-	if (ChaptersList.GetCount()) {
-		return true;
-	} else {
-		return false;
-	}
-}
-
-// Some handy file functions
-
-//
-//	Returns the file portion from a path
-//
-CString GetFileOnly(LPCTSTR Path)
-{
-	// Strip off the path and return just the filename part
-	CString temp = (LPCTSTR) Path; // Force CString to make a copy
-	::PathStripPath(temp.GetBuffer(0));
-	temp.ReleaseBuffer(-1);
-	return temp;
-}
-
-//
-//	Returns the folder portion from a path
-//
-CString GetFolderOnly(LPCTSTR Path)
-{
-	// Strip off the filename and return only path part
-	CString temp = (LPCTSTR) Path; // Force CString to make a copy
-	::PathRemoveFileSpec(temp.GetBuffer(0));
-	temp.ReleaseBuffer(-1);
-	return temp;
-}
-
-//
-//	Adds a backslash to the end of a path if it is needed
-//
-CString AddSlash(LPCTSTR Path)
-{
-	CString cs = Path;
-	::PathAddBackslash(cs.GetBuffer(_MAX_PATH));
-	cs.ReleaseBuffer(-1);
-	if(cs.IsEmpty()) {
-		cs = _T("\\");
-	}
-	return cs;
-}
-
-//
-//	Removes a backslash from the end of a path if it is there
-//
-CString RemoveSlash(LPCTSTR Path)
-{
-	CString cs = Path;
-	::PathRemoveBackslash(cs.GetBuffer(_MAX_PATH));
-	cs.ReleaseBuffer(-1);
-	return cs;
-}
-
-//
-// Returns just the .ext part of the file path
-//
-CString GetFileExt(LPCTSTR Path)
-{
-	CString cs;
-	cs = ::PathFindExtension(Path);
-	return cs;
-}
-
-//
-// Exchanges one file extension for another and returns the new fiel path
-//
-CString RenameFileExt(LPCTSTR Path, LPCTSTR Ext)
-{
-	CString cs = Path;
-	::PathRenameExtension(cs.GetBuffer(_MAX_PATH), Ext);
-	return cs;
-}
-
-//
-// Generate temporary files with any extension
-//
-BOOL GetTemporaryFilePath(CString strExtension, CString& strFileName)
-{
-	TCHAR lpszTempPath[_MAX_PATH] = { 0 };
-	if (!GetTempPath(_MAX_PATH, lpszTempPath)) {
-		return FALSE;
-	}
-
-	TCHAR lpszFilePath[_MAX_PATH] = { 0 };
-	do {
-		if (!GetTempFileName(lpszTempPath, _T("mpc"), 0, lpszFilePath)) {
-			return FALSE;
-		}
-
-		strFileName = lpszFilePath;
-		strFileName.Replace(_T(".tmp"), strExtension);
-		
-		DeleteFile(strFileName);
-	} while (_taccess(strFileName, 00) != -1);
-
-	return TRUE;
 }
 
 void CorrectWaveFormatEx(CMediaType *pmt)

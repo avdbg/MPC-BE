@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -163,7 +163,7 @@ public:
 	HRESULT		ReadInfo(LPCTSTR strFile, CAtlArray<SyncPoint>* sps = NULL);
 	Stream*		FindStream(SHORT wPID);
 	bool		IsHdmv() const { return m_bIsHdmv; };
-	size_t		GetStreamNumber() { return m_Streams.GetCount(); };
+	size_t		GetStreamCount() const { return m_Streams.GetCount(); };
 	Stream*		GetStreamByIndex(size_t nIndex) {return (nIndex < m_Streams.GetCount()) ? &m_Streams[nIndex] : NULL; };
 
 	HRESULT		FindMainMovie(LPCTSTR strFolder, CString& strPlaylistFile, CPlaylist& MainPlaylist, CPlaylist& MPLSPlaylists);

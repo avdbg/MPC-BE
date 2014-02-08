@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -387,7 +387,7 @@ DWORD CMatroskaMuxerFilter::ThreadProc()
 	ULONGLONG segpos = GetStreamPosition(pStream);
 
 	// TODO
-	MatroskaWriter::QWORD voidlen = 100;
+	QWORD voidlen = 100;
 	if (rtDur > 0) {
 		voidlen += int(1.0 * rtDur / MAXCLUSTERTIME / 10000 + 0.5) * 20;
 	} else {

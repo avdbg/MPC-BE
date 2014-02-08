@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -134,7 +134,7 @@ public:
 	STDMETHODIMP_(bool) IsAnimated(POSITION pos);
 	STDMETHODIMP Render(SubPicDesc& spd, REFERENCE_TIME rt, double fps, RECT& bbox);
 
-	STDMETHODIMP_(SUBTITLE_TYPE) GetType(POSITION pos);
+	STDMETHODIMP_(SUBTITLE_TYPE) GetType(POSITION pos) { return ST_VOBSUB; };
 
 	// IPersist
 	STDMETHODIMP GetClassID(CLSID* pClassID);
@@ -179,7 +179,7 @@ public:
 	STDMETHODIMP_(bool) IsAnimated(POSITION pos);
 	STDMETHODIMP Render(SubPicDesc& spd, REFERENCE_TIME rt, double fps, RECT& bbox);
 
-	STDMETHODIMP_(SUBTITLE_TYPE) GetType(POSITION pos);
+	STDMETHODIMP_(SUBTITLE_TYPE) GetType(POSITION pos) { return ST_VOBSUB; };
 
 	// IPersist
 	STDMETHODIMP GetClassID(CLSID* pClassID);

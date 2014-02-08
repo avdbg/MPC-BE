@@ -1,7 +1,7 @@
 #ifndef ISPP_INVOKED
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -45,7 +45,7 @@
 #ifndef ISPP_INVOKED
 
 #define MPC_COMP_NAME_STR L"MPC-BE Team"
-#define MPC_COPYRIGHT_STR L"Copyright © 2002-2013 all contributors, see Authors.txt"
+#define MPC_COPYRIGHT_STR L"Copyright ?2002-2013 all contributors, see Authors.txt"
 
 #ifdef NO_VERSION_REV_NEEDED
 #define MPC_VERSION_NUM MPC_VERSION_MAJOR, MPC_VERSION_MINOR, MPC_VERSION_PATCH, MPC_VERSION_STATUS

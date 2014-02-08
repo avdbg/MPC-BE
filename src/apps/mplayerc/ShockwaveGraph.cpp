@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -119,7 +119,7 @@ STDMETHODIMP CShockwaveGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPla
 							BYTE* dst = NULL;
 							int n = 0;
 							do {
-								dst = (unsigned char *)realloc(dst, ++n*1000);
+								dst = (BYTE*)realloc(dst, ++n*1000);
 								d_stream.next_out	= &dst[(n-1)*1000];
 								d_stream.avail_out	= 1000;
 								if (Z_OK != (res = inflate(&d_stream, Z_NO_FLUSH)) && Z_STREAM_END != res) {
@@ -144,7 +144,7 @@ STDMETHODIMP CShockwaveGraph::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPla
 						gb.Reset(DecompData.GetData(), min(_countof(Buff), DecompData.GetCount()));
 					}
 				}
-	
+
 			} else if (memcmp(Buff, "FWS", 3) == 0) {
 				DWORD dwRead = ReadBuffer(m_hFile, Buff, min(_countof(Buff), size.QuadPart));
 				if (dwRead) {

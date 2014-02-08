@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -30,25 +30,6 @@
 #define MpegSplitterName L"MPC MPEG Splitter"
 #define MpegSourceName   L"MPC MPEG Source"
 
-#define PauseGraph \
-	CComQIPtr<IMediaControl> _pMC(m_pGraph); \
-	OAFilterState _fs = -1; \
-	if(_pMC) _pMC->GetState(1000, &_fs); \
-	if(_fs == State_Running) \
-		_pMC->Pause(); \
-	\
-	HRESULT _hr = E_FAIL; \
-	CComQIPtr<IMediaSeeking> _pMS((IUnknown*)(INonDelegatingUnknown*)m_pGraph); \
-	LONGLONG _rtNow = 0; \
-	if(_pMS) _hr = _pMS->GetCurrentPosition(&_rtNow); \
- 
-#define ResumeGraph \
-	if(SUCCEEDED(_hr) && _pMS && _fs != State_Stopped) \
-		_hr = _pMS->SetPositions(&_rtNow, AM_SEEKING_AbsolutePositioning, NULL, AM_SEEKING_NoPositioning); \
-	\
-	if(_fs == State_Running && _pMS) \
-		_pMC->Run(); \
- 
 class __declspec(uuid("DC257063-045F-4BE2-BD5B-E12279C464F0"))
 	CMpegSplitterFilter
 	: public CBaseSplitterFilter
@@ -60,7 +41,6 @@ class __declspec(uuid("DC257063-045F-4BE2-BD5B-E12279C464F0"))
 	bool			m_pPipoBimbo;
 	CHdmvClipInfo	m_ClipInfo;
 
-protected:
 	CAutoPtr<CMpegSplitterFile> m_pFile;
 	CComQIPtr<ITrackInfo> pTI;
 
@@ -75,12 +55,14 @@ protected:
 
 	HRESULT DemuxNextPacket(REFERENCE_TIME rtStartOffset);
 
+	void HandleStream(CMpegSplitterFile::stream& s, CString fName, DWORD dwPictAspectRatioX, DWORD dwPictAspectRatioY);
+
 	REFERENCE_TIME m_rtPlaylistDuration;
 	REFERENCE_TIME m_rtMin, m_rtMax;
 
 private:
 	CString m_csAudioLanguageOrder, m_csSubtitlesLanguageOrder;
-	bool m_useFastStreamChange, m_useFastSeek, m_ForcedSub, m_AlternativeDuration, m_SubEmptyPin;
+	bool m_ForcedSub, m_AlternativeDuration, m_SubEmptyPin;
 	int m_AC3CoreOnly;
 	CCritSec m_csProps;
 
@@ -89,8 +71,6 @@ public:
 	void SetPipo(bool bPipo) {
 		m_pPipoBimbo = bPipo;
 	};
-
-	bool StreamIsTrueHD(const WORD pid);
 
 	DECLARE_IUNKNOWN
 	STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);
@@ -114,12 +94,6 @@ public:
 
 	// IMpegSplitterFilter
 	STDMETHODIMP Apply();
-
-	STDMETHODIMP SetFastStreamChange(BOOL nValue);
-	STDMETHODIMP_(BOOL) GetFastStreamChange();
-
-	STDMETHODIMP SetFastSeek(BOOL nValue);
-	STDMETHODIMP_(BOOL) GetFastSeek();
 
 	STDMETHODIMP SetForcedSub(BOOL nValue);
 	STDMETHODIMP_(BOOL) GetForcedSub();
@@ -152,29 +126,12 @@ public:
 	CMpegSourceFilter(LPUNKNOWN pUnk, HRESULT* phr, const CLSID& clsid = __uuidof(CMpegSourceFilter));
 };
 
-class CMpegSplitterOutputPin : public CBaseSplitterOutputPin, protected CCritSec
+class CMpegSplitterOutputPin : public CBaseSplitterParserOutputPin
 {
-	CAutoPtr<Packet> m_p;
-	CAutoPtrList<Packet> m_pl;
-	bool	m_fHasAccessUnitDelimiters;
-	bool	m_bFlushed;
-	int		m_type;
-	int		m_truehd_framelength;
-
-	int		m_hdmvLPCM_samplerate, m_hdmvLPCM_channels, m_hdmvLPCM_packetsize;
-
-	audioframe_t	m_AC3_frame;
-	UINT			m_AC3_count;
-
-protected:
-	HRESULT DeliverPacket(CAutoPtr<Packet> p);
-	HRESULT DeliverEndFlush();
-
-	HRESULT Flush();
-
 public:
-	CMpegSplitterOutputPin(CAtlArray<CMediaType>& mts, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr, int type, int QueueMaxPackets);
-	virtual ~CMpegSplitterOutputPin();
+	CMpegSplitterOutputPin(CAtlArray<CMediaType>& mts, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr, int QueueMaxPackets);
+
+	HRESULT CheckMediaType(const CMediaType* pmt) { return S_OK; }
 
 	STDMETHODIMP Connect(IPin* pReceivePin, const AM_MEDIA_TYPE* pmt);
 };

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,6 +24,7 @@
 
 // For CPUID usage
 #include "../DSUtil/vd.h"
+#include "../filters/transform/MPCVideoDec/memcpy_sse.h"
 #include <emmintrin.h>
 
 // color conv
@@ -83,15 +84,6 @@ void ColorConvInit()
 	fColorConvInitOK = true;
 }
 
-#define rgb2yuv(r1,g1,b1,r2,g2,b2) \
-	int y1 = (c2y_yb[b1] + c2y_yg[g1] + c2y_yr[r1] + 0x108000) >> 16; \
-	int y2 = (c2y_yb[b2] + c2y_yg[g2] + c2y_yr[r2] + 0x108000) >> 16; \
-\
-	int scaled_y = (y1+y2-32) * cy_cy2; \
-\
-	unsigned char u = Clip[(((((b1+b2)<<15) - scaled_y) >> 10) * c2y_cu + 0x800000 + 0x8000) >> 16]; \
-	unsigned char v = Clip[(((((r1+r2)<<15) - scaled_y) >> 10) * c2y_cv + 0x800000 + 0x8000) >> 16]; \
- 
 //
 // CMemSubPic
 //
@@ -105,7 +97,7 @@ CMemSubPic::CMemSubPic(SubPicDesc& spd)
 
 CMemSubPic::~CMemSubPic()
 {
-	delete [] m_spd.bits, m_spd.bits = NULL;
+	SAFE_DELETE_ARRAY(m_spd.bits);
 }
 
 // ISubPic
@@ -143,11 +135,11 @@ STDMETHODIMP CMemSubPic::CopyTo(ISubPic* pSubPic)
 	}
 
 	int w = m_rcDirty.Width(), h = m_rcDirty.Height();
-	BYTE* s = (BYTE*)src.bits + src.pitch*m_rcDirty.top + m_rcDirty.left*4;
-	BYTE* d = (BYTE*)dst.bits + dst.pitch*m_rcDirty.top + m_rcDirty.left*4;
+	BYTE* s = (BYTE*)src.bits + src.pitch*m_rcDirty.top + m_rcDirty.left * 4;
+	BYTE* d = (BYTE*)dst.bits + dst.pitch*m_rcDirty.top + m_rcDirty.left * 4;
 
 	for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
-		memcpy(d, s, w*4);
+		memcpy_sse(d, s, w * 4);
 	}
 
 	return S_OK;
@@ -194,17 +186,17 @@ STDMETHODIMP CMemSubPic::Unlock(RECT* pDirtyRect)
 	}
 
 	if(m_spd.type == MSP_YUY2 || m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV || m_spd.type == MSP_AYUV
-		|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016) {
+		|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016 || m_spd.type == MSP_NV12) {
 		ColorConvInit();
 
 		if(m_spd.type == MSP_YUY2 || m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV 
-			|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016) 
+			|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016 || m_spd.type == MSP_NV12) 
 		{
 			m_rcDirty.left &= ~1;
 			m_rcDirty.right = (m_rcDirty.right+1)&~1;
 
 			if(m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV 
-				|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016) {
+				|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016 || m_spd.type == MSP_NV12) {
 				m_rcDirty.top &= ~1;
 				m_rcDirty.bottom = (m_rcDirty.bottom+1)&~1;
 			}
@@ -233,10 +225,8 @@ STDMETHODIMP CMemSubPic::Unlock(RECT* pDirtyRect)
 				//				*s = (*s&0xff000000)|((*s>>9)&0x7c00)|((*s>>6)&0x03e0)|((*s>>3)&0x001f);
 			}
 		}
-	} 
-	else if(m_spd.type == MSP_YUY2 || m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV
-		|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016) 
-	{
+	} else if(m_spd.type == MSP_YUY2 || m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV
+		|| m_spd.type == MSP_P010 || m_spd.type == MSP_P016 || m_spd.type == MSP_NV12) {
 		for(; top < bottom ; top += m_spd.pitch) {
 			BYTE* s = top;
 			BYTE* e = s + w*4;
@@ -314,9 +304,9 @@ void AlphaBlt_YUY2_SSE2(int w, int h, BYTE* d, int dstpitch, BYTE* s, int srcpit
 		}
 	}
 }
-#endif
 
-#ifndef _WIN64
+#else
+
 void AlphaBlt_YUY2_MMX(int w, int h, BYTE* d, int dstpitch, BYTE* s, int srcpitch)
 {
 	unsigned int ia;
@@ -354,6 +344,7 @@ void AlphaBlt_YUY2_MMX(int w, int h, BYTE* d, int dstpitch, BYTE* s, int srcpitc
 			}
 		}
 	}
+	_mm_empty();
 }
 #endif
 
@@ -400,9 +391,9 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 	CRect rs(*pSrc), rd(*pDst);
 
 	if (dst.h < 0) {
-		dst.h = -dst.h;
-		rd.bottom = dst.h - rd.bottom;
-		rd.top = dst.h - rd.top;
+		dst.h		= -dst.h;
+		rd.bottom	= dst.h - rd.bottom;
+		rd.top		= dst.h - rd.top;
 	}
 
 	if (rs.Width() != rd.Width() || rs.Height() != abs(rd.Height())) {
@@ -410,16 +401,20 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 	}
 
 	int w = rs.Width(), h = rs.Height();
-	BYTE* s = (BYTE*)src.bits + src.pitch*rs.top + rs.left*4;
-	BYTE* d = (BYTE*)dst.bits + dst.pitch*rd.top + ((rd.left*dst.bpp)>>3);
+	BYTE* s = (BYTE*)src.bits + src.pitch * rs.top + ((rs.left * src.bpp) >> 3); //rs.left * 4;
+	BYTE* d = (BYTE*)dst.bits + dst.pitch * rd.top + ((rd.left * dst.bpp) >> 3);
 
 	if (rd.top > rd.bottom) {
 		if (dst.type == MSP_RGB32 || dst.type == MSP_RGB24
 				|| dst.type == MSP_RGB16 || dst.type == MSP_RGB15
 				|| dst.type == MSP_YUY2 || dst.type == MSP_AYUV) {
-			d = (BYTE*)dst.bits + dst.pitch*(rd.top-1) + (rd.left*dst.bpp>>3);
+			d = (BYTE*)dst.bits + dst.pitch * (rd.top - 1) + (rd.left * dst.bpp >> 3);
 		} else if (dst.type == MSP_YV12 || dst.type == MSP_IYUV) {
-			d = (BYTE*)dst.bits + dst.pitch*(rd.top-1) + (rd.left*8>>3);
+			d = (BYTE*)dst.bits + dst.pitch * (rd.top - 1) + (rd.left * 8 >> 3);
+		} else if (dst.type == MSP_NV12) {
+			d = (BYTE*)dst.bits + dst.pitch * (rd.top - 1) + rd.left;
+		} else if (dst.type == MSP_P010 || dst.type == MSP_P016) {
+			d = (BYTE*)dst.bits + dst.pitch * (rd.top - 1) + rd.left * 2;
 		} else {
 			return E_NOTIMPL;
 		}
@@ -438,8 +433,8 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 				for(ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) 
 				{
 					BYTE* s2 = s;
-					BYTE* s2end = s2 + w*4;
-					WORD* d2 = reinterpret_cast<WORD*>(d);
+					BYTE* s2end = s2 + w * 4;
+					WORD* d2 = (WORD*)d;
 					for(; s2 < s2end; s2 += 4, d2++) 
 					{
 						if(s2[3] < 0xff) 
@@ -448,7 +443,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 							WORD dstLum = d2[0] >> 8;
 
 							// Perform calculation in 8-bit.
-							WORD result = (((dstLum-0x10)*s2[3])>>8) + s2[1];
+							WORD result = (((dstLum - 0x10) * s2[3]) >> 8) + s2[1];
 
 							// Convert to 10/16 bit value.
 							d2[0] = result << 8;
@@ -461,7 +456,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 		case MSP_RGBA:
 				for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
 					BYTE* s2 = s;
-					BYTE* s2end = s2 + w*4;
+					BYTE* s2end = s2 + w * 4;
 					DWORD* d2 = (DWORD*)d;
 					for (; s2 < s2end; s2 += 4, d2++) {
 						if (s2[3] < 0xff) {
@@ -501,13 +496,13 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 		case MSP_RGB24:
 				for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
 					BYTE* s2 = s;
-					BYTE* s2end = s2 + w*4;
+					BYTE* s2end = s2 + w * 4;
 					BYTE* d2 = d;
 					for (; s2 < s2end; s2 += 4, d2 += 3) {
 						if (s2[3] < 0xff) {
-							d2[0] = ((d2[0]*s2[3])>>8) + s2[0];
-							d2[1] = ((d2[1]*s2[3])>>8) + s2[1];
-							d2[2] = ((d2[2]*s2[3])>>8) + s2[2];
+							d2[0] = ((d2[0] *s2[3]) >> 8) + s2[0];
+							d2[1] = ((d2[1] *s2[3]) >> 8) + s2[1];
+							d2[2] = ((d2[2] *s2[3]) >> 8) + s2[2];
 						}
 					}
 				}
@@ -515,7 +510,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 		case MSP_RGB16:
 				for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
 					BYTE* s2 = s;
-					BYTE* s2end = s2 + w*4;
+					BYTE* s2end = s2 + w * 4;
 					WORD* d2 = (WORD*)d;
 					for (; s2 < s2end; s2 += 4, d2++) {
 						if (s2[3] < 0x1f) {
@@ -528,7 +523,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 		case MSP_RGB15:
 				for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
 					BYTE* s2 = s;
-					BYTE* s2end = s2 + w*4;
+					BYTE* s2end = s2 + w * 4;
 					WORD* d2 = (WORD*)d;
 					for (; s2 < s2end; s2 += 4, d2++) {
 						if (s2[3] < 0x1f) {
@@ -551,14 +546,15 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 			}
 			break;
 		case MSP_YV12:
-			case MSP_IYUV:
+		case MSP_NV12:
+		case MSP_IYUV:
 					for (ptrdiff_t j = 0; j < h; j++, s += src.pitch, d += dst.pitch) {
 						BYTE* s2 = s;
-						BYTE* s2end = s2 + w*4;
+						BYTE* s2end = s2 + w * 4;
 						BYTE* d2 = d;
 						for (; s2 < s2end; s2 += 4, d2++) {
 							if (s2[3] < 0xff) {
-								d2[0] = (((d2[0]-0x10)*s2[3])>>8) + s2[1];
+								d2[0] = (((d2[0] - 0x10) * s2[3]) >> 8) + s2[1];
 							}
 						}
 					}
@@ -569,65 +565,65 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 
 	dst.pitch = abs(dst.pitch);
 
-	if (dst.type == MSP_P010 || dst.type == MSP_P016)
-	{
+	if (dst.type == MSP_P010 || dst.type == MSP_P016) {
 		// Alpha blend UV plane. UV is interleaved. Each UV represents a 2x2 block of pixels
 		// so we need to sample the current row and the row after for source color info.
 		// Source is UYxAVYxA.
-		int h2 = h/2;
+		int h2 = h / 2;
 
-		BYTE* ss = (BYTE*)src.bits + src.pitch*rs.top + rs.left*4;
-		BYTE* dstUV = static_cast<BYTE*>(dst.bits) + dst.pitch*dst.h;
+		BYTE* ss = (BYTE*)src.bits + src.pitch * rs.top + rs.left * 4;
+		BYTE* dstUV = (BYTE*)dst.bits + dst.pitch * dst.h;
 
 		// Shift position to start of dirty rectangle. Need to divide dirty rectangle height
 		// by 2 because each row of UV values is 2 rows of pixels in the source.
-		dstUV = dstUV + dst.pitch*rd.top/2 + rd.left*2;
+		if (rd.top > rd.bottom) {
+			dstUV = dstUV + dst.pitch * (rd.top / 2 - 1) + rd.left * 2;
+			dst.pitch = -dst.pitch;
+		} else {
+			dstUV = dstUV + dst.pitch * rd.top / 2 + rd.left * 2;
+		}
 
-		for(ptrdiff_t j = 0; j < h2; j++, ss += src.pitch*2, dstUV += dst.pitch) 
-		{
+		for(ptrdiff_t j = 0; j < h2; j++, ss += src.pitch * 2, dstUV += dst.pitch) {
 			BYTE* srcData = ss;
-			BYTE* srcDataEnd = srcData + w*4;
-			WORD* dstData = reinterpret_cast<WORD*>(dstUV);
-			for (; srcData < srcDataEnd; srcData += 8, dstData += 2)
-			{
+			BYTE* srcDataEnd = srcData + w * 4;
+			WORD* dstData = (WORD*)dstUV;
+			for (; srcData < srcDataEnd; srcData += 8, dstData += 2) {
 				// Sample 2x2 block of alpha values
-				unsigned int ia = (srcData[3] + srcData[3+src.pitch] + srcData[7] + srcData[7+src.pitch]) >> 2;
+				unsigned int ia = (srcData[3] + srcData[3 + src.pitch] + srcData[7] + srcData[7 + src.pitch]) >> 2;
 
-				if (ia < 255)
-				{
+				if (ia < 255) {
 					WORD result;
 
 					// Convert U to 8-bit
 					WORD dstUV = dstData[0] >> 8;
 
 					// Alpha blend U
-					result = (((dstUV-0x80)*ia)>>8) + ((srcData[0]+srcData[src.pitch])>>1);
+					result = (((dstUV - 0x80) * ia) >> 8) + ((srcData[0] + srcData[src.pitch]) >> 1);
 
 					// Convert U to 10/16 bit value;
 					dstData[0] = result << 8;
 
 					// Repeat for V
 					dstUV = dstData[1] >> 8;
-					result = (((dstUV-0x80)*ia)>>8) + ((srcData[4]+srcData[4+src.pitch])>>1);
+					result = (((dstUV - 0x80) * ia) >> 8) + ((srcData[4] + srcData[4 + src.pitch]) >> 1);
 					dstData[1] = result << 8;
 				}
 			}
 		}
-	}
-	else if (dst.type == MSP_YV12 || dst.type == MSP_IYUV) {
-		int h2 = h/2;
+	} else if (dst.type == MSP_YV12 || dst.type == MSP_IYUV) {
+		int h2 = h / 2;
 
 		if (!dst.pitchUV) {
-			dst.pitchUV = dst.pitch/2;
+			dst.pitchUV = dst.pitch / 2;
 		}
 
 		BYTE* ss[2];
-		ss[0] = (BYTE*)src.bits + src.pitch*rs.top + rs.left*4;
+		ss[0] = (BYTE*)src.bits + src.pitch * rs.top + rs.left * 4;
 		ss[1] = ss[0] + 4;
 
 		if (!dst.bitsU || !dst.bitsV) {
-			dst.bitsU = (BYTE*)dst.bits + dst.pitch*dst.h;
-			dst.bitsV = dst.bitsU + dst.pitchUV*dst.h/2;
+			dst.bitsU = (BYTE*)dst.bits + dst.pitch * dst.h;
+			dst.bitsV = dst.bitsU + dst.pitchUV * dst.h / 2;
 
 			if (dst.type == MSP_YV12) {
 				BYTE* p = dst.bitsU;
@@ -637,12 +633,12 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 		}
 
 		BYTE* dd[2];
-		dd[0] = dst.bitsU + dst.pitchUV*rd.top/2 + rd.left/2;
-		dd[1] = dst.bitsV + dst.pitchUV*rd.top/2 + rd.left/2;
+		dd[0] = dst.bitsU + dst.pitchUV * rd.top / 2 + rd.left / 2;
+		dd[1] = dst.bitsV + dst.pitchUV * rd.top / 2 + rd.left / 2;
 
 		if (rd.top > rd.bottom) {
-			dd[0] = dst.bitsU + dst.pitchUV*(rd.top/2-1) + rd.left/2;
-			dd[1] = dst.bitsV + dst.pitchUV*(rd.top/2-1) + rd.left/2;
+			dd[0] = dst.bitsU + dst.pitchUV * (rd.top / 2 - 1) + rd.left / 2;
+			dd[1] = dst.bitsV + dst.pitchUV * (rd.top / 2 - 1) + rd.left / 2;
 			dst.pitchUV = -dst.pitchUV;
 		}
 
@@ -650,14 +646,50 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
 			s = ss[i];
 			d = dd[i];
 			BYTE* is = ss[1-i];
-			for (ptrdiff_t j = 0; j < h2; j++, s += src.pitch*2, d += dst.pitchUV, is += src.pitch*2) {
+			for (ptrdiff_t j = 0; j < h2; j++, s += src.pitch * 2, d += dst.pitchUV, is += src.pitch * 2) {
 				BYTE* s2 = s;
-				BYTE* s2end = s2 + w*4;
+				BYTE* s2end = s2 + w * 4;
 				BYTE* d2 = d;
 				BYTE* is2 = is;
 				for (; s2 < s2end; s2 += 8, d2++, is2 += 8) {
 					unsigned int ia = (s2[3]+s2[3+src.pitch]+is2[3]+is2[3+src.pitch])>>2;
 					if (ia < 0xff) {
+						*d2 = (((*d2-0x80)*ia)>>8) + ((s2[0]+s2[src.pitch])>>1);
+					}
+				}
+			}
+		}
+	} else if (dst.type == MSP_NV12) {
+		int h2 = h/2;
+ 
+		BYTE* ss[2];
+		ss[0] = (BYTE*)src.bits + src.pitch * rs.top + rs.left * 4;
+		ss[1] = ss[0] + 4;
+ 
+		if (!dst.bitsU) {
+			dst.bitsU = (BYTE*)dst.bits + dst.pitch * dst.h;
+		}
+
+		BYTE* dd[2];
+		dd[0] = dst.bitsU + dst.pitch * rd.top / 2 + rd.left;
+		if (rd.top > rd.bottom) {
+			dd[0] = dst.bitsU + dst.pitch*(rd.top/2 - 1) + rd.left;
+			dst.pitch = - dst.pitch;
+		}
+		dd[1] = dd[0] + 1;
+
+		for (ptrdiff_t i = 0; i < 2; i++) {
+			s = ss[i];
+			d = dd[i];
+			BYTE* is = ss[1-i];
+			for (ptrdiff_t j = 0; j < h2; j++, s += src.pitch * 2, d += dst.pitch, is += src.pitch * 2) {
+				BYTE* s2 = s;
+				BYTE* s2end = s2 + w * 4;
+				BYTE* d2 = d;
+				BYTE* is2 = is;
+				for (; s2 < s2end; s2 += 8, d2 += 2, is2 += 8) {
+					unsigned int ia = (s2[3]+s2[3+src.pitch]+is2[3]+is2[3+src.pitch])>>2;
+					if (ia < 255) {
 						*d2 = (((*d2-0x80)*ia)>>8) + ((s2[0]+s2[src.pitch])>>1);
 					}
 				}

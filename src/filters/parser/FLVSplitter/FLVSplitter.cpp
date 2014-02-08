@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -66,6 +66,10 @@
 #define KEYFRAMES_TAG				L"keyframes"
 #define KEYFRAMES_TIMESTAMP_TAG		L"times"
 #define KEYFRAMES_BYTEOFFSET_TAG	L"filepositions"
+
+#define IsValidTag(TagType)			(TagType == FLV_AUDIODATA || TagType == FLV_VIDEODATA || TagType == FLV_SCRIPTDATA)
+#define IsAVCCodec(CodecID)			(CodecID == FLV_VIDEO_AVC || CodecID == FLV_VIDEO_HM91 || CodecID == FLV_VIDEO_HM10 || CodecID == FLV_VIDEO_HEVC)
+
 
 #ifdef REGISTER_FILTER
 
@@ -167,7 +171,11 @@ CString CFLVSplitterFilter::AMF0GetString(CBaseSplitterFileEx* pFile, UINT64 end
 		return L"";
 	}
 
-	memset(name, 0, sizeof(name));
+	if (length > sizeof(name)) {
+		pFile->Seek(pFile->GetPos() + length);
+		return L"";
+	}
+
 	pFile->ByteRead((BYTE*)name, length);
 
 	return CString(name);
@@ -298,6 +306,10 @@ bool CFLVSplitterFilter::ReadTag(Tag& t)
 		//return false;
 	}
 
+	if (m_pFile->GetRemaining(true) < 15) {
+		return false;
+	}
+
 	t.PreviousTagSize	= (UINT32)m_pFile->BitRead(32);
 	t.TagType			= (BYTE)m_pFile->BitRead(8);
 	t.DataSize			= (UINT32)m_pFile->BitRead(24);
@@ -326,6 +338,10 @@ bool CFLVSplitterFilter::ReadTag(AudioTag& at)
 		//return false;
 	}
 
+	if (!m_pFile->GetRemaining(true)) {
+		return false;
+	}
+
 	at.SoundFormat	= (BYTE)m_pFile->BitRead(4);
 	at.SoundRate	= (BYTE)m_pFile->BitRead(2);
 	at.SoundSize	= (BYTE)m_pFile->BitRead(1);
@@ -340,8 +356,28 @@ bool CFLVSplitterFilter::ReadTag(VideoTag& vt)
 		//return false;
 	}
 
-	vt.FrameType	= (BYTE)m_pFile->BitRead(4);
-	vt.CodecID		= (BYTE)m_pFile->BitRead(4);
+	if (!m_pFile->GetRemaining(true)) {
+		return false;
+	}
+
+	vt.FrameType		= (BYTE)m_pFile->BitRead(4);
+	vt.CodecID			= (BYTE)m_pFile->BitRead(4);
+	vt.AVCPacketType	= 0;
+	vt.tsOffset			= 0;
+
+	if (IsAVCCodec(vt.CodecID)) {
+		if (m_pFile->GetRemaining(true) < 3) {
+			return false;
+		}
+
+		vt.AVCPacketType	= (BYTE)m_pFile->BitRead(8);
+		if (vt.AVCPacketType == 1) {
+			vt.tsOffset		= (UINT32)m_pFile->BitRead(24);
+			vt.tsOffset		= (vt.tsOffset + 0xff800000) ^ 0xff800000; // sign extension
+		} else {
+			m_pFile->BitRead(24);
+		}
+	}
 
 	return true;
 }
@@ -380,7 +416,7 @@ bool CFLVSplitterFilter::Sync(__int64& pos)
 		m_pFile->Seek(pos);
 
 		Tag ct;
-		if (ReadTag(ct)) {
+		if (ReadTag(ct) && IsValidTag(ct.TagType)) {
 			__int64 next = m_pFile->GetPos() + ct.DataSize;
 			if (next == m_pFile->GetAvailable() - 4) {
 				m_pFile->Seek(pos);
@@ -388,11 +424,14 @@ bool CFLVSplitterFilter::Sync(__int64& pos)
 			} else if (next <= m_pFile->GetAvailable() - 19) {
 				m_pFile->Seek(next);
 				Tag nt;
-				if (ReadTag(nt) && (nt.TagType == FLV_AUDIODATA || nt.TagType == FLV_VIDEODATA || nt.TagType == FLV_SCRIPTDATA)) {
+				if (ReadTag(nt) && IsValidTag(nt.TagType)) {
+					if (nt.PreviousTagSize == ct.DataSize) {
+						m_IgnorePrevSizes = true;
+					}
 					if ((nt.PreviousTagSize == ct.DataSize + 11) ||
 							(m_IgnorePrevSizes &&
-							 nt.TimeStamp >= ct.TimeStamp &&
-							 nt.TimeStamp - ct.TimeStamp <= 1000)) {
+								nt.TimeStamp >= ct.TimeStamp/* &&
+								nt.TimeStamp - ct.TimeStamp <= 1000*/)) {
 						m_pFile->Seek(pos);
 						return true;
 					}
@@ -461,12 +500,18 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 
 		UINT64 next = m_pFile->GetPos() + t.DataSize;
 
+		if (!IsValidTag(t.TagType)) {
+			m_pFile->Seek(next);
+			prevTagSize = 0;
+			continue;
+		}
+
 		CString name;
 
 		CMediaType mt;
 		mt.subtype = GUID_NULL;
 
-		if (i != 0 && t.PreviousTagSize != prevTagSize) {
+		if (prevTagSize != 0 && t.PreviousTagSize != prevTagSize) {
 			m_IgnorePrevSizes = true;
 		}
 		prevTagSize = t.DataSize + 11;
@@ -561,6 +606,7 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						break;
 					case FLV_AUDIO_SPEEX:
 						mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_SPEEX);
+						wfe->nSamplesPerSec = 16000;
 						name += L" Speex";
 						break;
 					case FLV_AUDIO_AAC: {
@@ -777,11 +823,10 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						break;
 					}
 					case FLV_VIDEO_AVC: { // H.264
-						if (dataSize < 4 || m_pFile->BitRead(8) != 0) { // packet type 0 == avc header
+						if (dataSize < 4 || vt.AVCPacketType != 0) {
 							fTypeFlagsVideo = true;
 							break;
 						}
-						m_pFile->BitRead(24); // composition time
 
 						__int64 headerOffset = m_pFile->GetPos();
 						UINT32 headerSize = dataSize - 4;
@@ -817,11 +862,10 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					case FLV_VIDEO_HM62: { // HEVC HM6.2
 						// Source code is provided by Deng James from Strongene Ltd.
 						// check is avc header
-						if(dataSize < 4 || m_pFile->BitRead(8) != 0) {
+						if (dataSize < 4 || vt.AVCPacketType != 0) {
 							fTypeFlagsVideo = true;
 							break;
 						}
-						m_pFile->BitRead(24); // composition time
 
 						__int64 headerOffset = m_pFile->GetPos();
 						UINT32 headerSize = dataSize - 4;
@@ -884,11 +928,10 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					case FLV_VIDEO_HM91:   // HEVC HM9.1
 					case FLV_VIDEO_HM10:   // HEVC HM10.0
 					case FLV_VIDEO_HEVC: { // HEVC HM11.0 & HM12.0 ...
-						if (dataSize < 4 || m_pFile->BitRead(8) != 0) { // packet type 0 == avc header
+						if (dataSize < 4 || vt.AVCPacketType != 0) {
 							fTypeFlagsVideo = true;
 							break;
 						}
-						m_pFile->BitRead(24); // composition time
 
 						__int64 headerOffset = m_pFile->GetPos();
 						UINT32 headerSize = dataSize - 4;
@@ -921,7 +964,8 @@ HRESULT CFLVSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 
 						vc_params_t params;
 						if (!ParseAVCDecoderConfigurationRecord(headerData, headerSize, params, metaHM_compatibility)) {
-							return E_FAIL;
+							fTypeFlagsVideo = true;
+							break;
 						}
 
 						// format type
@@ -1046,6 +1090,10 @@ void CFLVSplitterFilter::NormalSeek(REFERENCE_TIME rt)
 		return;
 	}
 
+	if (m_IgnorePrevSizes) {
+		return AlternateSeek(rt);
+	}
+
 	Tag t;
 	AudioTag at;
 	VideoTag vt;
@@ -1070,25 +1118,21 @@ void CFLVSplitterFilter::NormalSeek(REFERENCE_TIME rt)
 	}
 
 	while (m_pFile->GetPos() >= m_DataOffset && (fAudio || fVideo) && ReadTag(t)) {
-		UINT64 prev = m_pFile->GetPos() - 15 - t.PreviousTagSize - 4;
+		__int64 prev = max(m_pFile->GetPos() - 15 - t.PreviousTagSize - 4, 0);
 
 		CBaseSplitterOutputPin* pOutPin = dynamic_cast<CBaseSplitterOutputPin*>(GetOutputPin(t.TagType));
-		if (!pOutPin) {
-			m_pFile->Seek(prev);
-			continue;
-		}
+		if (pOutPin) {
+			t.TimeStamp += (pOutPin->GetOffset() / 10000i64);
 
-		t.TimeStamp += (pOutPin->GetOffset() / 10000i64);
-
-		if (10000i64 * t.TimeStamp <= rt) {
-			if (t.TagType == FLV_AUDIODATA && ReadTag(at)) {
-				fAudio = false;
-			} else if (t.TagType == FLV_VIDEODATA && ReadTag(vt) && vt.FrameType == 1) {
-				fVideo = false;
-				fAudio = false;
+			if (10000i64 * t.TimeStamp <= rt) {
+				if (t.TagType == FLV_AUDIODATA && ReadTag(at)) {
+					fAudio = false;
+				} else if (t.TagType == FLV_VIDEODATA && ReadTag(vt) && vt.FrameType == 1) {
+					fVideo = false;
+					fAudio = false;
+				}
 			}
 		}
-
 		m_pFile->Seek(prev);
 	}
 
@@ -1105,8 +1149,10 @@ void CFLVSplitterFilter::AlternateSeek(REFERENCE_TIME rt)
 	__int64 estimPos = m_DataOffset + (__int64)(double(m_pFile->GetAvailable() - m_DataOffset) * rt / m_rtDuration);
 
 	while (true) {
-		estimPos -= 256 * 1024;
-		if (estimPos < m_DataOffset) estimPos = m_DataOffset;
+		estimPos -= 256 * KILOBYTE;
+		if (estimPos < m_DataOffset) {
+			estimPos = m_DataOffset;
+		}
 
 		bool foundAudio = !hasAudio;
 		bool foundVideo = !hasVideo;
@@ -1114,12 +1160,13 @@ void CFLVSplitterFilter::AlternateSeek(REFERENCE_TIME rt)
 
 		if (Sync(bestPos)) {
 			Tag t;
-			AudioTag at;
-			VideoTag vt;
 
-			while (ReadTag(t) && t.TimeStamp * 10000i64 < rt) {
+			while (ReadTag(t) && t.TimeStamp * 10000i64 <= (rt - UNITS/2)) {
 				__int64 cur = m_pFile->GetPos() - 15;
 				__int64 next = cur + 15 + t.DataSize;
+
+				AudioTag at;
+				VideoTag vt;
 
 				if (hasAudio && t.TagType == FLV_AUDIODATA && ReadTag(at)) {
 					foundAudio = true;
@@ -1172,7 +1219,6 @@ bool CFLVSplitterFilter::DemuxLoop()
 		__int64 next = m_pFile->GetPos() + t.DataSize;
 
 		if ((t.DataSize > 0) && (t.TagType == FLV_AUDIODATA && ReadTag(at) || t.TagType == FLV_VIDEODATA && ReadTag(vt))) {
-			UINT32 tsOffset = 0;
 			if (t.TagType == FLV_VIDEODATA) {
 				if (vt.FrameType == 5) {
 					goto NextTag;    // video info/command frame
@@ -1181,13 +1227,12 @@ bool CFLVSplitterFilter::DemuxLoop()
 					m_pFile->BitRead(8);
 				} else if (vt.CodecID == FLV_VIDEO_VP6A) {
 					m_pFile->BitRead(32);
-				} else if (vt.CodecID == FLV_VIDEO_AVC || vt.CodecID == FLV_VIDEO_HM91 || vt.CodecID == FLV_VIDEO_HM10) {
-					if (m_pFile->BitRead(8) != 1) {
+				} else if (IsAVCCodec(vt.CodecID)) {
+					if (vt.AVCPacketType != 1) {
 						goto NextTag;
 					}
-					// Tag timestamps specify decode time, this is the display time offset
-					tsOffset = (UINT32)m_pFile->BitRead(24);
-					tsOffset = (tsOffset + 0xff800000) ^ 0xff800000; // sign extension
+
+					t.TimeStamp += vt.tsOffset;
 				}
 			}
 			if (t.TagType == FLV_AUDIODATA && at.SoundFormat == FLV_AUDIO_AAC) {
@@ -1204,7 +1249,7 @@ bool CFLVSplitterFilter::DemuxLoop()
 			
 			p.Attach(DNew Packet());
 			p->TrackNumber	= t.TagType;
-			p->rtStart		= 10000i64 * (t.TimeStamp + tsOffset);
+			p->rtStart		= 10000i64 * t.TimeStamp;
 			p->rtStop		= p->rtStart + 1;
 			p->bSyncPoint	= t.TagType == FLV_VIDEODATA ? vt.FrameType == 1 : true;
 

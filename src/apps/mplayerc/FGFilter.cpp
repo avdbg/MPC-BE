@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -53,6 +53,11 @@ void CFGFilter::SetTypes(const CAtlList<GUID>& types)
 void CFGFilter::SetMerit(UINT64 merit)
 {
 	m_merit.val = merit;
+}
+
+void CFGFilter::SetName(CString name)
+{
+	m_name = name;
 }
 
 void CFGFilter::AddType(const GUID& majortype, const GUID& subtype)
@@ -614,6 +619,17 @@ void CFGFilterList::Insert(CFGFilter* pFGF, int group, bool exactmatch, bool aut
 		  pFGF->GetName().IsEmpty() ? CStringFromGUID(pFGF->GetCLSID()) : CString(pFGF->GetName()),
 		  pFGF->GetType()));
 
+	CString name = pFGF->GetName();
+	if (name.Find(L"MPC ") == 0 && pFGF->GetType() != L"CFGFilterInternal") {
+		CString external;
+		external.Format(L" (%s)", ResStr(IDS_EXTERNAL));
+
+		if (name.Find(external) < 0) {
+			name.Append(external);
+			pFGF->SetName(name);
+		}
+	}
+
 	filter_t f = {m_filters.GetCount(), pFGF, group, exactmatch, autodelete};
 	m_filters.AddTail(f);
 
@@ -666,6 +682,13 @@ int CFGFilterList::filter_cmp(const void* a, const void* b)
 		return +1;
 	}
 
+	if (fa->pFGF->GetMerit() > fb->pFGF->GetMerit()) {
+		return -1;
+	}
+	if (fa->pFGF->GetMerit() < fb->pFGF->GetMerit()) {
+		return +1;
+	}
+
 	if (fa->pFGF->GetCLSID() == fb->pFGF->GetCLSID()) {
 		CFGFilterFile* fgfa = dynamic_cast<CFGFilterFile*>(fa->pFGF);
 		CFGFilterFile* fgfb = dynamic_cast<CFGFilterFile*>(fb->pFGF);
@@ -676,13 +699,6 @@ int CFGFilterList::filter_cmp(const void* a, const void* b)
 		if (!fgfa && fgfb) {
 			return +1;
 		}
-	}
-
-	if (fa->pFGF->GetMerit() > fb->pFGF->GetMerit()) {
-		return -1;
-	}
-	if (fa->pFGF->GetMerit() < fb->pFGF->GetMerit()) {
-		return +1;
 	}
 
 	if (fa->exactmatch && !fb->exactmatch) {

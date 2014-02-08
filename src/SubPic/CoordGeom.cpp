@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -21,10 +21,6 @@
 
 #include "stdafx.h"
 #include "CoordGeom.h"
-
-#define EPSILON (1e-7)
-#define BIGNUMBER (1e+9)
-#define IsZero(d) (fabs(d) < EPSILON)
 
 //
 // Vector

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -106,6 +106,7 @@ class __declspec(uuid("39F498AF-1A09-4275-B193-673B0BA3D478"))
 	AM_SimpleRateChange m_rate;
 
 protected:
+	void GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats);
 	void InputTypeChanged();
 	HRESULT Transform(IMediaSample* pIn);
 	bool IsVideoInterlaced();

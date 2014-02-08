@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -169,7 +169,7 @@ HRESULT CDVBSub::ParseSample(IMediaSample* pSample)
 		UNREFERENCED_PARAMETER(wLength);
 
 		if (gb.BitRead(2) != 2) {
-			return E_FAIL;    // type
+			return E_FAIL;	// type
 		}
 
 		gb.BitRead(2);	// scrambling

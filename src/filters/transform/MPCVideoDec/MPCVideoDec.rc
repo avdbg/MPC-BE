@@ -102,8 +102,14 @@ END
 STRINGTABLE
 BEGIN
     IDS_FILTER_SETTINGS_CAPTION  "Settings"
+    IDS_FILTER_RESET_SETTINGS    "Reset"
+END
+
+STRINGTABLE
+BEGIN
     IDS_VDF_SETTINGS             "Video settings"
-    IDS_VDF_THREADNUMBER         "Decoding thread number"
+    IDS_VDF_AUTO                 "Auto"
+    IDS_VDF_THREADNUMBER         "Number of decoding threads"
     IDS_VDF_SKIPDEBLOCK          "H264 skip deblocking mode"
     IDS_VDF_DBLK_NONE            "None"
     IDS_VDF_DBLK_DEFAULT         "Default"
@@ -116,28 +122,21 @@ END
 
 STRINGTABLE
 BEGIN
-    IDS_VDF_DXVA_SETTING         "DXVA settings"
-    IDS_VDF_DXVA_MODE            "DXVA Mode"
-    IDS_VDF_DXVA_SD              "Disable DXVA for SD"
-    IDS_VDF_VIDEOCARD            "Videocard"
+    IDS_VDF_DEINTERLACING        "Deinterlacing"
+    IDS_VDF_DEINTER_TOP          "Top-Field First"
+    IDS_VDF_DEINTER_BOTTOM       "Bottom-Field First"
+    IDS_VDF_DEINTER_PROGRESSIVE  "Progressive"
 END
 
 STRINGTABLE
 BEGIN
+    IDS_VDF_DXVA_SETTING         "DXVA settings"
     IDS_VDF_DXVACOMPATIBILITY    "DXVA (H.264) Compatibility check"
     IDS_VDF_DXVA_FULLCHECK       "Full check"
     IDS_VDF_DXVA_SKIP_LEVELCHECK "Skip level check"
     IDS_VDF_DXVA_SKIP_REFCHECK   "Skip ref frame check"
     IDS_VDF_DXVA_SKIP_ALLCHECK   "Skip all checks"
-END
-
-STRINGTABLE
-BEGIN
-    IDS_VDF_DEINTERLACING        "Deinterlacing"
-    IDS_VDF_AUTO                 "Auto"
-    IDS_VDF_DEINTER_TOP          "Top-Field First"
-    IDS_VDF_DEINTER_BOTTOM       "Bottom-Field First"
-    IDS_VDF_DEINTER_PROGRESSIVE "Progressive"
+    IDS_VDF_DXVA_SD              "Disable DXVA for SD (H.264)"
 END
 
 STRINGTABLE
@@ -146,8 +145,24 @@ BEGIN
     IDS_VDF_COLOR_OUTPUT_FORMATS "Output formats:"
     IDS_VDF_COLOR_PRESET         "Preset:"
     IDS_VDF_COLOR_STANDARD       "Standard:"
-    IDS_VDF_COLOR_INPUT_LEVELS   "Input levels:"
-    IDS_VDF_COLOR_OUTPUT_LEVELS  "Output levels:"
+    IDS_VDF_COLOR_RGB_LEVELS     "RGB output levels:"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_VDF_STATUS               "Status"
+    IDS_VDF_STATUS_INPUT         "Input format:"
+    IDS_VDF_STATUS_FRAMESIZE     "Frame size:"
+    IDS_VDF_STATUS_OUTPUT        "Output format:"
+    IDS_VDF_STATUS_ADAPTER       "Graphics Adapter:"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_VDF_TT_AR                "Checked - will be used AR from stream.\nUnchecked - will be used AR from container.\nIndeterminate - AR from stream will not be used on files with a container AR (recommended)."
+    IDS_VDF_TT_PRESET            "Changes the relationship between speed and quality."
+    IDS_VDF_TT_STANDARD          "This setting are used only when filter is doing YCbCr<->RGB conversion."
+    IDS_VDF_TT_RGB_LEVELS        "This setting are used only when filter is doing YCbCr to RGB conversion."
 END
 
 #endif    // English (United States) resources

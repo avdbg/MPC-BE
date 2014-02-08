@@ -18,10 +18,6 @@
 #include "../utils/quant_levels_dec.h"
 #include "../webp/format_constants.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 //------------------------------------------------------------------------------
 // ALPHDecoder object.
 
@@ -85,7 +81,7 @@ static int ALPHInit(ALPHDecoder* const dec, const uint8_t* data,
 }
 
 // Decodes, unfilters and dequantizes *at least* 'num_rows' rows of alpha
-// starting from row number 'row'. It assumes that rows upto (row - 1) have
+// starting from row number 'row'. It assumes that rows up to (row - 1) have
 // already been decoded.
 // Returns false in case of bitstream error.
 static int ALPHDecode(VP8Decoder* const dec, int row, int num_rows) {
@@ -163,6 +159,3 @@ const uint8_t* VP8DecompressAlphaRows(VP8Decoder* const dec,
   return dec->alpha_plane_ + row * width;
 }
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

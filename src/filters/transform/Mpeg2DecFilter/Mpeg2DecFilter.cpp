@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -70,6 +70,10 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 };
 
 const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
+	{&MEDIATYPE_Video, &MEDIASUBTYPE_NV12},
+	{&MEDIATYPE_Video, &MEDIASUBTYPE_YV12},
+	{&MEDIATYPE_Video, &MEDIASUBTYPE_YUY2},
+	{&MEDIATYPE_Video, &MEDIASUBTYPE_I420},
 	{&MEDIATYPE_Video, &MEDIASUBTYPE_IYUV},
 };
 
@@ -401,6 +405,20 @@ HRESULT CMpeg2DecFilter::NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME tStop,
 	return __super::NewSegment(tStart, tStop, dRate);
 }
 
+static VIDEO_OUTPUT_FORMATS DefaultFormats[] = {
+	{&MEDIASUBTYPE_NV12, 3, 12, FCC('NV12')},
+	{&MEDIASUBTYPE_YV12, 3, 12, FCC('YV12')},
+	{&MEDIASUBTYPE_YUY2, 1, 16, FCC('YUY2')},
+	{&MEDIASUBTYPE_I420, 3, 12, FCC('I420')},
+	{&MEDIASUBTYPE_IYUV, 3, 12, FCC('IYUV')},
+};
+
+void CMpeg2DecFilter::GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats)
+{
+	nNumber		= _countof(DefaultFormats);
+	*ppFormats	= DefaultFormats;
+}
+
 void CMpeg2DecFilter::InputTypeChanged()
 {
 	CAutoLock cAutoLock(&m_csReceive);
@@ -679,7 +697,6 @@ HRESULT CMpeg2DecFilter::DeliverFast()
 	}
 
 	{
-
 		CAutoLock cAutoLock2(&m_csProps);
 
 		if (GetCLSID(m_pInput->GetConnected()) == CLSID_DVDNavigator
@@ -1047,7 +1064,8 @@ HRESULT CMpeg2DecFilter::CheckInputType(const CMediaType* mtIn)
 
 HRESULT CMpeg2DecFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut)
 {
-	bool fPlanarYUV = mtOut->subtype == MEDIASUBTYPE_YV12
+	bool fPlanarYUV = mtOut->subtype == MEDIASUBTYPE_NV12
+					  || mtOut->subtype == MEDIASUBTYPE_YV12
 					  || mtOut->subtype == MEDIASUBTYPE_I420
 					  || mtOut->subtype == MEDIASUBTYPE_IYUV;
 

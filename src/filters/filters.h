@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -28,7 +28,6 @@
 #include "parser/AMRSplitter/AMRSplitter.h"
 #include "parser/AviSplitter/AviSplitter.h"
 #include "parser/DSMSplitter/DSMSplitter.h"
-#include "parser/DTSSplitter/DTSSplitter.h"
 #include "parser/FLVSplitter/FLVSplitter.h"
 #include "parser/MatroskaSplitter/MatroskaSplitter.h"
 #include "parser/MP4Splitter/MP4Splitter.h"
@@ -40,8 +39,7 @@
 #include "parser/RealMediaSplitter/RealMediaSplitter.h"
 #include "parser/RoQSplitter/RoQSplitter.h"
 #include "parser/StreamDriveThru/StreamDriveThru.h"
-#include "parser/TAKSplitter/TAKSplitter.h"
-#include "parser/TTASplitter/TTASplitter.h"
+#include "parser/AudioSplitter/AudioSplitter.h"
 #include "parser/WVSplitter/WVSplitter.h"
 
 #include "reader/CDDAReader/CDDAReader.h"

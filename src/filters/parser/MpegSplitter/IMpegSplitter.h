@@ -1,5 +1,5 @@
 /*
- * (C) 2011-2013 see Authors.txt
+ * (C) 2011-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,12 +24,6 @@ interface __declspec(uuid("1DC9C085-04AC-4BB8-B2BD-C49A4D30B104"))
 IMpegSplitterFilter :
 public IUnknown {
 	STDMETHOD(Apply()) = 0;
-
-	STDMETHOD(SetFastStreamChange(BOOL nValue)) = 0;
-	STDMETHOD_(BOOL, GetFastStreamChange()) = 0;
-
-	STDMETHOD(SetFastSeek(BOOL nValue)) = 0;
-	STDMETHOD_(BOOL, GetFastSeek()) = 0;
 
 	STDMETHOD(SetForcedSub(BOOL nValue)) = 0;
 	STDMETHOD_(BOOL, GetForcedSub()) = 0;

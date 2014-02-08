@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -569,37 +569,37 @@ HRESULT CBaseAP::CreateDXDevice(CString &_Error)
 	m_bicubicA = 0;
 
 	CSize size;
-	switch (GetRenderersSettings().nSPCMaxRes) {
+	switch (GetRenderersSettings().nSPMaxTexRes) {
 		case 0:
-		default:
 			size = m_ScreenSize;
 			break;
-		case 1:
-			size.SetSize(1024, 768);
-			break;
-		case 2:
-			size.SetSize(800, 600);
-			break;
-		case 3:
-			size.SetSize(640, 480);
-			break;
-		case 4:
-			size.SetSize(512, 384);
-			break;
-		case 5:
+		case 384:
 			size.SetSize(384, 288);
 			break;
-		case 6:
-			size.SetSize(2560, 1600);
+		case 512:
+			size.SetSize(512, 384);
 			break;
-		case 7:
-			size.SetSize(1920, 1080);
+		case 640:
+			size.SetSize(640, 480);
 			break;
-		case 8:
+		case 800:
+			size.SetSize(800, 600);
+			break;
+		case 1024:
+			size.SetSize(1024, 768);
+			break;
+		case 1280:
+		default:
+			size.SetSize(1280, 720);
+			break;
+		case 1320:
 			size.SetSize(1320, 900);
 			break;
-		case 9:
-			size.SetSize(1280, 720);
+		case 1920:
+			size.SetSize(1920, 1080);
+			break;
+		case 2560:
+			size.SetSize(2560, 1600);
 			break;
 	}
 
@@ -839,37 +839,37 @@ HRESULT CBaseAP::ResetDXDevice(CString &_Error)
 		m_pSubPicQueue->GetSubPicProvider(&pSubPicProvider);
 	}
 	CSize size;
-	switch (GetRenderersSettings().nSPCMaxRes) {
+	switch (GetRenderersSettings().nSPMaxTexRes) {
 		case 0:
-		default:
 			size = m_ScreenSize;
 			break;
-		case 1:
-			size.SetSize(1024, 768);
-			break;
-		case 2:
-			size.SetSize(800, 600);
-			break;
-		case 3:
-			size.SetSize(640, 480);
-			break;
-		case 4:
-			size.SetSize(512, 384);
-			break;
-		case 5:
+		case 384:
 			size.SetSize(384, 288);
 			break;
-		case 6:
-			size.SetSize(2560, 1600);
+		case 512:
+			size.SetSize(512, 384);
 			break;
-		case 7:
-			size.SetSize(1920, 1080);
+		case 640:
+			size.SetSize(640, 480);
 			break;
-		case 8:
+		case 800:
+			size.SetSize(800, 600);
+			break;
+		case 1024:
+			size.SetSize(1024, 768);
+			break;
+		case 1280:
+		default:
+			size.SetSize(1280, 720);
+			break;
+		case 1320:
 			size.SetSize(1320, 900);
 			break;
-		case 9:
-			size.SetSize(1280, 720);
+		case 1920:
+			size.SetSize(1920, 1080);
+			break;
+		case 2560:
+			size.SetSize(2560, 1600);
 			break;
 	}
 
@@ -2741,7 +2741,7 @@ STDMETHODIMP CSyncAP::GetFastestRate(MFRATE_DIRECTION eDirection, BOOL fThin, fl
 	CAutoLock lock(this);
 
 	CheckPointer(pflRate, E_POINTER);
-	CheckHR(CheckShutdown());
+	CHECK_HR(CheckShutdown());
 
 	// Get the maximum forward rate.
 	fMaxRate = GetMaxRate(fThin);
@@ -2765,7 +2765,7 @@ STDMETHODIMP CSyncAP::IsRateSupported(BOOL fThin, float flRate, float *pflNeares
 	float   fNearestRate = flRate;   // Default.
 
 	CheckPointer (pflNearestSupportedRate, E_POINTER);
-	CheckHR(hr = CheckShutdown());
+	CHECK_HR(CheckShutdown());
 
 	// Find the maximum forward rate.
 	fMaxRate = GetMaxRate(fThin);
@@ -2887,8 +2887,8 @@ HRESULT CSyncAP::IsMediaTypeSupported(IMFMediaType* pMixerType)
 	AM_MEDIA_TYPE* pAMMedia;
 	UINT nInterlaceMode;
 
-	CheckHR (pMixerType->GetRepresentation(FORMAT_VideoInfo2, (void**)&pAMMedia));
-	CheckHR (pMixerType->GetUINT32 (MF_MT_INTERLACE_MODE, &nInterlaceMode));
+	CHECK_HR(pMixerType->GetRepresentation(FORMAT_VideoInfo2, (void**)&pAMMedia));
+	CHECK_HR(pMixerType->GetUINT32 (MF_MT_INTERLACE_MODE, &nInterlaceMode));
 
 	if ( (pAMMedia->majortype != MEDIATYPE_Video)) {
 		hr = MF_E_INVALIDMEDIATYPE;
@@ -2904,7 +2904,7 @@ HRESULT CSyncAP::CreateProposedOutputType(IMFMediaType* pMixerType, IMFMediaType
 	LARGE_INTEGER i64Size;
 	MFVIDEOFORMAT *VideoFormat;
 
-	CheckHR(pMixerType->GetRepresentation(FORMAT_MFVideoFormat, (void**)&pAMMedia));
+	CHECK_HR(pMixerType->GetRepresentation(FORMAT_MFVideoFormat, (void**)&pAMMedia));
 
 	VideoFormat = (MFVIDEOFORMAT*)pAMMedia->pbFormat;
 	hr = pfMFCreateVideoMediaType(VideoFormat, &m_pMediaType);
@@ -2954,7 +2954,7 @@ HRESULT CSyncAP::SetMediaType(IMFMediaType* pType)
 	CString strTemp;
 
 	CheckPointer(pType, E_POINTER);
-	CheckHR(pType->GetRepresentation(FORMAT_VideoInfo2, (void**)&pAMMedia));
+	CHECK_HR(pType->GetRepresentation(FORMAT_VideoInfo2, (void**)&pAMMedia));
 
 	hr = InitializeDevice(pAMMedia);
 	if (SUCCEEDED(hr)) {
@@ -2979,7 +2979,7 @@ LONGLONG CSyncAP::GetMediaTypeMerit(IMFMediaType *pMediaType)
 	MFVIDEOFORMAT *VideoFormat;
 
 	HRESULT hr;
-	CheckHR(pMediaType->GetRepresentation  (FORMAT_MFVideoFormat, (void**)&pAMMedia));
+	CHECK_HR(pMediaType->GetRepresentation  (FORMAT_MFVideoFormat, (void**)&pAMMedia));
 	VideoFormat = (MFVIDEOFORMAT*)pAMMedia->pbFormat;
 
 	LONGLONG Merit = 0;
@@ -3151,13 +3151,13 @@ STDMETHODIMP CSyncAP::GetCurrentMediaType(__deref_out  IMFVideoMediaType **ppMed
 	HRESULT hr = S_OK;
 	CAutoLock lock(this);
 	CheckPointer(ppMediaType, E_POINTER);
-	CheckHR(CheckShutdown());
+	CHECK_HR(CheckShutdown());
 
 	if (m_pMediaType == NULL) {
-		CheckHR(MF_E_NOT_INITIALIZED);
+		CHECK_HR(MF_E_NOT_INITIALIZED);
 	}
 
-	CheckHR(m_pMediaType->QueryInterface(__uuidof(IMFVideoMediaType), (void**)&ppMediaType));
+	CHECK_HR(m_pMediaType->QueryInterface(__uuidof(IMFVideoMediaType), (void**)&ppMediaType));
 	return hr;
 }
 

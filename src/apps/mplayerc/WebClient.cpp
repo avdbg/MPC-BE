@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -25,6 +25,7 @@
 #include "../../Subtitles/TextFile.h"
 #include "WebClient.h"
 #include "DIB.h"
+#include "../../DSUtil/WinAPIUtils.h"
 
 CWebClientSocket::CWebClientSocket(CWebServer* pWebServer, CMainFrame* pMainFrame)
 	: m_pWebServer(pWebServer)

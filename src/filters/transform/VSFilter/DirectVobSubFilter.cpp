@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -29,6 +29,9 @@
 #include "VSFilter.h"
 #include "Systray.h"
 #include "../../../DSUtil/MediaTypes.h"
+#include "../../../DSUtil/FileHandle.h"
+#include "../../../DSUtil/FileVersionInfo.h"
+#include "../../../DSUtil/WinAPIUtils.h"
 #include "../../../SubPic/MemSubPic.h"
 #include "../../../SubPic/SubPicQueueImpl.h"
 
@@ -141,6 +144,32 @@ STDMETHODIMP CDirectVobSubFilter::NonDelegatingQueryInterface(REFIID riid, void*
 
 // CBaseVideoFilter
 
+static VIDEO_OUTPUT_FORMATS DefaultFormats[] = {
+	{&MEDIASUBTYPE_P010,   2, 24, FCC('P010')},
+	{&MEDIASUBTYPE_P016,   2, 24, FCC('P016')},
+	{&MEDIASUBTYPE_NV12,   3, 12, FCC('NV12')},
+	{&MEDIASUBTYPE_YV12,   3, 12, FCC('YV12')},
+	{&MEDIASUBTYPE_YUY2,   1, 16, FCC('YUY2')},
+	{&MEDIASUBTYPE_I420,   3, 12, FCC('I420')},
+	{&MEDIASUBTYPE_IYUV,   3, 12, FCC('IYUV')},
+	{&MEDIASUBTYPE_ARGB32, 1, 32, BI_RGB},
+	{&MEDIASUBTYPE_RGB32,  1, 32, BI_RGB},
+	{&MEDIASUBTYPE_RGB24,  1, 24, BI_RGB},
+	{&MEDIASUBTYPE_RGB565, 1, 16, BI_RGB},
+	{&MEDIASUBTYPE_RGB555, 1, 16, BI_RGB},
+	{&MEDIASUBTYPE_ARGB32, 1, 32, BI_BITFIELDS},
+	{&MEDIASUBTYPE_RGB32,  1, 32, BI_BITFIELDS},
+	{&MEDIASUBTYPE_RGB24,  1, 24, BI_BITFIELDS},
+	{&MEDIASUBTYPE_RGB565, 1, 16, BI_BITFIELDS},
+	{&MEDIASUBTYPE_RGB555, 1, 16, BI_BITFIELDS},
+};
+
+void CDirectVobSubFilter::GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats)
+{
+	nNumber		= _countof(DefaultFormats);
+	*ppFormats	= DefaultFormats;
+}
+
 void CDirectVobSubFilter::GetOutputSize(int& w, int& h, int& arx, int& ary, int& RealWidth, int& RealHeight, int& vsfilter)
 {
 	CSize s(w, h), os = s;
@@ -211,12 +240,14 @@ HRESULT CDirectVobSubFilter::Transform(IMediaSample* pIn)
 
 	bool fYV12 = (mt.subtype == MEDIASUBTYPE_YV12 || mt.subtype == MEDIASUBTYPE_I420 || mt.subtype == MEDIASUBTYPE_IYUV);
 	int bpp = fYV12 ? 8 : bihIn.biBitCount;
-	DWORD black = fYV12 ? 0x10101010 : (bihIn.biCompression == '2YUY') ? 0x80108010 : 0;
+	DWORD black = fYV12 ? 0x10101010 : (bihIn.biCompression == FCC('YUY2')) ? 0x80108010 : 0;
 
-	if (mt.subtype == MEDIASUBTYPE_P010 || mt.subtype == MEDIASUBTYPE_P016)
-	{
+	if (mt.subtype == MEDIASUBTYPE_P010 || mt.subtype == MEDIASUBTYPE_P016) {
 		bpp = 16;
 		black = 0x10001000;
+	} else if (mt.subtype == MEDIASUBTYPE_NV12) {
+		bpp = 8;
+		black = 0x10101010;
 	}
 	CSize sub(m_w, m_h);
 	CSize in(bihIn.biWidth, bihIn.biHeight);
@@ -242,13 +273,14 @@ HRESULT CDirectVobSubFilter::Transform(IMediaSample* pIn)
 		}
 	}
 
-	if (mt.subtype == MEDIASUBTYPE_P010 || mt.subtype == MEDIASUBTYPE_P016)
-	{
-		BYTE* pSubUV = (BYTE*)m_pTempPicBuff + (sub.cx*bpp >> 3) * sub.cy;
-		BYTE* pInUV = pDataIn + (in.cx*bpp >> 3) * in.cy;
-		sub.cy >>= 1; in.cy >>= 1;
-		if (FAILED(Copy(pSubUV, pInUV, sub, in, bpp, mt.subtype, 0x80008000)))
+	if (mt.subtype == MEDIASUBTYPE_P010 || mt.subtype == MEDIASUBTYPE_P016 || mt.subtype == MEDIASUBTYPE_NV12) {
+		BYTE* pSubUV = (BYTE*)m_pTempPicBuff + (sub.cx * bpp >> 3) * sub.cy;
+		BYTE* pInUV = pDataIn + (in.cx * bpp >> 3) * in.cy;
+		sub.cy >>= 1;
+		in.cy >>= 1;
+		if (FAILED(Copy(pSubUV, pInUV, sub, in, bpp, mt.subtype, mt.subtype == MEDIASUBTYPE_NV12 ? 0x80808080 : 0x80008000))) {
 			return E_FAIL;
+		}
 	}
 	//
 
@@ -288,8 +320,6 @@ HRESULT CDirectVobSubFilter::Transform(IMediaSample* pIn)
 	if (m_fFlipSubtitles) {
 		fFlipSub = !fFlipSub;
 	}
-
-	//
 
 	{
 		CAutoLock cAutoLock(&m_csQueueLock);
@@ -346,16 +376,10 @@ HRESULT CDirectVobSubFilter::JoinFilterGraph(IFilterGraph* pGraph, LPCWSTR pName
 		AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
 		if (!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SEENDIVXWARNING), 0)) {
-			unsigned __int64 ver = GetFileVersion(_T("divx_c32.ax"));
-			if (((ver >> 48)&0xffff) == 4 && ((ver >> 32)&0xffff) == 2) {
-				DWORD dwVersion = GetVersion();
-				DWORD dwWindowsMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-				//DWORD dwWindowsMinorVersion = (DWORD)(HIBYTE(LOWORD(dwVersion)));
-
-				if (dwVersion < 0x80000000 && dwWindowsMajorVersion >= 5) {
-					AfxMessageBox(IDS_DIVX_WARNING);
-					theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SEENDIVXWARNING), 1);
-				}
+			QWORD ver = CFileVersionInfo::GetFileVersion(L"divx_c32.ax");
+			if (((ver >> 48) & 0xffff) == 4 && ((ver >> 32) & 0xffff) == 2) {
+				AfxMessageBox(IDS_DIVX_WARNING, MB_ICONWARNING | MB_OK, 0);
+				theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SEENDIVXWARNING), 1);
 			}
 		}
 
@@ -445,10 +469,10 @@ HRESULT CDirectVobSubFilter::CompleteConnect(PIN_DIRECTION dir, IPin* pReceivePi
 
 		// needed when we have a decoder with a version number of 3.x
 		if (SUCCEEDED(m_pGraph->FindFilterByName(L"DivX MPEG-4 DVD Video Decompressor ", &pFilter))
-				&& (GetFileVersion(_T("divx_c32.ax")) >> 48) <= 4
+				&& (CFileVersionInfo::GetFileVersion(L"divx_c32.ax") >> 48) <= 4
 				|| SUCCEEDED(m_pGraph->FindFilterByName(L"Microcrap MPEG-4 Video Decompressor", &pFilter))
 				|| SUCCEEDED(m_pGraph->FindFilterByName(L"Microsoft MPEG-4 Video Decompressor", &pFilter))
-				&& (GetFileVersion(_T("mpg4ds32.ax")) >> 48) <= 3) {
+				&& (CFileVersionInfo::GetFileVersion(L"mpg4ds32.ax") >> 48) <= 3) {
 			m_fMSMpeg4Fix = true;
 		}
 	} else if (dir == PINDIR_OUTPUT) {
@@ -572,6 +596,101 @@ HRESULT CDirectVobSubFilter::NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME tS
 	return __super::NewSegment(tStart, tStop, dRate);
 }
 
+HRESULT CDirectVobSubFilter::CheckInputType(const CMediaType* mtIn)
+{
+	BITMAPINFOHEADER bih;
+	ExtractBIH(mtIn, &bih);
+
+	return mtIn->majortype == MEDIATYPE_Video
+		&& (mtIn->subtype == MEDIASUBTYPE_P016
+		       || mtIn->subtype == MEDIASUBTYPE_P010
+		       || mtIn->subtype == MEDIASUBTYPE_NV12
+		       || mtIn->subtype == MEDIASUBTYPE_YV12
+			   || mtIn->subtype == MEDIASUBTYPE_I420
+			   || mtIn->subtype == MEDIASUBTYPE_IYUV
+			   || mtIn->subtype == MEDIASUBTYPE_YUY2
+			   || mtIn->subtype == MEDIASUBTYPE_ARGB32
+			   || mtIn->subtype == MEDIASUBTYPE_RGB32
+			   || mtIn->subtype == MEDIASUBTYPE_RGB24
+			   || mtIn->subtype == MEDIASUBTYPE_RGB565)
+		   && (mtIn->formattype == FORMAT_VideoInfo
+			   || mtIn->formattype == FORMAT_VideoInfo2)
+		   && bih.biHeight > 0
+		   ? S_OK
+		   : VFW_E_TYPE_NOT_ACCEPTED;
+}
+
+HRESULT CDirectVobSubFilter::CheckOutputType(const CMediaType& mtOut)
+{
+	int wout = 0, hout = 0, arxout = 0, aryout = 0;
+	return ExtractDim(&mtOut, wout, hout, arxout, aryout)
+		   && m_h == abs((int)hout)
+		   && mtOut.subtype != MEDIASUBTYPE_ARGB32
+		   ? S_OK
+		   : VFW_E_TYPE_NOT_ACCEPTED;
+}
+
+HRESULT CDirectVobSubFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut)
+{
+	return DoCheckTransform(mtIn, mtOut, false);
+}
+
+HRESULT CDirectVobSubFilter::DoCheckTransform(const CMediaType* mtIn, const CMediaType* mtOut, bool checkReconnection)
+{
+	if (FAILED(CheckInputType(mtIn)) || mtOut->majortype != MEDIATYPE_Video) {
+		return VFW_E_TYPE_NOT_ACCEPTED;
+	}
+
+	if (mtIn->majortype == MEDIATYPE_Video
+				&& (mtIn->subtype == MEDIASUBTYPE_P016 || mtIn->subtype == MEDIASUBTYPE_P010)) {
+		if (mtOut->subtype != mtIn->subtype && checkReconnection) {
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
+	} else if (mtIn->majortype == MEDIATYPE_Video
+				&& (mtIn->subtype == MEDIASUBTYPE_YV12
+				|| mtIn->subtype == MEDIASUBTYPE_I420
+				|| mtIn->subtype == MEDIASUBTYPE_IYUV)) {
+		if (mtOut->subtype != MEDIASUBTYPE_YV12
+				&& mtOut->subtype != MEDIASUBTYPE_NV12
+				&& mtOut->subtype != MEDIASUBTYPE_I420
+				&& mtOut->subtype != MEDIASUBTYPE_IYUV
+				&& mtOut->subtype != MEDIASUBTYPE_YUY2
+				&& mtOut->subtype != MEDIASUBTYPE_ARGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB24
+				&& mtOut->subtype != MEDIASUBTYPE_RGB565) {
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
+	} else if (mtOut->majortype == MEDIATYPE_Video
+				&& (mtOut->subtype == MEDIASUBTYPE_P016 || mtOut->subtype == MEDIASUBTYPE_P010 || mtOut->subtype == MEDIASUBTYPE_NV12)) {
+		if (mtOut->subtype != mtIn->subtype) {
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
+	} else if (mtIn->majortype == MEDIATYPE_Video
+			   && (mtIn->subtype == MEDIASUBTYPE_YUY2)) {
+		if (mtOut->subtype != MEDIASUBTYPE_YUY2
+				&& mtOut->subtype != MEDIASUBTYPE_ARGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB24
+				&& mtOut->subtype != MEDIASUBTYPE_RGB565) {
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
+	} else if (mtIn->majortype == MEDIATYPE_Video
+			   && (mtIn->subtype == MEDIASUBTYPE_ARGB32
+				   || mtIn->subtype == MEDIASUBTYPE_RGB32
+				   || mtIn->subtype == MEDIASUBTYPE_RGB24
+				   || mtIn->subtype == MEDIASUBTYPE_RGB565)) {
+		if (mtOut->subtype != MEDIASUBTYPE_ARGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB32
+				&& mtOut->subtype != MEDIASUBTYPE_RGB24
+				&& mtOut->subtype != MEDIASUBTYPE_RGB565) {
+			return VFW_E_TYPE_NOT_ACCEPTED;
+		}
+	}
+
+	return S_OK;
+}
+
 //
 
 REFERENCE_TIME CDirectVobSubFilter::CalcCurrentTime()
@@ -598,16 +717,13 @@ void CDirectVobSubFilter::InitSubPicQueue()
 	m_spd.type = -1;
 	if (subtype == MEDIASUBTYPE_YV12) {
 		m_spd.type = MSP_YV12;
-	} 
-	else if (subtype == MEDIASUBTYPE_P010)
-	{
+	} else if (subtype == MEDIASUBTYPE_P010) {
 		m_spd.type = MSP_P010;
-	}
-	else if (subtype == MEDIASUBTYPE_P016)
-	{
+	} else if (subtype == MEDIASUBTYPE_P016) {
 		m_spd.type = MSP_P016;
-	}
-    else if (subtype == MEDIASUBTYPE_I420 || subtype == MEDIASUBTYPE_IYUV) {
+	} else if (subtype == MEDIASUBTYPE_NV12) {
+		m_spd.type = MSP_NV12;
+	} else if (subtype == MEDIASUBTYPE_I420 || subtype == MEDIASUBTYPE_IYUV) {
 		m_spd.type = MSP_IYUV;
 	} else if (subtype == MEDIASUBTYPE_YUY2) {
 		m_spd.type = MSP_YUY2;
@@ -622,18 +738,17 @@ void CDirectVobSubFilter::InitSubPicQueue()
 	}
 	m_spd.w = m_w;
 	m_spd.h = m_h;
-	m_spd.bpp = (m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV) ? 8 : bihIn.biBitCount;
+	m_spd.bpp = (m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV || m_spd.type == MSP_NV12) ? 8 : bihIn.biBitCount;
 	m_spd.bpp = (m_spd.type == MSP_P010 || m_spd.type == MSP_P016) ? 16 : m_spd.bpp;
-	m_spd.pitch = m_spd.w*m_spd.bpp>>3;
+	m_spd.pitch = m_spd.w * m_spd.bpp >> 3;
 
 	m_pTempPicBuff.Free();
-	if (m_spd.type == MSP_P010 || m_spd.type == MSP_P016)
-	{
-		m_pTempPicBuff.Allocate(m_spd.pitch * m_spd.h + m_spd.pitch * m_spd.h/2);
-	}
-	else
-	{
-		m_pTempPicBuff.Allocate(4*m_w*m_h);
+	if(m_spd.type == MSP_YV12 || m_spd.type == MSP_IYUV || m_spd.type == MSP_NV12) {
+		m_pTempPicBuff.Allocate(4 * m_spd.pitch * m_spd.h);
+	} else if (m_spd.type == MSP_P010 || m_spd.type == MSP_P016) {
+		m_pTempPicBuff.Allocate(m_spd.pitch * m_spd.h + m_spd.pitch * m_spd.h / 2);
+	} else {
+		m_pTempPicBuff.Allocate(m_spd.pitch * m_spd.h);
 	}
 	m_spd.bits = (void*)m_pTempPicBuff;
 
@@ -815,9 +930,12 @@ void CDirectVobSubFilter::UpdatePreferedLanguages(CString l)
 	// move the selected to the top of the list
 
 	while (k > 0) {
+		std::swap(langs[k], langs[k - 1]);
+		/*
 		CString tmp = langs[k];
 		langs[k] = langs[k-1];
 		langs[k-1] = tmp;
+		*/
 		k--;
 	}
 
@@ -833,9 +951,12 @@ void CDirectVobSubFilter::UpdatePreferedLanguages(CString l)
 	}
 
 	while (k < j-1) {
+		std::swap(langs[k], langs[k + 1]);
+		/*
 		CString tmp = langs[k];
 		langs[k] = langs[k+1];
 		langs[k+1] = tmp;
+		*/
 		k++;
 	}
 
@@ -1442,7 +1563,12 @@ bool CDirectVobSubFilter2::ShouldWeAutoload(IFilterGraph* pGraph)
 				|| (pBF = FindFilter(L"{803E8280-F3CE-4201-982C-8CD8FB512004}", pGraph)) // dsm source
 				|| (pBF = FindFilter(L"{0912B4DD-A30A-4568-B590-7179EBB420EC}", pGraph)) // dsm splitter
 				|| (pBF = FindFilter(L"{3CCC052E-BDEE-408a-BEA7-90914EF2964B}", pGraph)) // mp4 source
-				|| (pBF = FindFilter(L"{61F47056-E400-43d3-AF1E-AB7DFFD4C4AD}", pGraph))) { // mp4 splitter
+				|| (pBF = FindFilter(L"{61F47056-E400-43d3-AF1E-AB7DFFD4C4AD}", pGraph)) // mp4 splitter
+				|| (pBF = FindFilter(L"{1365BE7A-C86A-473C-9A41-C0A6E82C9FA3}", pGraph)) // MPEG source
+				|| (pBF = FindFilter(L"{DC257063-045F-4BE2-BD5B-E12279C464F0}", pGraph)) // MPEG splitter
+				|| (pBF = FindFilter(L"{D8980E15-E1F6-4916-A10F-D7EB4E9E10B8}", pGraph)) // AV Source
+				|| (pBF = FindFilter(L"{529A00DB-0C43-4F5B-8EF2-05004CBE0C6F}", pGraph)) // AV Splitter
+				) {
 			BeginEnumPins(pBF, pEP, pPin) {
 				BeginEnumMediaTypes(pPin, pEM, pmt) {
 					if (pmt->majortype == MEDIATYPE_Text || pmt->majortype == MEDIATYPE_Subtitle) {

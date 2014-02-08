@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -107,7 +107,6 @@ class COggFlacOutputPin : public COggSplitterOutputPin
 	virtual HRESULT UnpackPacket(CAutoPtr<Packet>& p, BYTE* pData, int len);
 	virtual REFERENCE_TIME GetRefTime(__int64 granule_position);
 
-	HRESULT DeliverPacket(CAutoPtr<Packet> p);
 	HRESULT DeliverNewSegment(REFERENCE_TIME tStart, REFERENCE_TIME tStop, double dRate);
 
 public:
@@ -184,6 +183,9 @@ class COggDiracOutputPin : public COggSplitterOutputPin
 	bool			m_bOldDirac;
 	bool			m_IsInitialized;
 
+	CBaseFilter*	m_pFilter;
+	CString			m_pName;
+
 	virtual HRESULT UnpackPacket(CAutoPtr<Packet>& p, BYTE* pData, int len);
 	virtual REFERENCE_TIME GetRefTime(__int64 granule_position);
 
@@ -211,7 +213,7 @@ public:
 
 class COggSpeexOutputPin : public COggSplitterOutputPin
 {
-	int  m_SampleRate;
+	int m_SampleRate;
 
 	virtual HRESULT UnpackPacket(CAutoPtr<Packet>& p, BYTE* pData, int len);
 	virtual REFERENCE_TIME GetRefTime(__int64 granule_position);

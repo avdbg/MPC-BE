@@ -1,7 +1,5 @@
 /*
- * $Id:
- *
- * Copyright (C) 2013 Alexandr Vodiannikov aka "Aleksoid1978" (Aleksoid1978@mail.ru)
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -27,8 +25,6 @@
 #define RawVideoSplitterName	L"MPC RAW Video Splitter"
 #define RawVideoSourceName		L"MPC RAW Video Source"
 
-#define ENABLE_YUV4MPEG2		0
-
 class __declspec(uuid("486AA463-EE67-4F75-B941-F1FAB217B342"))
 	CRawVideoSplitterFilter : public CBaseSplitterFilter
 {
@@ -39,9 +35,7 @@ class __declspec(uuid("486AA463-EE67-4F75-B941-F1FAB217B342"))
 		RAW_H264,
 		RAW_VC1,
 		RAW_HEVC,
-#if ENABLE_YUV4MPEG2
 		RAW_Y4M
-#endif
 	} RAWType;
 	RAWType m_RAWType;
 
@@ -75,22 +69,4 @@ class __declspec(uuid("E32A3501-04A9-486B-898B-F5A4C8A4AAAC"))
 {
 public:
 	CRawVideoSourceFilter(LPUNKNOWN pUnk, HRESULT* phr);
-};
-
-class CRawVideoOutputPin : public CBaseSplitterOutputPin, protected CCritSec
-{
-	CAutoPtr<Packet> m_p;
-	CAutoPtrList<Packet> m_pl;
-	bool	m_fHasAccessUnitDelimiters;
-	bool	m_bFlushed;
-
-protected:
-	HRESULT DeliverPacket(CAutoPtr<Packet> p);
-	HRESULT DeliverEndFlush();
-
-	HRESULT Flush();
-
-public:
-	CRawVideoOutputPin(CAtlArray<CMediaType>& mts, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr);
-	virtual ~CRawVideoOutputPin();
 };

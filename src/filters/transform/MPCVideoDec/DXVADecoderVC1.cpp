@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -44,24 +44,22 @@ CDXVADecoderVC1::CDXVADecoderVC1(CMPCVideoDecFilter* pFilter, IDirectXVideoDecod
 
 CDXVADecoderVC1::~CDXVADecoderVC1(void)
 {
-	TRACE(_T("CDXVADecoderVC1::Destroy()\n"));
-	Flush();
+	DbgLog((LOG_TRACE, 3, L"CDXVADecoderVC1::Destroy()"));
 }
 
 void CDXVADecoderVC1::Init()
 {
-	TRACE(_T("CDXVADecoderVC1::Init()\n"));
+	DbgLog((LOG_TRACE, 3, L"CDXVADecoderVC1::Init()"));
 
-	memset (&m_PictureParams, 0, sizeof(m_PictureParams));
-	memset (&m_SliceInfo,     0, sizeof(m_SliceInfo));
+	memset(&m_PictureParams, 0, sizeof(m_PictureParams));
+	memset(&m_SliceInfo, 0, sizeof(m_SliceInfo));
 
 	m_PictureParams.bMacroblockWidthMinus1			= 15;
 	m_PictureParams.bMacroblockHeightMinus1			= 15;
 	m_PictureParams.bBlockWidthMinus1				= 7;
 	m_PictureParams.bBlockHeightMinus1				= 7;
 	m_PictureParams.bBPPminus1						= 7;
-
-	m_PictureParams.bChromaFormat					= VC1_CHROMA_420;
+	m_PictureParams.bChromaFormat					= 1;
 
 	// iWMV9 - i9IRU - iOHIT - iINSO - iWMVA - 0 - 0 - 0			| Section 3.2.5
 	m_PictureParams.bBidirectionalAveragingMode		= (1 << 7) |
@@ -88,10 +86,11 @@ void CDXVADecoderVC1::Init()
 // === Public functions
 HRESULT CDXVADecoderVC1::DecodeFrame(BYTE* pDataIn, UINT nSize, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop)
 {
-	HRESULT						hr;
-	int							nSurfaceIndex;
+	HRESULT						hr				= S_FALSE;
+	int							nSurfaceIndex	= -1;
+	UINT						nFrameSize		= 0;
+	UINT						nSize_Result	= 0;
 	CComPtr<IMediaSample>		pSampleToDeliver;
-	UINT						nFrameSize, nSize_Result;
 
 	CHECK_HR_FALSE (FFVC1DecodeFrame(&m_PictureParams, m_pFilter->GetAVCtx(), m_pFilter->GetFrame(), rtStart, 
 									 pDataIn, nSize, 
@@ -278,10 +277,10 @@ void CDXVADecoderVC1::Flush()
 	m_rtStopDelayed			= _I64_MAX;
 
 	if (m_wRefPictureIndex[0] != NO_REF_FRAME) {
-		RemoveRefFrame (m_wRefPictureIndex[0]);
+		RemoveRefFrame(m_wRefPictureIndex[0]);
 	}
 	if (m_wRefPictureIndex[1] != NO_REF_FRAME) {
-		RemoveRefFrame (m_wRefPictureIndex[1]);
+		RemoveRefFrame(m_wRefPictureIndex[1]);
 	}
 
 	m_wRefPictureIndex[0]	= NO_REF_FRAME;

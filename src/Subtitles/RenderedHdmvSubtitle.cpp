@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -108,11 +108,6 @@ STDMETHODIMP CRenderedHdmvSubtitle::GetTextureSize (POSITION pos, SIZE& MaxTextu
 	HRESULT hr = m_pSub->GetTextureSize(pos, MaxTextureSize, VideoSize, VideoTopLeft);
 	return hr;
 };
-
-STDMETHODIMP_(SUBTITLE_TYPE) CRenderedHdmvSubtitle::GetType(POSITION pos)
-{
-	return m_nType;
-}
 
 // IPersist
 

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -235,7 +235,7 @@ bool CPPageFormats::RegisterApp()
 	return true;
 }
 
-bool CPPageFormats::RegisterExt(CString ext, CString strLabel, bool fAudioOnly, bool setAssociatedWithIcon)
+bool CPPageFormats::RegisterExt(CString ext, CString strLabel, filetype_t filetype, bool setAssociatedWithIcon)
 {
 	CRegKey key;
 	CString strProgID = PROGID + ext;
@@ -314,9 +314,13 @@ bool CPPageFormats::RegisterExt(CString ext, CString strLabel, bool fAudioOnly, 
 			if (::PathFileExists(mpciconlib)) {
 				int icon_index = GetIconIndex(ext);
 				if (icon_index < 0) {
-					if (fAudioOnly) {
+					if (filetype == TAudio) {
 						icon_index = GetIconIndex(_T(":audio"));
-					} else {
+					} else if (filetype == TPlaylist) {
+						icon_index = GetIconIndex(_T(":playlist"));
+					}
+
+					if (icon_index < 0) {
 						icon_index = GetIconIndex(_T(":video"));
 					}
 				}
@@ -506,7 +510,7 @@ void CPPageFormats::AddAutoPlayToRegistry(autoplay_t ap, bool fRegister)
 		key.Close();
 
 		if (ERROR_SUCCESS != key.Create(HKEY_LOCAL_MACHINE,
-										CString(CStringA("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers\\Handlers\\MPCPlay") + handlers[i].verb + "OnArrival"))) {
+										CString(CStringA("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers\\Handlers\\MPCBEPlay") + handlers[i].verb + "OnArrival"))) {
 			return;
 		}
 		key.SetStringValue(_T("Action"), ResStr(handlers[i].action));
@@ -520,14 +524,14 @@ void CPPageFormats::AddAutoPlayToRegistry(autoplay_t ap, bool fRegister)
 										CString(CStringA("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers\\EventHandlers\\Play") + handlers[i].verb + "OnArrival"))) {
 			return;
 		}
-		key.SetStringValue(CString(CStringA("MPCPlay") + handlers[i].verb + "OnArrival"), _T(""));
+		key.SetStringValue(CString(CStringA("MPCBEPlay") + handlers[i].verb + "OnArrival"), _T(""));
 		key.Close();
 	} else {
 		if (ERROR_SUCCESS != key.Create(HKEY_LOCAL_MACHINE,
 										CString(CStringA("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers\\EventHandlers\\Play") + handlers[i].verb + "OnArrival"))) {
 			return;
 		}
-		key.DeleteValue(CString(CStringA("MPCPlay") + handlers[i].verb + "OnArrival"));
+		key.DeleteValue(CString(CStringA("MPCBEPlay") + handlers[i].verb + "OnArrival"));
 		key.Close();
 	}
 }
@@ -552,7 +556,7 @@ bool CPPageFormats::IsAutoPlayRegistered(autoplay_t ap)
 	}
 	len = _countof(buff);
 	if (ERROR_SUCCESS != key.QueryStringValue(
-				CString(_T("MPCPlay")) + handlers[i].verb + _T("OnArrival"),
+				CString(_T("MPCBEPlay")) + handlers[i].verb + _T("OnArrival"),
 				buff, &len)) {
 		return false;
 	}
@@ -949,7 +953,7 @@ BOOL CPPageFormats::OnApply()
 			POSITION pos = exts.GetHeadPosition();
 			while (pos) {
 				if (iChecked) {
-					RegisterExt(exts.GetNext(pos), mf[(int)m_list.GetItemData(i)].GetDescription(), mf[i].IsAudioOnly(), m_bSetAssociatedWithIcon);
+					RegisterExt(exts.GetNext(pos), mf[(int)m_list.GetItemData(i)].GetDescription(), mf[i].GetFileType(), m_bSetAssociatedWithIcon);
 				} else {
 					UnRegisterExt(exts.GetNext(pos));
 				}
@@ -1141,11 +1145,7 @@ void CPPageFormats::OnBnClickedVideo()
 	CMediaFormats& mf = AfxGetAppSettings().m_Formats;
 
 	for (int i = 0, j = m_list.GetItemCount(); i < j; i++) {
-		if (!mf[m_list.GetItemData(i)].GetLabel().CompareNoCase(_T("pls"))) {
-			SetChecked(i, 0);
-			continue;
-		}
-		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly() ? 0 : 1);
+		SetChecked(i, mf[(int)m_list.GetItemData(i)].GetFileType() == TVideo ? 1 : 0);
 	}
 	m_bFileExtChanged = true;
 
@@ -1162,7 +1162,7 @@ void CPPageFormats::OnBnClickedAudio()
 	CMediaFormats& mf = AfxGetAppSettings().m_Formats;
 
 	for (int i = 0, j = m_list.GetItemCount(); i < j; i++) {
-		SetChecked(i, mf[(int)m_list.GetItemData(i)].IsAudioOnly() ? 1 : 0);
+		SetChecked(i, mf[(int)m_list.GetItemData(i)].GetFileType() == TAudio ? 1 : 0);
 	}
 	m_bFileExtChanged = true;
 

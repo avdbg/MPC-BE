@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,14 +24,15 @@
 #include <Tlhelp32.h>
 #include "MainFrm.h"
 #include <winternl.h>
-#include "FileVersionInfo.h"
 #include <psapi.h>
 #include "Ifo.h"
 #include "MultiMonitor.h"
 #define NO_VERSION_REV_NEEDED
 #include "../../DSUtil/WinAPIUtils.h"
 #include "../../DSUtil/SysVersion.h"
+#include "../../DSUtil/FileVersionInfo.h"
 #include "../../DSUtil/MPCSocket.h"
+#include "PlayerYouTube.h"
 #include <moreuuids.h>
 #include <winddk/ntddcdvd.h>
 #include <detours/detours.h>
@@ -278,10 +279,7 @@ bool LoadType(CString fn, CString& type)
 		} else { // Fallback to registry
 			CRegKey key;
 
-			TCHAR buff[256];
-			ULONG len;
-
-			CString tmp = _T("");
+			CString tmp;
 			CString mplayerc_ext = _T("mplayerc") + ext;
 
 			if (ERROR_SUCCESS == key.Open(HKEY_CLASSES_ROOT, mplayerc_ext)) {
@@ -294,6 +292,9 @@ bool LoadType(CString fn, CString& type)
 				if (tmp.IsEmpty()) {
 					tmp = ext;
 				}
+
+				TCHAR buff[256] = { 0 };
+				ULONG len;
 
 				while (ERROR_SUCCESS == key.Open(HKEY_CLASSES_ROOT, tmp)) {
 					len = _countof(buff);
@@ -382,17 +383,15 @@ END_MESSAGE_MAP()
 CMPlayerCApp::CMPlayerCApp()
 //	: m_hMutexOneInstance(NULL)
 {
-	CFileVersionInfo	Version;
-	TCHAR				strApp [_MAX_PATH];
+	TCHAR strApp [_MAX_PATH] = { 0 };
 
-	GetModuleFileNameEx (GetCurrentProcess(), AfxGetMyApp()->m_hInstance, strApp, _MAX_PATH);
-	Version.Create (strApp);
-	m_strVersion = Version.GetFileVersionEx();
+	GetModuleFileNameEx(GetCurrentProcess(), AfxGetMyApp()->m_hInstance, strApp, _MAX_PATH);
+	m_strVersion = CFileVersionInfo::GetFileVersionEx(strApp);
 
-	memset (&m_ColorControl, 0, sizeof(m_ColorControl));
+	memset(&m_ColorControl, 0, sizeof(m_ColorControl));
 	ResetColorControlRange();
 
-	memset (&m_VMR9ColorControl, 0, sizeof(m_VMR9ColorControl));
+	memset(&m_VMR9ColorControl, 0, sizeof(m_VMR9ColorControl));
 	m_VMR9ColorControl[0].dwSize		= sizeof (VMR9ProcAmpControlRange);
 	m_VMR9ColorControl[0].dwProperty	= ProcAmpControl9_Brightness;
 	m_VMR9ColorControl[1].dwSize		= sizeof (VMR9ProcAmpControlRange);
@@ -402,7 +401,7 @@ CMPlayerCApp::CMPlayerCApp()
 	m_VMR9ColorControl[3].dwSize		= sizeof (VMR9ProcAmpControlRange);
 	m_VMR9ColorControl[3].dwProperty	= ProcAmpControl9_Saturation;
 
-	memset (&m_EVRColorControl, 0, sizeof(m_EVRColorControl));
+	memset(&m_EVRColorControl, 0, sizeof(m_EVRColorControl));
 
 	GetRemoteControlCode = GetRemoteControlCodeMicrosoft;
 }
@@ -775,7 +774,7 @@ NTSTATUS (* Real_NtQueryInformationProcess) (HANDLE				ProcessHandle,
 
 BOOL WINAPI Mine_IsDebuggerPresent()
 {
-	TRACE(_T("Oops, somebody was trying to be naughty! (called IsDebuggerPresent)\n"));
+	DbgLog((LOG_TRACE, 3, L"Oops, somebody was trying to be naughty! (called IsDebuggerPresent)"));
 	return FALSE;
 }
 
@@ -812,11 +811,11 @@ LONG WINAPI Mine_ChangeDisplaySettingsEx(LONG ret, DWORD dwFlags, LPVOID lParam)
 			if (vp->dwCommand == VP_COMMAND_GET) {
 				if ((vp->dwTVStandard&VP_TV_STANDARD_WIN_VGA)
 						&& vp->dwTVStandard != VP_TV_STANDARD_WIN_VGA) {
-					TRACE(_T("Ooops, tv-out enabled? macrovision checks suck..."));
+					DbgLog((LOG_TRACE, 3, L"Ooops, tv-out enabled? macrovision checks suck..."));
 					vp->dwTVStandard = VP_TV_STANDARD_WIN_VGA;
 				}
 			} else if (vp->dwCommand == VP_COMMAND_SET) {
-				TRACE(_T("Ooops, as I already told ya, no need for any macrovision bs here"));
+				DbgLog((LOG_TRACE, 3, L"Ooops, as I already told ya, no need for any macrovision bs here"));
 				return 0;
 			}
 		}
@@ -957,18 +956,15 @@ BOOL SetHeapOptions()
 
 BOOL CMPlayerCApp::InitInstance()
 {
-	_tsetlocale(LC_ALL,_T("chs"));
 	// Remove the working directory from the search path to work around the DLL preloading vulnerability
-	SetDllDirectory(_T(""));
+	SetDllDirectory(L"");
 
 	long lError;
 
 	if (SetHeapOptions()) {
-		TRACE(_T("Terminate on corruption enabled\n"));
+		DbgLog((LOG_TRACE, 3, L"Terminate on corruption enabled"));
 	} else {
-		CString heap_err;
-		heap_err.Format(_T("Terminate on corruption error = %d\n"), GetLastError());
-		TRACE(heap_err);
+		DbgLog((LOG_TRACE, 3, L"Terminate on corruption error = %d", GetLastError()));
 	}
 
 	DetourRestoreAfterWith();
@@ -1107,24 +1103,16 @@ BOOL CMPlayerCApp::InitInstance()
 			CMediaFormats& mf = m_s.m_Formats;
 			mf.UpdateData(false);
 
-			bool bAudioOnly, bPlaylist;
-
 			for (unsigned int i = 0; i < mf.GetCount(); i++) {
-				bPlaylist = !mf[i].GetLabel().CompareNoCase(_T("pls"));
+				filetype_t filetype = mf[i].GetFileType();
 
-				if (bPlaylist && !(m_s.nCLSwitches & CLSW_REGEXTPL)) {
-					continue;
-				}
-
-				bAudioOnly = mf[i].IsAudioOnly();
-
-				int j = 0;
-				CString str = mf[i].GetExtsWithPeriod();
-				for (CString ext = str.Tokenize(_T(" "), j); !ext.IsEmpty(); ext = str.Tokenize(_T(" "), j)) {
-					if (((m_s.nCLSwitches & CLSW_REGEXTVID) && !bAudioOnly) ||
-							((m_s.nCLSwitches & CLSW_REGEXTAUD) && bAudioOnly) ||
-							((m_s.nCLSwitches & CLSW_REGEXTPL) && bPlaylist)) {
-						CPPageFormats::RegisterExt(ext, mf[i].GetDescription(), mf[i].IsAudioOnly());
+				if ((m_s.nCLSwitches & CLSW_REGEXTVID) && filetype == TVideo
+						|| (m_s.nCLSwitches & CLSW_REGEXTAUD) && filetype == TAudio
+						|| (m_s.nCLSwitches & CLSW_REGEXTPL) && filetype == TPlaylist) {
+					int j = 0;
+					CString str = mf[i].GetExtsWithPeriod();
+					for (CString ext = str.Tokenize(_T(" "), j); !ext.IsEmpty(); ext = str.Tokenize(_T(" "), j)) {
+						CPPageFormats::RegisterExt(ext, mf[i].GetDescription(), filetype);
 					}
 				}
 			}
@@ -1199,10 +1187,11 @@ BOOL CMPlayerCApp::InitInstance()
 
 	m_mutexOneInstance.Create(NULL, TRUE, _T(MPC_WND_CLASS_NAME));
 
-	if ( GetLastError() == ERROR_ALREADY_EXISTS && !(m_s.nCLSwitches&CLSW_NEW) &&
-			(m_s.nCLSwitches&CLSW_ADD ||
-			(m_s.GetMultiInst() == 1 && !m_cmdln.IsEmpty()) ||
-			m_s.GetMultiInst() == 0) ) {
+	if (GetLastError() == ERROR_ALREADY_EXISTS
+			&& !(m_s.nCLSwitches&CLSW_NEW)
+			&& (m_s.nCLSwitches&CLSW_ADD ||
+				(m_s.GetMultiInst() == 1 && !m_cmdln.IsEmpty()) ||
+				m_s.GetMultiInst() == 0)) {
 
 		DWORD res = WaitForSingleObject(m_mutexOneInstance.m_h, 5000);
 		if (res == WAIT_OBJECT_0 || res == WAIT_ABANDONED) {
@@ -1219,7 +1208,7 @@ BOOL CMPlayerCApp::InitInstance()
 				pTCD->hWND				= hWnd;
 
 				CWinThread*	pTHREADCopyData = AfxBeginThread(RunTHREADCopyData, static_cast<LPVOID>(pTCD));
-				if (WaitForSingleObject(pTHREADCopyData->m_hThread, 5000) == WAIT_TIMEOUT) {
+				if (WaitForSingleObject(pTHREADCopyData->m_hThread, 7000) == WAIT_TIMEOUT) { // in CMainFrame::CloseMedia() wait to graph thread is complete 5000
 					TerminateThread(pTHREADCopyData->m_hThread, 0xDEAD);
 					bDataIsSend = FALSE;
 				}
@@ -1293,7 +1282,7 @@ BOOL CMPlayerCApp::InitInstance()
 			ULONG IoPriority = 3;
 			ULONG ProcessIoPriority = 0x21;
 			NTSTATUS NtStatus = NtSetInformationProcess(GetCurrentProcess(), ProcessIoPriority, &IoPriority, sizeof(ULONG));
-			TRACE(_T("Set I/O Priority - %d\n"), NtStatus);
+			DbgLog((LOG_TRACE, 3, L"Set I/O Priority - %d", NtStatus));
 		}
 
 		FreeLibrary( hNTDLL );
@@ -1810,7 +1799,7 @@ void SetAudioRenderer(int AudioDevNo)
 
 void SetHandCursor(HWND m_hWnd, UINT nID)
 {
-	SetClassLongPtr(GetDlgItem(m_hWnd, nID), GCLP_HCURSOR, (long) AfxGetApp()->LoadStandardCursor(IDC_HAND));
+	SetClassLongPtr(GetDlgItem(m_hWnd, nID), GCLP_HCURSOR, (long)AfxGetApp()->LoadStandardCursor(IDC_HAND));
 }
 
 typedef CAtlRegExp<CAtlRECharTraits> CAtlRegExpT;
@@ -1890,7 +1879,7 @@ bool FindRedir(CString& fn, CString ct, CAtlList<CString>& fns, CAutoPtrList<CAt
 {
 	CString body;
 
-	CTextFile f(CTextFile::ANSI);
+	CTextFile f(CTextFile::UTF8, CTextFile::ANSI);
 	if (f.Open(fn)) for (CString tmp; f.ReadString(tmp); body += tmp + '\n') {
 			;
 		}
@@ -1974,6 +1963,7 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 
 			int ContentLength = 0;
 
+			CStringA location;
 			CAtlList<CStringA> sl;
 			Explode(hdr, sl, '\n');
 			POSITION pos = sl.GetHeadPosition();
@@ -1983,7 +1973,10 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 				Explode(hdrline, sl2, ':', 2);
 				CStringA field = sl2.RemoveHead().MakeLower();
 				if (field == "location" && !sl2.IsEmpty()) {
-					return GetContentType(CString(sl2.GetHead()), redir);
+					location = sl2.GetHead();
+					if (!PlayerYouTubeCheck(CString(sl2.GetHead()))) {
+						return GetContentType(CString(sl2.GetHead()), redir);
+					}
 				}
 				if (field == "content-type" && !sl2.IsEmpty()) {
 					ct = sl2.GetHead();
@@ -1993,6 +1986,11 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 				if (1 == sscanf_s(hdrline, "content-length:%d", &ContentLength)) {
 					ContentLength = ContentLength;
 				}
+			}
+
+			if (location.GetLength() > 0 &&  PlayerYouTubeCheck(CString(location)) && CString(location) != fn) {
+				redir->AddTail(CString(location));
+				return TToA(ct);
 			}
 
 			if (ct.IsEmpty() || ct == _T("application/octet-stream")) {
@@ -2035,17 +2033,17 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 
 			if (body.GetLength() >= 8) {
 				CStringA str = TToA(body);
-				if (!strncmp((LPCSTR)str, ".ra", 3)) {
-					return "audio/x-pn-realaudio";
-				}
-				if (!strncmp((LPCSTR)str, ".RMF", 4)) {
+				if (!strncmp((LPCSTR)str, ".ra", 3) || !strncmp((LPCSTR)str, ".RMF", 4)) {
 					return "audio/x-pn-realaudio";
 				}
 				if (*(DWORD*)(LPCSTR)str == 0x75b22630) {
 					return "video/x-ms-wmv";
 				}
-				if (!strncmp((LPCSTR)str+4, "moov", 4)) {
+				if (!strncmp((LPCSTR)str + 4, "moov", 4)) {
 					return "video/quicktime";
+				}
+				if (str.Find("#EXTM3U") == 0 && str.Find("#EXT-X-MEDIA-SEQUENCE") > 0) {
+					return "application/http-live-streaming";
 				}
 				if ((ct.Find(L"text/plain") == 0 || ct.Find(L"application/vnd.apple.mpegurl") == 0) && str.Find("#EXTM3U") == 0) {
 					ct = L"audio/x-mpegurl";
@@ -2053,11 +2051,11 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 			}
 
 			if (redir && (ct == _T("audio/x-scpls") || ct == _T("audio/x-mpegurl") || ct == _T("application/xspf+xml"))) {
-				int nMaxSize = 16*1024;
+				int nMaxSize = 16 * KILOBYTE;
 				if (ContentLength) {
 					nMaxSize = min(ContentLength, nMaxSize);
 				}
-				
+
 				while (body.GetLength() < nMaxSize) { // should be enough for a playlist...
 					CStringA str;
 					s.SetTimeOut(1500);
@@ -2106,13 +2104,15 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 			ct = _T("application/x-bdmv-playlist");
 		} else if (ext == _T(".xspf")) {
 			ct = _T("application/xspf+xml");
+		} else if (ext == _T(".cue")) {
+			ct = _T("application/x-cue-metadata");
 		}
 
 		FILE* f = NULL;
 		_tfopen_s(&f, fn, _T("rb"));
 		if (f) {
 			CStringA str;
-			str.ReleaseBufferSetLength(fread(str.GetBuffer(10240), 1, 10240, f));
+			str.ReleaseBufferSetLength(fread(str.GetBuffer(10 * KILOBYTE), 1, 10 * KILOBYTE, f));
 			body = AToT(str);
 			fclose(f);
 		}
@@ -2386,12 +2386,8 @@ void CMPlayerCApp::SetLanguage(int nLanguage)
 
 	strSatellite = GetSatelliteDll(nLanguage);
 	if (!strSatellite.IsEmpty()) {
-		CFileVersionInfo	Version;
-		CString				strSatVersion;
-
-		if (Version.Create(strSatellite)) {
-			strSatVersion = Version.GetFileVersionEx();
-
+		CString strSatVersion = CFileVersionInfo::GetFileVersionEx(strSatellite);
+		if (strSatVersion.GetLength()) {
 			CString strNeededVersion = MPC_VERSION_STR;
 			strNeededVersion.Replace(_T(", "), _T("."));
 

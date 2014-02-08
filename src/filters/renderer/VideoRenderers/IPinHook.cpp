@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -1071,7 +1071,7 @@ void HookAMVideoAccelerator(IAMVideoAcceleratorC* pAMVideoAcceleratorC)
 	// unhook previous VTables 
 	
 	if (g_pIAMVideoAcceleratorCVtbl) {
-		res = VirtualProtect(g_pIAMVideoAcceleratorCVtbl, sizeof(g_pIAMVideoAcceleratorCVtbl), PAGE_WRITECOPY, &flOldProtect);
+		res = VirtualProtect(g_pIAMVideoAcceleratorCVtbl, sizeof(IAMVideoAcceleratorCVtbl), PAGE_WRITECOPY, &flOldProtect);
 #ifdef _DEBUG
 		if (g_pIAMVideoAcceleratorCVtbl->GetVideoAcceleratorGUIDs == GetVideoAcceleratorGUIDsMine) {
 			g_pIAMVideoAcceleratorCVtbl->GetVideoAcceleratorGUIDs = GetVideoAcceleratorGUIDsOrg;
@@ -1112,7 +1112,7 @@ void HookAMVideoAccelerator(IAMVideoAcceleratorC* pAMVideoAcceleratorC)
 			g_pIAMVideoAcceleratorCVtbl->DisplayFrame = DisplayFrameOrg;
 		}
 #endif
-		res = VirtualProtect(g_pIAMVideoAcceleratorCVtbl, sizeof(g_pIAMVideoAcceleratorCVtbl), flOldProtect, &flOldProtect);
+		res = VirtualProtect(g_pIAMVideoAcceleratorCVtbl, sizeof(IAMVideoAcceleratorCVtbl), flOldProtect, &flOldProtect);
 
 #ifdef _DEBUG
 		GetVideoAcceleratorGUIDsOrg		= NULL;
@@ -1143,7 +1143,7 @@ void HookAMVideoAccelerator(IAMVideoAcceleratorC* pAMVideoAcceleratorC)
 
 	if (!g_pIAMVideoAcceleratorCVtbl && pAMVideoAcceleratorC) {
 
-		res = VirtualProtect(pAMVideoAcceleratorC->lpVtbl, sizeof(IAMVideoAcceleratorC), PAGE_WRITECOPY, &flOldProtect);
+		res = VirtualProtect(pAMVideoAcceleratorC->lpVtbl, sizeof(IAMVideoAcceleratorCVtbl), PAGE_WRITECOPY, &flOldProtect);
 
 #ifdef _DEBUG
 		GetVideoAcceleratorGUIDsOrg = pAMVideoAcceleratorC->lpVtbl->GetVideoAcceleratorGUIDs;
@@ -1175,7 +1175,7 @@ void HookAMVideoAccelerator(IAMVideoAcceleratorC* pAMVideoAcceleratorC)
 		pAMVideoAcceleratorC->lpVtbl->QueryRenderStatus = QueryRenderStatusMine;
 		pAMVideoAcceleratorC->lpVtbl->DisplayFrame = DisplayFrameMine;
 #endif
-		res = VirtualProtect(pAMVideoAcceleratorC->lpVtbl, sizeof(IAMVideoAcceleratorC), /*PAGE_EXECUTE*/flOldProtect, &flOldProtect);
+		res = VirtualProtect(pAMVideoAcceleratorC->lpVtbl, sizeof(IAMVideoAcceleratorCVtbl), /*PAGE_EXECUTE*/flOldProtect, &flOldProtect);
 
 		g_pIAMVideoAcceleratorCVtbl = pAMVideoAcceleratorC->lpVtbl;
 	}
@@ -1552,13 +1552,13 @@ static HRESULT STDMETHODCALLTYPE CreateVideoDecoderMine(
 			(*ppDecode)->AddRef();
 		}
 
-		for (DWORD i=0; i<NumRenderTargets; i++) {
+		for (UINT i = 0; i < NumRenderTargets; i++) {
 			LOG(_T(" - Surf %d : %08x"), i, ppDecoderRenderTargets[i]);
 		}
 	}
 #endif
 
-	TRACE(_T("DXVA Decoder : %s\n"), GetDXVADecoderDescription());
+	DbgLog((LOG_TRACE, 3, L"DXVA Decoder : %s", GetDXVADecoderDescription()));
 #ifdef _DEBUG
 	LOG(_T("IDirectXVideoDecoderService::CreateVideoDecoder  %s  (%d render targets) hr = %08x"), GetDXVAMode(&g_guidDXVADecoder), NumRenderTargets, hr);
 #endif

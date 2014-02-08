@@ -2,7 +2,7 @@
 /* png.c - location for general purpose libpng functions
  *
  * Last changed in libpng 1.7.0 [(PENDING RELEASE)]
- * Copyright (c) 1998-2013 Glenn Randers-Pehrson
+ * Copyright (c) 1998-2014 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -14,7 +14,7 @@
 #include "pngpriv.h"
 
 /* Generate a compiler error if there is an old png.h in the search path. */
-typedef png_libpng_version_1_7_0beta23 Your_png_h_is_not_version_1_7_0beta23;
+typedef png_libpng_version_1_7_0beta29 Your_png_h_is_not_version_1_7_0beta29;
 
 /* Tells libpng that we have already handled the first "num_bytes" bytes
  * of the PNG file signature.  If the PNG data is embedded into another
@@ -201,6 +201,7 @@ png_user_version_check(png_structrp png_ptr, png_const_charp user_png_ver)
          pos = png_safecat(m, (sizeof m), pos, user_png_ver);
          pos = png_safecat(m, (sizeof m), pos, " but running with ");
          pos = png_safecat(m, (sizeof m), pos, png_libpng_ver);
+         PNG_UNUSED(pos)
 
          png_warning(png_ptr, m);
 #endif
@@ -258,6 +259,10 @@ png_create_png_struct,(png_const_charp user_png_ver, png_voidp error_ptr,
     */
 #  ifdef PNG_USER_MEM_SUPPORTED
       png_set_mem_fn(&create_struct, mem_ptr, malloc_fn, free_fn);
+#  else
+      PNG_UNUSED(mem_ptr)
+      PNG_UNUSED(malloc_fn)
+      PNG_UNUSED(free_fn)
 #  endif
 
    /* (*error_fn) can return control to the caller after the error_ptr is set,
@@ -691,14 +696,14 @@ png_get_copyright(png_const_structrp png_ptr)
 #else
 #  ifdef __STDC__
    return PNG_STRING_NEWLINE \
-     "libpng version 1.7.0beta23 - November 7, 2013" PNG_STRING_NEWLINE \
-     "Copyright (c) 1998-2013 Glenn Randers-Pehrson" PNG_STRING_NEWLINE \
+     "libpng version 1.7.0beta29 - January 20, 2014" PNG_STRING_NEWLINE \
+     "Copyright (c) 1998-2014 Glenn Randers-Pehrson" PNG_STRING_NEWLINE \
      "Copyright (c) 1996-1997 Andreas Dilger" PNG_STRING_NEWLINE \
      "Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc." \
      PNG_STRING_NEWLINE;
 #  else
-      return "libpng version 1.7.0beta23 - November 7, 2013\
-      Copyright (c) 1998-2013 Glenn Randers-Pehrson\
+      return "libpng version 1.7.0beta29 - January 20, 2014\
+      Copyright (c) 1998-2014 Glenn Randers-Pehrson\
       Copyright (c) 1996-1997 Andreas Dilger\
       Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.";
 #  endif
@@ -743,6 +748,63 @@ png_get_header_version(png_const_structrp png_ptr)
    return PNG_HEADER_VERSION_STRING;
 #endif
 }
+
+#ifdef PNG_BUILD_GRAYSCALE_PALETTE_SUPPORTED
+/* NOTE: this routine is not used internally! */
+/* Build a grayscale palette.  Palette is assumed to be 1 << bit_depth
+ * large of png_color.  This lets grayscale images be treated as
+ * paletted.  Most useful for gamma correction and simplification
+ * of code.  This API is not used internally.
+ */
+void PNGAPI
+png_build_grayscale_palette(int bit_depth, png_colorp palette)
+{
+   int num_palette;
+   int color_inc;
+   int i;
+   int v;
+
+   png_debug(1, "in png_do_build_grayscale_palette");
+
+   if (palette == NULL)
+      return;
+
+   switch (bit_depth)
+   {
+      case 1:
+         num_palette = 2;
+         color_inc = 0xff;
+         break;
+
+      case 2:
+         num_palette = 4;
+         color_inc = 0x55;
+         break;
+
+      case 4:
+         num_palette = 16;
+         color_inc = 0x11;
+         break;
+
+      case 8:
+         num_palette = 256;
+         color_inc = 1;
+         break;
+
+      default:
+         num_palette = 0;
+         color_inc = 0;
+         break;
+   }
+
+   for (i = 0, v = 0; i < num_palette; i++, v += color_inc)
+   {
+      palette[i].red = (png_byte)v;
+      palette[i].green = (png_byte)v;
+      palette[i].blue = (png_byte)v;
+   }
+}
+#endif
 
 #ifdef PNG_SET_UNKNOWN_CHUNKS_SUPPORTED
 int PNGAPI
@@ -1630,6 +1692,7 @@ png_icc_profile_error(png_const_structrp png_ptr, png_colorspacerp colorspace,
 #  endif
    /* The 'reason' is an arbitrary message, allow +79 maximum 195 */
    pos = png_safecat(message, (sizeof message), pos, reason);
+   PNG_UNUSED(pos)
 
    /* This is recoverable, but make it unconditionally an app_error on write to
     * avoid writing invalid ICC profiles into PNG files.  (I.e.  we handle them
@@ -2318,14 +2381,6 @@ png_check_IHDR(png_const_structrp png_ptr,
       error = 1;
    }
 
-   if (width > (PNG_UINT_32_MAX
-                 >> 3)      /* 8-byte RGBA pixels */
-                 - 48       /* bigrowbuf hack */
-                 - 1        /* filter byte */
-                 - 7*8      /* rounding of width to multiple of 8 pixels */
-                 - 8)       /* extra max_pixel_depth pad */
-      png_warning(png_ptr, "Width is too large for libpng to process pixels");
-
    /* Check other values */
    if (bit_depth != 1 && bit_depth != 2 && bit_depth != 4 &&
        bit_depth != 8 && bit_depth != 16)
@@ -3008,10 +3063,14 @@ png_fixed(png_const_structrp png_ptr, double fp, png_const_charp text)
 
    /* Overflow */
    png_fixed_error(png_ptr, text);
+
+#  ifndef PNG_ERROR_TEXT_SUPPORTED
+   PNG_UNUSED(text)
+#  endif
 }
 #endif
 
-#if defined(PNG_READ_GAMMA_SUPPORTED) || \
+#if defined(PNG_GAMMA_SUPPORTED) || defined(PNG_COLORSPACE_SUPPORTED) ||\
     defined(PNG_INCH_CONVERSIONS_SUPPORTED) || defined(PNG_READ_pHYs_SUPPORTED)
 /* muldiv functions */
 /* This API takes signed arguments and rounds the result to the nearest

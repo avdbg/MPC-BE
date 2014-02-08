@@ -23,10 +23,6 @@
 #include "../dsp/dsp.h"
 #include "../dsp/yuv.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 // Uncomment to disable gamma-compression during RGB->U/V averaging
 #define USE_GAMMA_COMPRESSION
 
@@ -643,20 +639,23 @@ static WEBP_INLINE uint32_t GammaToLinear(uint8_t v) {
   return kGammaToLinearTab[v];
 }
 
-static WEBP_INLINE int LinearToGamma(uint32_t v, int shift) {
-  const int tab_pos = v >> (kGammaTabFix + shift);    // integer part
-  const int x = v & ((kGammaTabScale << shift) - 1);  // fractional part
+// Convert a linear value 'v' to YUV_FIX+2 fixed-point precision
+// U/V value, suitable for RGBToU/V calls.
+static WEBP_INLINE int LinearToGamma(uint32_t base_value, int shift) {
+  const int v = base_value << shift;              // final uplifted value
+  const int tab_pos = v >> (kGammaTabFix + 2);    // integer part
+  const int x = v & ((kGammaTabScale << 2) - 1);  // fractional part
   const int v0 = kLinearToGammaTab[tab_pos];
   const int v1 = kLinearToGammaTab[tab_pos + 1];
-  const int y = v1 * x + v0 * ((kGammaTabScale << shift) - x);  // interpolate
-  return (y + kGammaTabRounder) >> kGammaTabFix;         // descale
+  const int y = v1 * x + v0 * ((kGammaTabScale << 2) - x);   // interpolate
+  return (y + kGammaTabRounder) >> kGammaTabFix;             // descale
 }
 
 #else
 
 static void InitGammaTables(void) {}
 static WEBP_INLINE uint32_t GammaToLinear(uint8_t v) { return v; }
-static WEBP_INLINE int LinearToGamma(uint32_t v, int shift) {
+static WEBP_INLINE int LinearToGamma(uint32_t base_value, int shift) {
   (void)shift;
   return v;
 }
@@ -669,13 +668,14 @@ static WEBP_INLINE int LinearToGamma(uint32_t v, int shift) {
     GammaToLinear((ptr)[0]) +                            \
     GammaToLinear((ptr)[step]) +                         \
     GammaToLinear((ptr)[rgb_stride]) +                   \
-    GammaToLinear((ptr)[rgb_stride + step]), 2)          \
+    GammaToLinear((ptr)[rgb_stride + step]), 0)          \
 
 #define SUM2H(ptr) \
     LinearToGamma(GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[step]), 1)
 #define SUM2V(ptr) \
     LinearToGamma(GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[rgb_stride]), 1)
-#define SUM1(ptr)  (4 * (ptr)[0])
+#define SUM1(ptr)  \
+    LinearToGamma(GammaToLinear((ptr)[0]), 2)
 
 #define RGB_TO_UV(x, y, SUM) {                           \
   const int src = (2 * (step * (x) + (y) * rgb_stride)); \
@@ -884,8 +884,7 @@ int WebPPictureImportBGRX(WebPPicture* picture,
 
 int WebPPictureYUVAToARGB(WebPPicture* picture) {
   if (picture == NULL) return 0;
-  if (picture->memory_ == NULL || picture->y == NULL ||
-      picture->u == NULL || picture->v == NULL) {
+  if (picture->y == NULL || picture->u == NULL || picture->v == NULL) {
     return WebPEncodingSetError(picture, VP8_ENC_ERROR_NULL_PARAMETER);
   }
   if ((picture->colorspace & WEBP_CSP_ALPHA_BIT) && picture->a == NULL) {
@@ -993,7 +992,20 @@ static int is_transparent_area(const uint8_t* ptr, int stride, int size) {
   return 1;
 }
 
-static WEBP_INLINE void flatten(uint8_t* ptr, int v, int stride, int size) {
+static int is_transparent_argb_area(const uint32_t* ptr, int stride, int size) {
+  int y, x;
+  for (y = 0; y < size; ++y) {
+    for (x = 0; x < size; ++x) {
+      if (ptr[x] & 0xff000000u) {
+        return 0;
+      }
+    }
+    ptr += stride;
+  }
+  return 1;
+}
+
+static void flatten(uint8_t* ptr, int v, int stride, int size) {
   int y;
   for (y = 0; y < size; ++y) {
     memset(ptr, v, size);
@@ -1001,39 +1013,63 @@ static WEBP_INLINE void flatten(uint8_t* ptr, int v, int stride, int size) {
   }
 }
 
+static void flatten_argb(uint32_t* ptr, uint32_t v, int stride, int size) {
+  int x, y;
+  for (y = 0; y < size; ++y) {
+    for (x = 0; x < size; ++x) ptr[x] = v;
+    ptr += stride;
+  }
+}
+
 void WebPCleanupTransparentArea(WebPPicture* pic) {
   int x, y, w, h;
-  const uint8_t* a_ptr;
-  int values[3] = { 0 };
-
   if (pic == NULL) return;
-
-  a_ptr = pic->a;
-  if (a_ptr == NULL) return;    // nothing to do
-
   w = pic->width / SIZE;
   h = pic->height / SIZE;
-  for (y = 0; y < h; ++y) {
-    int need_reset = 1;
-    for (x = 0; x < w; ++x) {
-      const int off_a = (y * pic->a_stride + x) * SIZE;
-      const int off_y = (y * pic->y_stride + x) * SIZE;
-      const int off_uv = (y * pic->uv_stride + x) * SIZE2;
-      if (is_transparent_area(a_ptr + off_a, pic->a_stride, SIZE)) {
-        if (need_reset) {
-          values[0] = pic->y[off_y];
-          values[1] = pic->u[off_uv];
-          values[2] = pic->v[off_uv];
-          need_reset = 0;
+
+  // note: we ignore the left-overs on right/bottom
+  if (pic->use_argb) {
+    uint32_t argb_value = 0;
+    for (y = 0; y < h; ++y) {
+      int need_reset = 1;
+      for (x = 0; x < w; ++x) {
+        const int off = (y * pic->argb_stride + x) * SIZE;
+        if (is_transparent_argb_area(pic->argb + off, pic->argb_stride, SIZE)) {
+          if (need_reset) {
+            argb_value = pic->argb[off];
+            need_reset = 0;
+          }
+          flatten_argb(pic->argb + off, argb_value, pic->argb_stride, SIZE);
+        } else {
+          need_reset = 1;
         }
-        flatten(pic->y + off_y, values[0], pic->y_stride, SIZE);
-        flatten(pic->u + off_uv, values[1], pic->uv_stride, SIZE2);
-        flatten(pic->v + off_uv, values[2], pic->uv_stride, SIZE2);
-      } else {
-        need_reset = 1;
       }
     }
-    // ignore the left-overs on right/bottom
+  } else {
+    const uint8_t* const a_ptr = pic->a;
+    int values[3] = { 0 };
+    if (a_ptr == NULL) return;    // nothing to do
+    for (y = 0; y < h; ++y) {
+      int need_reset = 1;
+      for (x = 0; x < w; ++x) {
+        const int off_a = (y * pic->a_stride + x) * SIZE;
+        const int off_y = (y * pic->y_stride + x) * SIZE;
+        const int off_uv = (y * pic->uv_stride + x) * SIZE2;
+        if (is_transparent_area(a_ptr + off_a, pic->a_stride, SIZE)) {
+          if (need_reset) {
+            values[0] = pic->y[off_y];
+            values[1] = pic->u[off_uv];
+            values[2] = pic->v[off_uv];
+            need_reset = 0;
+          }
+          flatten(pic->y + off_y, values[0], pic->y_stride, SIZE);
+          flatten(pic->u + off_uv, values[1], pic->uv_stride, SIZE2);
+          flatten(pic->v + off_uv, values[2], pic->uv_stride, SIZE2);
+        } else {
+          need_reset = 1;
+        }
+      }
+    }
   }
 }
 
@@ -1323,6 +1359,3 @@ LOSSLESS_ENCODE_FUNC(WebPEncodeLosslessBGRA, WebPPictureImportBGRA)
 
 //------------------------------------------------------------------------------
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

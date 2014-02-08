@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,27 +24,30 @@
 #include "IMPCVideoDec.h"
 #include "resource.h"
 
-// === New swscaler options
-#include "Version.h"
-//
-
 enum {
 	IDC_PP_THREAD_NUMBER = 10000,
 	IDC_PP_DISCARD_MODE,
-	IDC_PP_ERROR_RECOGNITION,
-	IDC_PP_IDCTALGO,
+	IDC_PP_DEINTERLACING,
 	IDC_PP_AR,
 	IDC_PP_DXVA_CHECK,
 	IDC_PP_DXVA_SD,
 	IDC_PP_SW_NV12,
 	IDC_PP_SW_YV12,
 	IDC_PP_SW_YUY2,
+	IDC_PP_SW_YV16,
+	IDC_PP_SW_AYUV,
+	IDC_PP_SW_YV24,
+	IDC_PP_SW_P010,
+	IDC_PP_SW_P210,
+	IDC_PP_SW_Y410,
+	IDC_PP_SW_P016,
+	IDC_PP_SW_P216,
+	IDC_PP_SW_Y416,
 	IDC_PP_SW_RGB32,
 	IDC_PP_SWPRESET,
 	IDC_PP_SWSTANDARD,
-	IDC_PP_SWINPUTLEVELS,
-	IDC_PP_SWOUTPUTLEVELS,
-	IDC_PP_DEINTERLACING
+	IDC_PP_SWRGBLEVELS,
+	IDC_PP_RESET,
 };
 
 class __declspec(uuid("D5AA0389-D274-48e1-BF50-ACB05A56DDE0"))
@@ -52,55 +55,51 @@ class __declspec(uuid("D5AA0389-D274-48e1-BF50-ACB05A56DDE0"))
 {
 	CComQIPtr<IMPCVideoDecFilter> m_pMDF;
 
-	CFont		m_arrowsFont;
-
-	CButton		m_grpFFMpeg;
+	CButton		m_grpDecoder;
 	CStatic		m_txtThreadNumber;
 	CComboBox	m_cbThreadNumber;
 	CStatic		m_txtDiscardMode;
 	CComboBox	m_cbDiscardMode;
 	CStatic		m_txtDeinterlacing;
 	CComboBox	m_cbDeinterlacing;
-
-	CButton		m_grpDXVA;
-	CStatic		m_txtDXVAMode;
-	CEdit		m_edtDXVAMode;
-	CStatic		m_txtVideoCardDescription;
-	CEdit		m_edtVideoCardDescription;
-
 	CButton		m_cbARMode;
 
+	CButton		m_grpDXVA;
 	CStatic		m_txtDXVACompatibilityCheck;
 	CComboBox	m_cbDXVACompatibilityCheck;
-
 	CButton		m_cbDXVA_SD;
 
-	// === New swscaler options
+	CButton		m_grpStatus;
+	CStatic		m_txtInputFormat;
+	CEdit		m_edtInputFormat;
+	CStatic		m_txtFrameSize;
+	CEdit		m_edtFrameSize;
+	CStatic		m_txtOutputFormat;
+	CEdit		m_edtOutputFormat;
+	CStatic		m_txtGraphicsAdapter;
+	CEdit		m_edtGraphicsAdapter;
+
 	CButton		m_grpFmtConv;
 	CStatic		m_txtSwOutputFormats;
+	CStatic     m_txt8bit;
+	CStatic     m_txt10bit;
+	CStatic     m_txt16bit;
 	CStatic     m_txt420;
 	CStatic     m_txt422;
-	//CStatic     m_txt444;
+	CStatic     m_txt444;
 	CStatic     m_txtRGB;
-	CButton		m_cbNV12;
-	CButton		m_cbYV12;
-	CButton		m_cbYUY2;
-	CButton		m_cbRGB32;
-
+	CButton		m_cbFormat[PixFmt_count];
 	CStatic     m_txtSwPreset;
 	CComboBox   m_cbSwPreset;
-
 	CStatic     m_txtSwStandard;
 	CComboBox   m_cbSwStandard;
+	CStatic     m_txtSwRGBLevels;
+	CComboBox   m_cbSwRGBLevels;
 
-	CStatic     m_txtSwInputLevels;
-	CComboBox   m_cbSwInputLevels;
+	CButton		m_btnReset;
+	CStatic		m_txtMPCVersion;
 
-	CStatic     m_txtSwOutputLevels;
-	CComboBox   m_cbSwOutputLevels;
-
-	CStatic     m_txtSwVersion;
-	CString     m_strSwVersion;
+	void		UpdateStatusInfo();
 
 public:
 	CMPCVideoDecSettingsWnd();
@@ -112,14 +111,17 @@ public:
 	bool OnApply();
 
 	static LPCTSTR GetWindowTitle() { return MAKEINTRESOURCE(IDS_FILTER_SETTINGS_CAPTION); }
-	static CSize GetWindowSize() { return CSize(555, 273); }
+	static CSize GetWindowSize() { return CSize(645, 260); }
 
 	DECLARE_MESSAGE_MAP()
 
 	afx_msg void OnBnClickedYUY2();
+	afx_msg void OnBnClickedRGB32();
+	afx_msg void OnBnClickedReset();
 	afx_msg BOOL OnToolTipNotify(UINT id, NMHDR * pNMHDR, LRESULT * pResult);
 };
 
+#ifdef REGISTER_FILTER
 class __declspec(uuid("3C395D46-8B0F-440d-B962-2F4A97355453"))
 	CMPCVideoDecCodecWnd : public CInternalPropertyPageWnd
 {
@@ -143,3 +145,4 @@ public:
 
 	DECLARE_MESSAGE_MAP()
 };
+#endif

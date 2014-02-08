@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -309,6 +309,7 @@ HRESULT CNullUVideoRenderer::CheckMediaType(const CMediaType* pmt)
 {
 	return pmt->majortype == MEDIATYPE_Video
 		   && (pmt->subtype == MEDIASUBTYPE_YV12
+			   || pmt->subtype == MEDIASUBTYPE_NV12
 			   || pmt->subtype == MEDIASUBTYPE_I420
 			   || pmt->subtype == MEDIASUBTYPE_YUYV
 			   || pmt->subtype == MEDIASUBTYPE_IYUV
@@ -319,6 +320,9 @@ HRESULT CNullUVideoRenderer::CheckMediaType(const CMediaType* pmt)
 			   || pmt->subtype == MEDIASUBTYPE_YVYU
 			   || pmt->subtype == MEDIASUBTYPE_UYVY
 			   || pmt->subtype == MEDIASUBTYPE_Y211
+			   || pmt->subtype == MEDIASUBTYPE_AYUV
+			   || pmt->subtype == MEDIASUBTYPE_YV16
+			   || pmt->subtype == MEDIASUBTYPE_YV24
 			   || pmt->subtype == MEDIASUBTYPE_RGB1
 			   || pmt->subtype == MEDIASUBTYPE_RGB4
 			   || pmt->subtype == MEDIASUBTYPE_RGB8

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -64,8 +64,10 @@ class __declspec(uuid("47E792CF-0BBE-4F7A-859C-194B0768650A"))
 	bool ReadTag(AudioTag& at);
 
 	struct VideoTag {
-		BYTE FrameType;
-		BYTE CodecID;
+		BYTE	FrameType;
+		BYTE	CodecID;
+		BYTE	AVCPacketType;
+		UINT32	tsOffset;
 	};
 
 	bool ReadTag(VideoTag& vt);

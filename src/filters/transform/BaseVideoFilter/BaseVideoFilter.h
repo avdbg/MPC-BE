@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -20,9 +20,6 @@
  */
 
 #pragma once
-
-typedef unsigned char BYTE;
-typedef unsigned short WORD;
 
 bool BitBltFromP016ToP016(size_t w, size_t h, BYTE* dstY, BYTE* dstUV, int dstPitch, BYTE* srcY, BYTE* srcUV, int srcPitch);
 
@@ -63,9 +60,9 @@ protected:
 	HRESULT CopyBuffer(BYTE* pOut, BYTE** ppIn, int w, int h, int pitchIn, const GUID& subtype, bool fInterlaced = false);
 
 	virtual void GetOutputSize(int& w, int& h, int& arx, int& ary, int &RealWidth, int &RealHeight, int& vsfilter) {}
-	virtual HRESULT Transform(IMediaSample* pIn) = 0;
+	virtual HRESULT Transform(IMediaSample* pIn) PURE;
 	virtual bool IsVideoInterlaced() { return false; }
-	virtual void GetOutputFormats (int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats);
+	virtual void GetOutputFormats(int& nNumber, VIDEO_OUTPUT_FORMATS** ppFormats) PURE;
 
 public:
 	CBaseVideoFilter(TCHAR* pName, LPUNKNOWN lpunk, HRESULT* phr, REFCLSID clsid, long cBuffers = 1);
@@ -81,8 +78,6 @@ public:
 	HRESULT DecideBufferSize(IMemAllocator* pAllocator, ALLOCATOR_PROPERTIES* pProperties);
 	HRESULT GetMediaType(int iPosition, CMediaType* pMediaType);
 	HRESULT SetMediaType(PIN_DIRECTION dir, const CMediaType* pmt);
-
-	HRESULT DoCheckTransform(const CMediaType* mtIn, const CMediaType* mtOut, bool checkReconnection);
 
 	void SetAspect(CSize aspect);
 

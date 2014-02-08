@@ -22,10 +22,6 @@
 
 // #define PRINT_MEMORY_INFO
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 #ifdef PRINT_MEMORY_INFO
 #include <stdio.h>
 #endif
@@ -157,7 +153,7 @@ static void MapConfigToTools(VP8Encoder* const enc) {
 //             non-zero: 196
 //             lf-stats: 2048
 //                total: 68635
-// Transcient object sizes:
+// Transient object sizes:
 //       VP8EncIterator: 352
 //         VP8ModeScore: 912
 //       VP8SegmentInfo: 532
@@ -406,6 +402,3 @@ int WebPEncode(const WebPConfig* config, WebPPicture* pic) {
   return ok;
 }
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

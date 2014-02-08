@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -24,22 +24,24 @@
 #include <atlcoll.h>
 #include "BaseGraph.h"
 
+typedef enum {TVideo = 0, TAudio, TPlaylist} filetype_t;
+
 class CMediaFormatCategory
 {
 protected:
 	CString m_label, m_description, m_specreqnote;
 	CAtlList<CString> m_exts, m_backupexts;
-	bool m_fAudioOnly;
-	engine_t m_engine;
+	filetype_t	m_filetype;
+	engine_t	m_engine;
 
 public:
 	CMediaFormatCategory();
 	CMediaFormatCategory(
-		CString label, CString description, CAtlList<CString>& exts, bool fAudioOnly = false,
-		CString specreqnote =  _T(""), engine_t e = DirectShow);
+		CString label, CString description, CAtlList<CString>& exts, filetype_t filetype = TVideo,
+		CString specreqnote = _T(""), engine_t engine = DirectShow);
 	CMediaFormatCategory(
-		CString label, CString description, CString exts, bool fAudioOnly = false,
-		CString specreqnote =  _T(""), engine_t e = DirectShow);
+		CString label, CString description, CString exts, filetype_t filetype = TVideo,
+		CString specreqnote = _T(""), engine_t engine = DirectShow);
 	virtual ~CMediaFormatCategory();
 
 	void UpdateData(bool fSave);
@@ -69,8 +71,8 @@ public:
 	CString GetSpecReqNote() const {
 		return m_specreqnote;
 	}
-	bool IsAudioOnly() const {
-		return m_fAudioOnly;
+	filetype_t GetFileType() const {
+		return m_filetype;
 	}
 	engine_t GetEngineType() const {
 		return m_engine;
@@ -88,8 +90,9 @@ public:
 
 	void UpdateData(bool fSave);
 
-	bool FindExt(CString ext, bool fAudioOnly = false);
-	CMediaFormatCategory* FindMediaByExt(CString ext, bool fAudioOnly = false);
+	bool FindExt(CString ext);
+	bool FindAudioExt(CString ext);
+	CMediaFormatCategory* FindMediaByExt(CString ext);
 
 	void GetFilter(CString& filter, CAtlArray<CString>& mask);
 	void GetAudioFilter(CString& filter, CAtlArray<CString>& mask);

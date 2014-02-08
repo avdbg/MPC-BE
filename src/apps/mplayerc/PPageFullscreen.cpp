@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -444,6 +444,8 @@ void CPPageFullscreen::OnUpdateSetFullscreenRes()
 		m_iMonitorTypeCtrl.SetCurSel(iCurMon);
 		m_f_hmonitor = strCurMon;
 	}
+
+	SetModified();
 }
 
 void CPPageFullscreen::OnUpdateRestoreRes(CCmdUI* pCmdUI)

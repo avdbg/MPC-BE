@@ -1,6 +1,6 @@
 /*
  * 
- * (C) 2013 see Authors.txt
+ * (C) 2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -66,6 +66,7 @@ public:
 
 	// info
 	enum AVCodecID GetCodecId(); // safe
+	const char* GetCodecName();  // unsafe
 	SampleFormat GetSampleFmt(); // unsafe
 	DWORD GetSampleRate();  // unsafe
 	WORD  GetChannels();    // unsafe

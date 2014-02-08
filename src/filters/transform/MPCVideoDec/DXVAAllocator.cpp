@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -93,6 +93,7 @@ CVideoDecDXVAAllocator::CVideoDecDXVAAllocator(CMPCVideoDecFilter* pVideoDecFilt
 	: CBaseAllocator(NAME("CVideoDecDXVAAllocator"), NULL, phr)
 	, m_pVideoDecFilter(pVideoDecFilter)
 	, m_ppRTSurfaceArray(NULL)
+	, m_nSurfaceArrayCount(0)
 {
 }
 

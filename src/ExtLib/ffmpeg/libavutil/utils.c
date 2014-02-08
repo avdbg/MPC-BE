@@ -51,7 +51,9 @@ unsigned avutil_version(void)
         av_log(NULL, AV_LOG_ERROR, "Libavutil has been linked to a broken llrint()\n");
     }
 
+#if defined(ASSERT_LEVEL) && ASSERT_LEVEL > 0
     ff_check_pixfmt_descriptors();
+#endif
     checks_done = 1;
     return LIBAVUTIL_VERSION_INT;
 }
@@ -100,10 +102,8 @@ unsigned av_int_list_length_for_size(unsigned elsize,
 
     if (!list)
         return 0;
-// ==> Start patch MPC
 #define LIST_LENGTH(type) \
-    { type t = term, *l = (void*)list; for (i = 0; l[i] != t; i++); }
-    // ==> End patch MPC
+    { type t = term, *l = (type *)list; for (i = 0; l[i] != t; i++); }
     switch (elsize) {
     case 1: LIST_LENGTH(uint8_t);  break;
     case 2: LIST_LENGTH(uint16_t); break;

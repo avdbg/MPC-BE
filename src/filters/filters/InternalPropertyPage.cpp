@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -94,7 +94,8 @@ BOOL CInternalPropertyPageWnd::Create(IPropertyPageSite* pPageSite, LPCRECT pRec
 BOOL CInternalPropertyPageWnd::OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult)
 {
 	if (message == WM_COMMAND || message == WM_HSCROLL || message == WM_VSCROLL) {
-		if (HIWORD(wParam) != CBN_SETFOCUS && HIWORD(wParam) != CBN_KILLFOCUS) {
+		WORD notify = HIWORD(wParam);
+		if (notify == BN_CLICKED || notify == CBN_SELCHANGE || notify == EN_CHANGE) {
 			SetDirty(true);
 		}
 	}
@@ -416,8 +417,6 @@ bool CPinInfoWnd::OnActivate()
 	m_info_edit.CreateEx(WS_EX_CLIENTEDGE, _T("EDIT"), _T(""), dwStyle|WS_BORDER|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_AUTOHSCROLL|ES_READONLY, CRect(p, CSize(480, m_fontheight*20)), this, IDC_PP_EDIT1);
 	m_info_edit.SetLimitText(60000);
 
-	OnCbnSelchangeCombo1();
-
 	for (CWnd* pWnd = GetWindow(GW_CHILD); pWnd; pWnd = pWnd->GetNextWindow()) {
 		pWnd->SetFont(&m_font, FALSE);
 	}
@@ -426,6 +425,8 @@ bool CPinInfoWnd::OnActivate()
 
 	// subclass the edit control
 	OldControlProc = (WNDPROC) SetWindowLongPtr(m_info_edit.m_hWnd, GWLP_WNDPROC, (LONG_PTR) ControlProc);
+
+	OnCbnSelchangeCombo1();
 
 	return true;
 }
@@ -446,7 +447,11 @@ bool CPinInfoWnd::OnApply()
 
 BOOL CPinInfoWnd::OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult)
 {
+	if (message == WM_WINDOWPOSCHANGING) {
+		OnCbnSelchangeCombo1();
+	}
 	SetDirty(false);
+
 	return __super::OnWndMsg(message, wParam, lParam, pResult);
 }
 

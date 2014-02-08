@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -29,13 +29,12 @@
 #include "MPCVideoDecSettingsWnd.h"
 #include "DXVADecoder.h"
 #include "FormatConverter.h"
-#include <atlpath.h>
 #include "../../../apps/mplayerc/FilterEnum.h"
 
 #define MPCVideoDecName L"MPC Video Decoder"
 
-#define CHECK_HR(x)			hr = ##x; if (FAILED(hr)) { TRACE("Error : 0x%08x, %s:%i\n", hr, __FILE__, __LINE__); return hr; }
-#define CHECK_HR_FALSE(x)	hr = ##x; if (FAILED(hr)) { TRACE("Error : 0x%08x, %s:%i\n", hr, __FILE__, __LINE__); return S_FALSE; }
+#define CHECK_HR(x)			hr = ##x; if (FAILED(hr)) { DbgLog((LOG_TRACE, 3, L"Error : 0x%08x, %s : %i", hr, CString(__FILE__), __LINE__)); return hr; }
+#define CHECK_HR_FALSE(x)	hr = ##x; if (FAILED(hr)) { DbgLog((LOG_TRACE, 3, L"Error : 0x%08x, %s : %i", hr, CString(__FILE__), __LINE__)); return S_FALSE; }
 
 struct AVCodec;
 struct AVCodecContext;
@@ -44,26 +43,31 @@ struct AVFrame;
 
 class CCpuId;
 
-typedef struct {
-	REFERENCE_TIME	rtStart;
-	REFERENCE_TIME	rtStop;
-} B_FRAME;
-
-typedef struct {
+struct RMDemuxContext {
 	bool	video_after_seek;
 	__int32	kf_pts;		///< timestamp of next video keyframe
 	__int64	kf_base;	///< timestamp of the prev. video keyframe
-} RMDemuxContext;
+};
 
 class __declspec(uuid("008BAC12-FBAF-497b-9670-BC6F6FBAE2C4"))
 	CMPCVideoDecFilter
 	: public CBaseVideoFilter
-	, public ISpecifyPropertyPages2
 	, public IMPCVideoDecFilter
-	, public IMPCVideoDecFilter2
-	, public IMPCVideoDecFilterCodec
+	, public ISpecifyPropertyPages2
 {
 protected:
+	// === Persistants parameters (registry)
+	int										m_nThreadNumber;
+	int										m_nDiscardMode;
+	MPC_DEINTERLACING_FLAGS					m_nDeinterlacing;
+	int										m_nARMode;
+	int										m_nDXVACheckCompatibility;
+	int										m_nDXVA_SD;
+	bool									m_fPixFmts[PixFmt_count];
+	int										m_nSwPreset;
+	int										m_nSwStandard;
+	int										m_nSwRGBLevels;
+	//
 
 	CCpuId*									m_pCpuId;
 	CCritSec								m_csProps;
@@ -71,24 +75,9 @@ protected:
 	bool									m_FFmpegFilters[FFM_LAST + !FFM_LAST];
 	bool									m_DXVAFilters[TRA_DXVA_LAST + !TRA_DXVA_LAST];
 
-	// === Persistants parameters (registry)
-	int										m_nThreadNumber;
-	int										m_nDiscardMode;
-	MPC_DEINTERLACING_FLAGS					m_nDeinterlacing;
 	bool									m_bDXVACompatible;
 	unsigned __int64						m_nActiveCodecs;
-	int										m_nARMode;
-	int										m_nDXVACheckCompatibility;
-	int										m_nDXVA_SD;
-
-	// === New swscaler options
-	int										m_nSwRefresh;
-	bool									m_fPixFmts[PixFmt_count];
-	int										m_nSwPreset;
-	int										m_nSwStandard;
-	int										m_nSwInputLevels;
-	int										m_nSwOutputLevels;
-	//
+	AVPixelFormat							m_PixelFormat;
 
 	FF_FIELD_TYPE							m_nFrameType;
 
@@ -103,8 +92,16 @@ protected:
 	int										m_nErrorConcealment;
 	REFERENCE_TIME							m_rtAvrTimePerFrame;
 	bool									m_bReorderBFrame;
+
+	struct B_FRAME {
+		REFERENCE_TIME	rtStart;
+		REFERENCE_TIME	rtStop;
+	};
 	B_FRAME									m_BFrames[2];
 	int										m_nPosB;
+
+	bool									m_bWaitKeyFrame;
+
 	int										m_nOutputWidth;
 	int										m_nOutputHeight;
 	int										m_nARX, m_nARY;
@@ -138,7 +135,7 @@ protected:
 	CString									m_strDeviceDescription;
 
 	// === DXVA1 variables
-	DDPIXELFORMAT							m_PixelFormat;
+	DDPIXELFORMAT							m_DDPixelFormat;
 
 	// === DXVA2 variables
 	CComPtr<IDirect3DDeviceManager9>		m_pDeviceManager;
@@ -153,11 +150,7 @@ protected:
 	RMDemuxContext							rm;
 	REFERENCE_TIME							m_rtStart;
 
-	HWND									m_nDialogHWND;
-
 	REFERENCE_TIME							m_rtStartCache;
-
-	BOOL									m_bIsVMR7_YUV;
 
 	// === Private functions
 	void				Cleanup();
@@ -169,7 +162,7 @@ protected:
 	void				BuildOutputFormat();
 
 	HRESULT				SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int nSize, REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop);
-	HRESULT				ReconnectRenderer();
+	HRESULT				ChangeOutputMediaFormat(int nType);
 
 	HRESULT				ReopenVideo();
 	HRESULT				FindDecoderConfiguration();
@@ -177,7 +170,6 @@ protected:
 	HRESULT				InitDecoder(const CMediaType *pmt);
 
 public:
-
 	CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr);
 	virtual ~CMPCVideoDecFilter();
 
@@ -196,6 +188,7 @@ public:
 	// === Overriden DirectShow functions
 	HRESULT			SetMediaType(PIN_DIRECTION direction, const CMediaType *pmt);
 	HRESULT			CheckInputType(const CMediaType* mtIn);
+	HRESULT			CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut);
 	HRESULT			Transform(IMediaSample* pIn);
 	HRESULT			CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin);
 	HRESULT			DecideBufferSize(IMemAllocator* pAllocator, ALLOCATOR_PROPERTIES* pProperties);
@@ -212,55 +205,41 @@ public:
 	STDMETHODIMP	CreatePage(const GUID& guid, IPropertyPage** ppPage);
 
 	// === IMPCVideoDecFilter
-	STDMETHODIMP Apply();
 	STDMETHODIMP SetThreadNumber(int nValue);
 	STDMETHODIMP_(int) GetThreadNumber();
 	STDMETHODIMP SetDiscardMode(int nValue);
 	STDMETHODIMP_(int) GetDiscardMode();
 	STDMETHODIMP SetDeinterlacing(MPC_DEINTERLACING_FLAGS nValue);
 	STDMETHODIMP_(MPC_DEINTERLACING_FLAGS) GetDeinterlacing();
-	STDMETHODIMP_(GUID*) GetDXVADecoderGuid();
-	STDMETHODIMP SetActiveCodecs(ULONGLONG nValue);
-	STDMETHODIMP_(ULONGLONG) GetActiveCodecs();
-	STDMETHODIMP_(LPCTSTR) GetVideoCardDescription();
-
 	STDMETHODIMP SetARMode(int nValue);
 	STDMETHODIMP_(int) GetARMode();
 
 	STDMETHODIMP SetDXVACheckCompatibility(int nValue);
 	STDMETHODIMP_(int) GetDXVACheckCompatibility();
-
 	STDMETHODIMP SetDXVA_SD(int nValue);
 	STDMETHODIMP_(int) GetDXVA_SD();
 
-	// === New swscaler options
 	STDMETHODIMP SetSwRefresh(int nValue);
-
 	STDMETHODIMP SetSwPixelFormat(MPCPixelFormat pf, bool enable);
 	STDMETHODIMP_(bool) GetSwPixelFormat(MPCPixelFormat pf);
-
 	STDMETHODIMP SetSwPreset(int nValue);
 	STDMETHODIMP_(int) GetSwPreset();
 	STDMETHODIMP SetSwStandard(int nValue);
 	STDMETHODIMP_(int) GetSwStandard();
-	STDMETHODIMP SetSwInputLevels(int nValue);
-	STDMETHODIMP_(int) GetSwInputLevels();
-	STDMETHODIMP SetSwOutputLevels(int nValue);
-	STDMETHODIMP_(int) GetSwOutputLevels();
+	STDMETHODIMP SetSwRGBLevels(int nValue);
+	STDMETHODIMP_(int) GetSwRGBLevels();
 
-	STDMETHODIMP_(int) IsColorTypeConversion();
-	//
+	STDMETHODIMP SetActiveCodecs(ULONGLONG nValue);
+	STDMETHODIMP_(ULONGLONG) GetActiveCodecs();
 
-	STDMETHODIMP SetDialogHWND(HWND nValue);
+	STDMETHODIMP SaveSettings();
 
+	STDMETHODIMP_(CString) GetInformation(MPCInfo index);
+
+	STDMETHODIMP_(GUID*) GetDXVADecoderGuid();
+	STDMETHODIMP_(int) GetColorSpaceConversion();
 	STDMETHODIMP GetOutputMediaType(CMediaType* pmt);
-
-	// === IMPCVideoDecFilter2
 	STDMETHODIMP_(int) GetFrameType();
-
-	// === IMPCVideoDecFilterCodec
-	STDMETHODIMP SetFFMpegCodec(int nCodec, bool bEnabled);
-	STDMETHODIMP SetDXVACodec(int nCodec, bool bEnabled);
 
 	// === DXVA common functions
 	BOOL						IsSupportedDecoderConfig(const D3DFORMAT nD3DFormat, const DXVA2_ConfigPictureDecode& config, bool& bIsPrefered);
@@ -292,7 +271,7 @@ public:
 	void						SetTypeSpecificFlags(IMediaSample* pMS);
 
 	// === DXVA1 functions
-	DDPIXELFORMAT*				GetPixelFormat() { return &m_PixelFormat; }
+	DDPIXELFORMAT*				GetPixelFormat() { return &m_DDPixelFormat; }
 	HRESULT						FindDXVA1DecoderConfiguration(IAMVideoAccelerator* pAMVideoAccelerator, const GUID* guidDecoder, DDPIXELFORMAT* pPixelFormat);
 	HRESULT						CheckDXVA1Decoder(const GUID *pGuid);
 	void						SetDXVA1Params(const GUID* pGuid, DDPIXELFORMAT* pPixelFormat);
@@ -314,9 +293,11 @@ public:
 	// === EVR functions
 	HRESULT						DetectVideoCard_EVR(IPin *pPin);
 
-	HWND						GetDialogHWND() { return m_nDialogHWND; }
-private:
+	// === Codec functions
+	HRESULT						SetFFMpegCodec(int nCodec, bool bEnabled);
+	HRESULT						SetDXVACodec(int nCodec, bool bEnabled);
 
+private:
 	friend class CVideoDecDXVAAllocator;
 	CVideoDecDXVAAllocator*		m_pDXVA2Allocator;
 
@@ -354,6 +335,7 @@ private :
 
 //
 struct SUPPORTED_FORMATS {
+	const CLSID*	clsMajorType;
 	const CLSID*	clsMinorType;
 
 	const int		FFMPEGCode;

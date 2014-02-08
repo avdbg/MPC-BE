@@ -19,10 +19,6 @@
 #include "../utils/quant_levels.h"
 #include "../webp/format_constants.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 // -----------------------------------------------------------------------------
 // Encodes the given alpha data via specified compression method 'method'.
 // The pre-processing (quantization) is performed if 'quality' is less than 100.
@@ -201,7 +197,7 @@ static uint32_t GetFilterMap(const uint8_t* alpha, int width, int height,
     const int kMinColorsForFilterNone = 16;
     const int kMaxColorsForFilterNone = 192;
     const int num_colors = GetNumColors(alpha, width, height, width);
-    // For low number of colors, NONE yeilds better compression.
+    // For low number of colors, NONE yields better compression.
     filter = (num_colors <= kMinColorsForFilterNone) ? WEBP_FILTER_NONE :
              EstimateBestFilter(alpha, width, height, width);
     bit_map |= 1 << filter;
@@ -412,6 +408,3 @@ int VP8EncDeleteAlpha(VP8Encoder* const enc) {
   return ok;
 }
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

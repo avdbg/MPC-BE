@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -69,7 +69,7 @@ STDAPI DllRegisterServer()
 		__uuidof(CMatroskaSourceFilter),
 		MEDIASUBTYPE_Matroska,
 		_T("0,4,,1A45DFA3"),
-		_T(".mkv"), _T(".mka"), _T(".mks"), NULL);
+		NULL);
 
 	return AMovieDllRegisterServer2(TRUE);
 }
@@ -341,7 +341,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
-				} else if (CodecID.Find("V_MPEG4/") == 0) {
+				} else if (CodecID.Left(12) == "V_MPEG4/ISO/") {
 					BITMAPINFOHEADER pbmi;
 					memset(&pbmi, 0, sizeof(BITMAPINFOHEADER));
 					pbmi.biSize			= sizeof(pbmi);
@@ -354,19 +354,6 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					CSize aspect(pbmi.biWidth, pbmi.biHeight);
 					ReduceDim(aspect);
 					CreateMPEG2VISimple(&mt, &pbmi, 0, aspect, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount()); 
-					if (!bHasVideo)
-						mts.Add(mt);
-					bHasVideo = true;
-				} else if (CodecID.Find("V_REAL/RV") == 0) {
-					mt.subtype = FOURCCMap('00VR' + ((CodecID[9]-0x30)<<16));
-					mt.formattype = FORMAT_VideoInfo;
-					VIDEOINFOHEADER* pvih = (VIDEOINFOHEADER*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER) + pTE->CodecPrivate.GetCount());
-					memset(mt.Format(), 0, mt.FormatLength());
-					memcpy(mt.Format() + sizeof(VIDEOINFOHEADER), pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
-					pvih->bmiHeader.biSize = sizeof(pvih->bmiHeader);
-					pvih->bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
-					pvih->bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
-					pvih->bmiHeader.biCompression = mt.subtype.Data1;
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
@@ -428,44 +415,6 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
-				} else if (CodecID == "V_VP8" || CodecID == "V_VP9") {
-					if (CodecID[4] == '8') {
-						mt.subtype = MEDIASUBTYPE_VP80;
-					} else if (CodecID[4] == '9') {
-						mt.subtype = MEDIASUBTYPE_VP90;
-					}
-					mt.formattype = FORMAT_VideoInfo;
-					VIDEOINFOHEADER* pvih = (VIDEOINFOHEADER*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER) + pTE->CodecPrivate.GetCount());
-					memset(mt.Format(), 0, mt.FormatLength());
-					memcpy(mt.Format() + sizeof(VIDEOINFOHEADER), pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
-					pvih->bmiHeader.biSize = sizeof(pvih->bmiHeader);
-					pvih->bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
-					pvih->bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
-					pvih->bmiHeader.biCompression = mt.subtype.Data1;
-					if (!bHasVideo)
-						mts.Add(mt);
-					bHasVideo = true;
-				} else if (CodecID == "V_QUICKTIME" && pTE->CodecPrivate.GetCount() >= 8) {
-					DWORD* type;
-					if (m_pFile->m_ebml.DocTypeReadVersion == 1) {
-						type = (DWORD*)(pTE->CodecPrivate.GetData());
-					} else {
-						type = (DWORD*)(pTE->CodecPrivate.GetData() + 4);
-					}
-					if (*type == MAKEFOURCC('S','V','Q','3') || *type == MAKEFOURCC('S','V','Q','1') || *type == MAKEFOURCC('c','v','i','d')) {
-						mt.subtype = FOURCCMap(*type);
-						mt.formattype = FORMAT_VideoInfo;
-						VIDEOINFOHEADER* pvih = (VIDEOINFOHEADER*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER) + pTE->CodecPrivate.GetCount());
-						memset(mt.Format(), 0, mt.FormatLength());
-						memcpy(mt.Format() + sizeof(VIDEOINFOHEADER), pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
-						pvih->bmiHeader.biSize = sizeof(pvih->bmiHeader);
-						pvih->bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
-						pvih->bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
-						pvih->bmiHeader.biCompression = mt.subtype.Data1;
-						if (!bHasVideo)
-							mts.Add(mt);
-						bHasVideo = true;
-					}
 				} else if (CodecID == "V_DSHOW/MPEG1VIDEO" || CodecID == "V_MPEG1") {
 					mt.majortype	= MEDIATYPE_Video;
 					mt.subtype		= MEDIASUBTYPE_MPEG1Payload;
@@ -501,6 +450,47 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					if (!bHasVideo)
 						mts.Add(mt);
 					bHasVideo = true;
+				} else {
+					DWORD fourcc = 0;
+					if (CodecID == "V_MJPEG") {
+						fourcc = FCC('MJPG');
+					} else if (CodecID == "V_MPEG4/MS/V3") {
+						fourcc = FCC('MP43');
+					} else if (CodecID == "V_PRORES") {
+						fourcc = FCC('icpf');
+						mt.subtype = MEDIASUBTYPE_icpf;
+					} else if (CodecID == "V_SNOW") {
+						fourcc = FCC('SNOW');
+					} else if (CodecID == "V_VP8") {
+						fourcc = FCC('VP80');
+					} else if (CodecID == "V_VP9") {
+						fourcc = FCC('VP90');
+					} else if (CodecID == "V_QUICKTIME" && pTE->CodecPrivate.GetCount() >= 8) {
+						if (m_pFile->m_ebml.DocTypeReadVersion == 1) {
+							fourcc = *(DWORD*)(pTE->CodecPrivate.GetData());
+						} else {
+							fourcc = *(DWORD*)(pTE->CodecPrivate.GetData() + 4);
+						}
+					} else if (CodecID.Left(9) == "V_REAL/RV" && CodecID.GetLength() == 11) {
+						fourcc = CodecID[7] + (CodecID[8] << 8) + (CodecID[9] << 16) + (CodecID[10] << 24);
+					}
+
+					if (fourcc) {
+						mt.formattype = FORMAT_VideoInfo;
+						mt.subtype = FOURCCMap(fourcc);
+						VIDEOINFOHEADER* pvih = (VIDEOINFOHEADER*)mt.AllocFormatBuffer(sizeof(VIDEOINFOHEADER) + pTE->CodecPrivate.GetCount());
+						memset(mt.Format(), 0, mt.FormatLength());
+						memcpy(mt.Format() + sizeof(VIDEOINFOHEADER), pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
+						pvih->bmiHeader.biSize = sizeof(pvih->bmiHeader);
+						pvih->bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
+						pvih->bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
+						//pvih->bmiHeader.biBitCount = 24;
+						pvih->bmiHeader.biCompression = fourcc;
+						if (!bHasVideo) {
+							mts.Add(mt);
+						}
+						bHasVideo = true;
+					}
 				}
 				REFERENCE_TIME AvgTimePerFrame = 0;
 
@@ -510,14 +500,14 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					AvgTimePerFrame = (REFERENCE_TIME)pTE->DefaultDuration / 100;
 				} 
 
-				if (!AvgTimePerFrame || AvgTimePerFrame < 166666) { // incorrect fps - calculate avarage value
+				if (AvgTimePerFrame < 166666) { // incorrect fps - calculate avarage value
 					DbgLog((LOG_TRACE, 3, _T("CMatroskaSplitterFilter::CreateOutputs() : calculate AvgTimePerFrame")));
 
 					CMatroskaNode Root(m_pFile);
 					m_pSegment = Root.Child(MATROSKA_ID_SEGMENT);
 					m_pCluster = m_pSegment->Child(MATROSKA_ID_CLUSTER);
 
-					MatroskaReader::QWORD lastCueClusterPosition = (MatroskaReader::QWORD)-1;
+					QWORD lastCueClusterPosition = (QWORD)-1;
 
 					CAtlArray<INT64> timecodes;
 					bool readmore = true;
@@ -676,6 +666,10 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							}
 						}
 					}
+				}
+
+				if (AvgTimePerFrame < 166666) {
+					AvgTimePerFrame = 417082; // set 23.976 as default
 				}
 
 				for (size_t i = 0; i < mts.GetCount(); i++) {
@@ -1335,7 +1329,7 @@ void CMatroskaSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 	if (rt > 0) {
 		rt += m_pFile->m_rtOffset;
 
-		MatroskaReader::QWORD lastCueClusterPosition = (MatroskaReader::QWORD)-1;
+		QWORD lastCueClusterPosition = (QWORD)-1;
 
 		Segment& s = m_pFile->m_segment;
 
@@ -1554,43 +1548,60 @@ bool CMatroskaSplitterFilter::DemuxLoop()
 
 STDMETHODIMP CMatroskaSplitterFilter::GetKeyFrameCount(UINT& nKFs)
 {
-	if (!m_pFile) {
-		return E_UNEXPECTED;
-	}
+	CheckPointer(m_pFile, E_UNEXPECTED);
 
-	HRESULT hr = S_OK;
+	nKFs				= 0;
+	Segment& s			= m_pFile->m_segment;
+	UINT64 TrackNumber	= s.GetMasterTrack();
 
-	nKFs = 0;
-
-	POSITION pos = m_pFile->m_segment.Cues.GetHeadPosition();
+	POSITION pos = s.Cues.GetHeadPosition();
 	while (pos) {
-		nKFs += (UINT)m_pFile->m_segment.Cues.GetNext(pos)->CuePoints.GetCount();
+		Cue* pCue = s.Cues.GetNext(pos);
+		if (pCue) {
+			POSITION pos2 = pCue->CuePoints.GetHeadPosition();
+			while (pos2) {
+				CuePoint* pCuePoint = pCue->CuePoints.GetNext(pos2);
+				if (pCuePoint && pCuePoint->CueTrackPositions.GetCount()) {
+					CueTrackPosition* pCueTrackPositions = pCuePoint->CueTrackPositions.GetHead();
+					if (pCueTrackPositions->CueTrack == TrackNumber) {
+						nKFs++;
+					}
+				}
+			}
+		}
 	}
 
-	return hr;
+	return S_OK;
 }
 
 STDMETHODIMP CMatroskaSplitterFilter::GetKeyFrames(const GUID* pFormat, REFERENCE_TIME* pKFs, UINT& nKFs)
 {
+	CheckPointer(m_pFile, E_UNEXPECTED);
 	CheckPointer(pFormat, E_POINTER);
 	CheckPointer(pKFs, E_POINTER);
 
-	if (!m_pFile) {
-		return E_UNEXPECTED;
-	}
 	if (*pFormat != TIME_FORMAT_MEDIA_TIME) {
 		return E_INVALIDARG;
 	}
 
-	UINT nKFsTmp = 0;
+	UINT nKFsTmp		= 0;
+	Segment& s			= m_pFile->m_segment;
+	UINT64 TrackNumber	= s.GetMasterTrack();
 
-	POSITION pos1 = m_pFile->m_segment.Cues.GetHeadPosition();
-	while (pos1 && nKFsTmp < nKFs) {
-		Cue* pCue = m_pFile->m_segment.Cues.GetNext(pos1);
-
-		POSITION pos2 = pCue->CuePoints.GetHeadPosition();
-		while (pos2 && nKFsTmp < nKFs) {
-			pKFs[nKFsTmp++] = m_pFile->m_segment.GetRefTime(pCue->CuePoints.GetNext(pos2)->CueTime);
+	POSITION pos = s.Cues.GetHeadPosition();
+	while (pos) {
+		Cue* pCue = s.Cues.GetNext(pos);
+		if (pCue) {
+			POSITION pos2 = pCue->CuePoints.GetHeadPosition();
+			while (pos2) {
+				CuePoint* pCuePoint = pCue->CuePoints.GetNext(pos2);
+				if (pCuePoint && pCuePoint->CueTrackPositions.GetCount()) {
+					CueTrackPosition* pCueTrackPositions = pCuePoint->CueTrackPositions.GetHead();
+					if (pCueTrackPositions->CueTrack == TrackNumber) {
+						pKFs[nKFsTmp++] = s.GetRefTime(pCuePoint->CueTime);
+					}
+				}
+			}
 		}
 	}
 
@@ -1863,6 +1874,14 @@ HRESULT CMatroskaSplitterOutputPin::DeliverBlock(MatroskaPacket* p)
 			if (!ParseWavpack(&m_mt, gb, tmp)) {
 				continue;
 			}
+		} else if (m_mt.subtype == MEDIASUBTYPE_icpf) {
+			CAutoPtr<CBinary> ptr(DNew CBinary());
+			ptr->SetCount(2 * sizeof(DWORD));
+			DWORD* pData = (DWORD*)ptr->GetData();
+			pData[0] = p->bg->Block.BlockData.GetCount();
+			pData[1] = FCC('icpf');
+			tmp->Copy(*ptr);
+			tmp->Append(*p->bg->Block.BlockData.GetNext(pos));
 		} else {
 			tmp->Copy(*p->bg->Block.BlockData.GetNext(pos));
 		}

@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -640,8 +640,8 @@ void CPlayerToolBar::OnInitialUpdate()
 	br = GetBorders();
 
 	if (AfxGetAppSettings().fDisableXPToolbars) {
-		int m_nBMedian = r.bottom - 3 - 0.5 * m_nButtonHeight;
-		vr2.SetRect(r.right + br.right - 60, m_nBMedian - 14, r.right + br.right + 6, m_nBMedian + 10);
+		int nBMedian = r.bottom - 3 - 0.5 * m_nButtonHeight;
+		vr2.SetRect(r.right + br.right - 60, nBMedian - 14, r.right + br.right + 6, nBMedian + 10);
 	} else {
 		vr2.SetRect(r.right + br.right - 60, r.bottom - 25, r.right + br.right + 6, r.bottom);
 	}
@@ -884,7 +884,7 @@ void CPlayerToolBar::OnRButtonDown(UINT nFlags, CPoint point)
 	int Idx				= getHitButtonIdx(point);
 
 	if (Idx == 1) {
-		pFrame->PostMessage(WM_COMMAND, ID_FILE_CLOSEMEDIA);
+		pFrame->PostMessage(WM_COMMAND, ID_FILE_CLOSEPLAYLIST);
 	} else if (Idx == 5) {
 		pFrame->OnMenuNavJumpTo();
 	} else if (Idx == 6) {

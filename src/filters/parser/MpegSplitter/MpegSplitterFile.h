@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -27,18 +27,46 @@
 #include "../../../DSUtil/GolombBuffer.h"
 
 #define NO_SUBTITLE_PID		1 // Fake PID use for the "No subtitle" entry
-#define NO_SUBTITLE_NAME	_T("No subtitle")
+#define NO_SUBTITLE_NAME	L"No subtitle"
 
 #define ISVALIDPID(pid)		(pid >= 0x10 && pid < 0x1fff)
 
 class CMpegSplitterFile : public CBaseSplitterFileEx
 {
 	CAtlMap<WORD, BYTE> m_pid2pes;
-	CAtlMap<WORD, CMpegSplitterFile::avchdr> avch;
-	bool m_init;
+	CAtlMap<WORD, avchdr> avch;
+	CAtlMap<WORD, seqhdr> seqh;
+
+	CAtlMap<DWORD, int> streamPTSCount;
+
+	template<class T>
+	class CValidStream {
+		BYTE m_nValidStream;
+		T m_val;
+	public:
+		CValidStream() {
+			m_nValidStream = 0;
+			memset(&m_val, 0, sizeof(m_val));
+		}
+		void Handle(T& val) {
+			if (m_val == val) {
+				m_nValidStream++;
+			} else {
+				m_nValidStream = 0;
+			}
+			memcpy(&m_val, &val, sizeof(val));
+		}
+		BOOL IsValid() { return m_nValidStream >= 3; }
+	};
+
+	CAtlMap<WORD, CValidStream<latm_aachdr>>	m_aaclatmValid;
+	CAtlMap<WORD, CValidStream<aachdr>>			m_aacValid;
+	CAtlMap<WORD, CValidStream<mpahdr>>			m_mpaValid;
+	CAtlMap<WORD, CValidStream<ac3hdr>>			m_ac3Valid;
+
+	BOOL m_bOpeningCompleted;
 
 	HRESULT Init(IAsyncReader* pAsyncReader);
-
 	void OnComplete(IAsyncReader* pAsyncReader);
 
 public:
@@ -60,19 +88,26 @@ public:
 	bool m_ForcedSub, m_AlternativeDuration, m_SubEmptyPin;
 
 	struct stream {
-		CMpegSplitterFile *m_pFile;
 		CMediaType mt;
+		std::vector<CMediaType> mts;
 		WORD pid;
 		BYTE pesid, ps1id;
-		char lang[4];
 		bool lang_set;
+		char lang[4];
 
-		struct stream() {
-			memset(this, 0, sizeof(*this));
+		stream() {
+			pid			= 0;
+			pesid		= 0;
+			ps1id		= 0;
+			lang_set	= false;
+			mt.InitMediaType();
+			memset(lang, 0, _countof(lang));
 		}
+
 		operator DWORD() const {
 			return pid ? pid : ((pesid<<8)|ps1id);
 		}
+
 		bool operator == (const struct stream& s) const {
 			return (DWORD)*this == (DWORD)s;
 		}
@@ -83,8 +118,8 @@ public:
 	class CStreamList : public CAtlList<stream>
 	{
 	public:
-		void Insert(stream& s, CMpegSplitterFile *_pFile, int type) {
-			if (type == subpic) {
+		void Insert(stream& s, int type) {
+			if (type == stream_type::subpic) {
 				if (s.pid == NO_SUBTITLE_PID) {
 					AddTail(s);
 					return;
@@ -98,16 +133,15 @@ public:
 				}
 				AddTail(s);
 			} else {
-				Insert(s, _pFile);
+				Insert(s);
 			}
 		}
 
-		void Insert(stream& s, CMpegSplitterFile *_pFile) {
-			s.m_pFile = _pFile;
+		void Insert(stream& s) {
 			AddTail(s);
 			if (GetCount() > 1) {
-				for (size_t j=0; j<GetCount(); j++) {
-					for (size_t i=0; i<GetCount()-1; i++) {
+				for (size_t j = 0; j < GetCount(); j++) {
+					for (size_t i = 0; i < GetCount() - 1; i++) {
 						if (GetAt(FindIndex(i)) > GetAt(FindIndex(i+1))) {
 							SwapElements(FindIndex(i), FindIndex(i+1));
 						}
@@ -116,9 +150,7 @@ public:
 			}
 		}
 
-		void Replace(stream& source, stream& dest, CMpegSplitterFile *_pFile) {
-			source.m_pFile = _pFile;
-			dest.m_pFile = _pFile;
+		void Replace(stream& source, stream& dest) {
 			for (POSITION pos = GetHeadPosition(); pos; GetNext(pos)) {
 				stream& s = GetAt(pos);
 				if (source == s) {
@@ -151,7 +183,7 @@ public:
 	} m_streams[unknown];
 
 	void SearchStreams(__int64 start, __int64 stop, IAsyncReader* pAsyncReader, BOOL CalcDuration = FALSE);
-	DWORD AddStream(WORD pid, BYTE pesid, BYTE ps1id, DWORD len);
+	DWORD AddStream(WORD pid, BYTE pesid, BYTE ps1id, DWORD len, BOOL bAddStream = TRUE);
 	void  AddHdmvPGStream(WORD pid, const char* language_code);
 	CAtlList<stream>* GetMasterStream();
 	bool IsHdmv() {
@@ -189,4 +221,6 @@ public:
 	CAtlMap<DWORD, CStringA> m_pPMT_Lang;
 
 	bool GetStreamType(WORD pid, PES_STREAM_TYPE &stream_type);
+
+	BOOL bIsBadPacked;
 };

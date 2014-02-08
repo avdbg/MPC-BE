@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -30,10 +30,10 @@ static filter_t s_filters[] = {
 	// Source filters
 	{_T("AMR"),                   SOURCE_FILTER,  SOURCE, SRC_AMR,        0},
 	{_T("AVI"),                   SOURCE_FILTER,  SOURCE, SRC_AVI,        IDS_SRC_AVI},
+	{_T("APE"),                   SOURCE_FILTER,  SOURCE, SRC_APE,        0},
 	{_T("CDDA (Audio CD)"),       SOURCE_FILTER,  SOURCE, SRC_CDDA,       IDS_SRC_CDDA},
 	{_T("CDXA (VCD/SVCD/XCD)"),   SOURCE_FILTER,  SOURCE, SRC_CDXA,       0},
 	{_T("DirectShow Media"),      SOURCE_FILTER,  SOURCE, SRC_DSM,        0},
-	{_T("DTS AudioCD"),           SOURCE_FILTER,  SOURCE, SRC_DTS,        IDS_SRC_DTS},
 	{_T("DTS/AC3"),               SOURCE_FILTER,  SOURCE, SRC_DTSAC3,     0},
 	{_T("DVD Video Title Set"),   SOURCE_FILTER,  SOURCE, SRC_VTS,        IDS_SRC_VTS},
 	{_T("FLI/FLC"),               SOURCE_FILTER,  SOURCE, SRC_FLIC,       0},
@@ -51,6 +51,7 @@ static filter_t s_filters[] = {
 	{_T("SHOUTcast"),             SOURCE_FILTER,  SOURCE, SRC_SHOUTCAST,  0},
 	{_T("TAK"),                   SOURCE_FILTER,  SOURCE, SRC_TAK,        0},
 	{_T("TTA"),                   SOURCE_FILTER,  SOURCE, SRC_TTA,        0},
+	{_T("WAV/Wave64"),            SOURCE_FILTER,  SOURCE, SRC_WAV,        0},
 	{_T("WavPack"),               SOURCE_FILTER,  SOURCE, SRC_WPAC,       0},
 	{_T("UDP/HTTP"),              SOURCE_FILTER,  SOURCE, SRC_UDP,        0},
 
@@ -78,6 +79,7 @@ static filter_t s_filters[] = {
 	{_T("TAK"),                   FFMPEG_DECODER, AUDIO,  FFM_TAK,        IDS_TRA_FFMPEG,},
 	{_T("TTA"),                   FFMPEG_DECODER, AUDIO,  FFM_TTA,        IDS_TRA_FFMPEG,},
 	{_T("Vorbis"),                FFMPEG_DECODER, AUDIO,  FFM_VORBIS,     IDS_TRA_FFMPEG,},
+	{_T("Voxware MetaSound"),     FFMPEG_DECODER, AUDIO,  FFM_VOXWARE,    IDS_TRA_FFMPEG,},
 	{_T("WavPack lossless audio"),FFMPEG_DECODER, AUDIO,  FFM_WPAC,       IDS_TRA_FFMPEG,},
 	{_T("WMA v.1/v.2"),           FFMPEG_DECODER, AUDIO,  FFM_WMA2,       IDS_TRA_FFMPEG,},
 	{_T("WMA v.9 Professional"),  FFMPEG_DECODER, AUDIO,  FFM_WMAPRO,     IDS_TRA_FFMPEG,},
@@ -94,6 +96,7 @@ static filter_t s_filters[] = {
 	// Video Decoder
 	{_T("AMV Video"),             FFMPEG_DECODER, VIDEO,  FFM_AMVV,       IDS_TRA_FFMPEG},
 	{_T("Apple ProRes"),          FFMPEG_DECODER, VIDEO,  FFM_PRORES,     IDS_TRA_FFMPEG},
+	{_T("Avid DNxHD"),            FFMPEG_DECODER, VIDEO,  FFM_DNXHD,      IDS_TRA_FFMPEG},
 	{_T("Bink Video"),            FFMPEG_DECODER, VIDEO,  FFM_BINKV,      IDS_TRA_FFMPEG},
 	{_T("Canopus Lossless"),      FFMPEG_DECODER, VIDEO,  FFM_CLLC,       IDS_TRA_FFMPEG},
 	{_T("Dirac"),                 FFMPEG_DECODER, VIDEO,  FFM_DIRAC,      IDS_TRA_FFMPEG},
@@ -104,7 +107,7 @@ static filter_t s_filters[] = {
 	{_T("H264/AVC (FFmpeg)"),     FFMPEG_DECODER, VIDEO,  FFM_H264,       IDS_TRA_FFMPEG},
 	{_T("HEVC (experimental)"),   FFMPEG_DECODER, VIDEO,  FFM_HEVC,       IDS_TRA_FFMPEG},
 	{_T("Indeo 3/4/5"),           FFMPEG_DECODER, VIDEO,  FFM_INDEO,      IDS_TRA_FFMPEG},
-	{_T("Lagarith"),              FFMPEG_DECODER, VIDEO,  FFM_LAGARITH,   IDS_TRA_FFMPEG},
+	{_T("Lossless video (huffyuv, Lagarith, FFV1)"), FFMPEG_DECODER, VIDEO,  FFM_LOSSLESS,   IDS_TRA_FFMPEG},
 	{_T("MJPEG"),                 FFMPEG_DECODER, VIDEO,  FFM_MJPEG,      IDS_TRA_FFMPEG},
 	{_T("MPEG-1 Video (FFmpeg)"), FFMPEG_DECODER, VIDEO,  FFM_MPEG1,      IDS_TRA_FFMPEG},
 	{_T("MPEG-2 Video (FFmpeg)"), FFMPEG_DECODER, VIDEO,  FFM_MPEG2,      IDS_TRA_FFMPEG},
@@ -122,7 +125,7 @@ static filter_t s_filters[] = {
 	{_T("WMV1/2/3"),              FFMPEG_DECODER, VIDEO,  FFM_WMV,        IDS_TRA_FFMPEG},
 	{_T("Xvid/MPEG-4"),           FFMPEG_DECODER, VIDEO,  FFM_XVID,       IDS_TRA_FFMPEG},
 	{_T("RealVideo"),             FFMPEG_DECODER, VIDEO,  FFM_RV,         IDS_TRA_RV},
-	{_T("Uncompressed video (v210)"),   FFMPEG_DECODER, VIDEO, FFM_V210, IDS_TRA_FFMPEG},
+	{_T("Uncompressed video (v210, V410, Y800, I420, ...)"),   FFMPEG_DECODER, VIDEO, FFM_UNCOMPRESSED, IDS_TRA_FFMPEG},
 
 	// End
 	{NULL, 0, 0, 0, NULL}

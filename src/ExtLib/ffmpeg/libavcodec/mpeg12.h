@@ -44,12 +44,15 @@ typedef struct Mpeg1Context {
     int mpeg_enc_ctx_allocated; /* true if decoding context allocated */
     int repeat_field; /* true if we must repeat the field */
     AVPanScan pan_scan;              /**< some temporary storage for the panscan */
+    uint8_t *a53_caption;
+    int a53_caption_size;
     int slice_count;
     int save_aspect_info;
     int save_width, save_height, save_progressive_seq;
     AVRational frame_rate_ext;       ///< MPEG-2 specific framerate modificator
     int sync;                        ///< Did we reach a sync point like a GOP/SEQ/KEYFrame?
     int tmpgexs;
+    int first_slice;
     int extradata_decoded;
 
     DXVA_SliceInfo* pSliceInfo;

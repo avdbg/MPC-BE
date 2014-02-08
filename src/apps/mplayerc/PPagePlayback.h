@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -49,6 +49,7 @@ public:
 	int m_iZoomLevel;
 	BOOL m_iRememberZoomLevel;
 	BOOL m_fAutoloadAudio;
+	BOOL m_fPrioritizeExternalAudio;
 	BOOL m_fEnableWorkerThreadForOpening;
 	BOOL m_fReportFailedPins;
 	CString m_subtitlesLanguageOrder;
@@ -79,4 +80,5 @@ public:
 	afx_msg BOOL OnToolTipNotify(UINT id, NMHDR * pNMHDR, LRESULT * pResult);
 	afx_msg void OnBnClickedButton1();
 	virtual void OnCancel();
+	afx_msg void OnBnClickedCheck3();
 };

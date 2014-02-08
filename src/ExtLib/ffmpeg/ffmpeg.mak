@@ -61,6 +61,7 @@ OBJ_DIRS = $(OBJ_DIR) \
 	$(OBJ_DIR)compat \
 	$(OBJ_DIR)libavcodec \
 	$(OBJ_DIR)libavcodec/x86 \
+	$(OBJ_DIR)libavfilter \
 	$(OBJ_DIR)libavresample \
 	$(OBJ_DIR)libavresample/x86 \
 	$(OBJ_DIR)libavutil \
@@ -135,13 +136,16 @@ SRCS_C = \
 	libavcodec/dcadec.c \
 	libavcodec/dcadsp.c \
 	libavcodec/dct.c \
-	libavcodec/dct32.c \
+	libavcodec/dct32_template.c \
 	libavcodec/dct32_float.c \
 	libavcodec/dirac.c \
 	libavcodec/dirac_arith.c \
 	libavcodec/dirac_dwt.c \
 	libavcodec/diracdec.c \
 	libavcodec/diracdsp.c \
+	libavcodec/dnxhd_parser.c \
+	libavcodec/dnxhddata.c \
+	libavcodec/dnxhddec.c \
 	libavcodec/dsputil.c \
 	libavcodec/dv.c \
 	libavcodec/dv_profile.c \
@@ -155,11 +159,13 @@ SRCS_C = \
 	libavcodec/exif.c \
 	libavcodec/faandct.c \
 	libavcodec/faanidct.c \
-	libavcodec/fft.c \
+	libavcodec/fft_template.c \
 	libavcodec/fft_fixed.c \
 	libavcodec/fft_fixed_32.c \
 	libavcodec/fft_float.c \
 	libavcodec/fft_init_table.c \
+	libavcodec/ffv1.c \
+	libavcodec/ffv1dec.c \
 	libavcodec/flac.c \
 	libavcodec/flacdata.c \
 	libavcodec/flacdec.c \
@@ -203,6 +209,8 @@ SRCS_C = \
 	libavcodec/hevcpred.c \
 	libavcodec/hpeldsp.c \
 	libavcodec/huffman.c \
+	libavcodec/huffyuv.c \
+	libavcodec/huffyuvdec.c \
 	libavcodec/imc.c \
 	libavcodec/imgconvert.c \
 	libavcodec/indeo3.c \
@@ -225,13 +233,17 @@ SRCS_C = \
 	libavcodec/libopus.c \
 	libavcodec/libopusdec.c \
 	libavcodec/libspeexdec.c \
+	libavcodec/libvpx.c \
 	libavcodec/libvpxdec.c \
+	libavcodec/lossless_videodsp.c \
 	libavcodec/lsp.c \
 	libavcodec/mathtables.c \
-	libavcodec/mdct.c \
+	libavcodec/mdct_template.c \
 	libavcodec/mdct_fixed.c \
 	libavcodec/mdct_fixed_32.c \
 	libavcodec/mdct_float.c \
+	libavcodec/metasound.c \
+	libavcodec/metasound_data.c \
 	libavcodec/mjpeg.c \
 	libavcodec/mjpegbdec.c \
 	libavcodec/mjpegdec.c \
@@ -252,7 +264,7 @@ SRCS_C = \
 	libavcodec/mpegaudio.c \
 	libavcodec/mpegaudio_parser.c \
 	libavcodec/mpegaudiodata.c \
-	libavcodec/mpegaudiodec.c \
+	libavcodec/mpegaudiodec_fixed.c \
 	libavcodec/mpegaudiodsp_data.c \
 	libavcodec/mpegaudiodec_float.c \
 	libavcodec/mpegaudiodecheader.c \
@@ -295,6 +307,8 @@ SRCS_C = \
 	libavcodec/ra288.c \
 	libavcodec/ralf.c \
 	libavcodec/rangecoder.c \
+	libavcodec/raw.c \
+	libavcodec/rawdec.c \
 	libavcodec/rdft.c \
 	libavcodec/rv10.c \
 	libavcodec/rv30.c \
@@ -327,10 +341,12 @@ SRCS_C = \
 	libavcodec/tscc2.c \
 	libavcodec/tta.c \
 	libavcodec/ttadata.c \
+	libavcodec/twinvq.c \
 	libavcodec/utvideo.c \
 	libavcodec/utvideodec.c \
 	libavcodec/utils.c \
 	libavcodec/v210dec.c \
+	libavcodec/v410dec.c \
 	libavcodec/vc1.c \
 	libavcodec/vc1data.c \
 	libavcodec/vc1dec.c \
@@ -384,6 +400,7 @@ SRCS_C = \
 	libavcodec/x86/hpeldsp_mmx.c \
 	libavcodec/x86/idct_mmx_xvid.c \
 	libavcodec/x86/idct_sse2_xvid.c \
+	libavcodec/x86/lossless_videodsp_init.c \
 	libavcodec/x86/mlpdsp.c \
 	libavcodec/x86/motion_est.c \
 	libavcodec/x86/mpegaudiodsp.c \
@@ -404,6 +421,15 @@ SRCS_C = \
 	libavcodec/x86/vp3dsp_init.c \
 	libavcodec/x86/vp6dsp_init.c \
 	libavcodec/x86/vp8dsp_init.c \
+	libavfilter/af_atempo.c \
+	libavfilter/af_biquads.c \
+	libavfilter/audio.c \
+	libavfilter/avfilter.c \
+	libavfilter/avfiltergraph.c \
+	libavfilter/buffersink.c \
+	libavfilter/buffersrc.c \
+	libavfilter/formats.c \
+	libavfilter/video.c \
 	libavresample/audio_convert.c \
 	libavresample/audio_data.c \
 	libavresample/audio_mix.c \
@@ -449,6 +475,7 @@ SRCS_C = \
 	libavutil/rational.c \
 	libavutil/samplefmt.c \
 	libavutil/sha.c \
+	libavutil/stereo3d.c \
 	libavutil/timecode.c \
 	libavutil/utils.c \
 	libavutil/x86/cpu.c \
@@ -492,6 +519,7 @@ SRCS_YASM = \
 	libavcodec/x86/h264_weight_10bit.asm \
 	libavcodec/x86/hpeldsp.asm \
 	libavcodec/x86/imdct36.asm \
+	libavcodec/x86/lossless_videodsp.asm \
 	libavcodec/x86/mpeg4qpel.asm \
 	libavcodec/x86/pngdsp.asm \
 	libavcodec/x86/proresdsp.asm \

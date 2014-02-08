@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -98,7 +98,7 @@ void CDXVADecoder::CopyBitstream(BYTE* pDXVABuffer, BYTE* pBuffer, UINT& nSize)
 
 void CDXVADecoder::Flush()
 {
-	TRACE ("CDXVADecoder::Flush\n");
+	DbgLog((LOG_TRACE, 3, L"CDXVADecoder::Flush()"));
 	for (int i = 0; i < m_nPicEntryNumber; i++) {
 		m_pPictureStore[i].bRefPicture		= false;
 		m_pPictureStore[i].bInUse			= false;
@@ -113,11 +113,6 @@ void CDXVADecoder::Flush()
 	m_nFieldSurface		= -1;
 	m_dwDisplayCount	= 1;
 	m_pFieldSample		= NULL;
-}
-
-void CDXVADecoder::NewSegment()
-{
-	Flush();
 }
 
 HRESULT CDXVADecoder::ConfigureDXVA1()
@@ -734,7 +729,7 @@ void CDXVADecoder::EndOfStream()
 			}
 		}
 
-#if defined(_DEBUG) && 1
+#if defined(_DEBUG) && 0
 			TRACE ("CDXVADecoder::EndOfStream() : %10I64d - %10I64d, (Dur = %10I64d), Ind = %02d, Codec = %d, Ref = %d\n",
 					m_pPictureStore[nPicIndex].rtStart,
 					m_pPictureStore[nPicIndex].rtStop,

@@ -1,6 +1,6 @@
 /*
  * 
- * (C) 2013 see Authors.txt
+ * (C) 2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -77,6 +77,7 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	{ &MEDIASUBTYPE_ATRC,              AV_CODEC_ID_ATRAC3 },
 	{ &MEDIASUBTYPE_COOK,              AV_CODEC_ID_COOK   },
 	{ &MEDIASUBTYPE_SIPR,              AV_CODEC_ID_SIPR   },
+	{ &MEDIASUBTYPE_SIPR_WAVE,         AV_CODEC_ID_SIPR   },
 	{ &MEDIASUBTYPE_RAAC,              AV_CODEC_ID_AAC    },
 	{ &MEDIASUBTYPE_RACP,              AV_CODEC_ID_AAC    },
 	{ &MEDIASUBTYPE_RALF,              AV_CODEC_ID_RALF   },
@@ -105,8 +106,10 @@ static const FFMPEG_AUDIO_CODECS ffAudioCodecs[] = {
 	{ &MEDIASUBTYPE_TAK,               AV_CODEC_ID_TAK },
 	// TTA
 	{ &MEDIASUBTYPE_TTA1,              AV_CODEC_ID_TTA },
-	// TRUESPEECH
+	// DSP Group TrueSpeech
 	{ &MEDIASUBTYPE_TRUESPEECH,        AV_CODEC_ID_TRUESPEECH },
+	// Voxware MetaSound
+	{ &MEDIASUBTYPE_VOXWARE_RT29,      AV_CODEC_ID_METASOUND },
 	// Windows Media Audio 9 Professional
 	{ &MEDIASUBTYPE_WMAUDIO3,          AV_CODEC_ID_WMAPRO },
 	// Windows Media Audio Lossless
@@ -259,7 +262,7 @@ bool CFFAudioDecoder::Init(enum AVCodecID nCodecId, CTransformInputPin* pInput)
 					}
 					if (nCodecId == AV_CODEC_ID_SIPR) {
 						if (m_raData.flavor > 3) {
-							TRACE(_T("FFAudioDecoder: Invalid SIPR flavor (%d)\n"), m_raData.flavor);
+							DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Init() : Invalid SIPR flavor (%d)", m_raData.flavor));
 							return false;
 						}
 						static BYTE sipr_subpk_size[4] = { 29, 19, 37, 20 };
@@ -320,10 +323,10 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 
 		int used_bytes = av_parser_parse2(m_pParser, m_pAVCtx, &pOut, &pOut_size, p, buffsize, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
 		if (used_bytes < 0) {
-			TRACE(_T("FFAudioDecoder: audio parsing failed (ret: %d)\n"), -used_bytes);
+			DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Decode() : audio parsing failed (ret: %d)", -used_bytes));
 			return E_FAIL;
 		} else if (used_bytes == 0 && pOut_size == 0) {
-			TRACE(_T("FFAudioDecoder: could not process buffer while parsing\n"));
+			DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Decode() : could not process buffer while parsing"));
 		}
 
 		size = used_bytes;
@@ -334,7 +337,7 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 
 			int ret2 = avcodec_decode_audio4(m_pAVCtx, m_pFrame, &got_frame, &avpkt);
 			if (ret2 < 0) {
-				TRACE(_T("FFAudioDecoder: decoding failed despite successfull parsing\n"));
+				DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Decode() : decoding failed despite successfull parsing"));
 
 				av_frame_unref(m_pFrame);
 				return S_FALSE;
@@ -347,13 +350,13 @@ HRESULT CFFAudioDecoder::Decode(enum AVCodecID nCodecId, BYTE* p, int buffsize, 
 		int used_bytes = avcodec_decode_audio4(m_pAVCtx, m_pFrame, &got_frame, &avpkt);
 
 		if (used_bytes < 0) {
-			TRACE(_T("FFAudioDecoder: decoding failed\n"));
+			DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Decode() : avcodec_decode_audio4() failed"));
 			Init(nCodecId, NULL);
 
 			av_frame_unref(m_pFrame);
 			return E_FAIL;
 		} else if (used_bytes == 0 && !got_frame) {
-			TRACE(_T("FFAudioDecoder: could not process buffer while decoding\n"));
+			DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::Decode() : could not process buffer while decoding"));
 		} else if (m_pAVCtx->channels > 8) {
 			// sometimes avcodec_decode_audio4 cannot identify the garbage and produces incorrect data.
 			// this code does not solve the problem, it only reduces the likelihood of crash.
@@ -413,24 +416,18 @@ void CFFAudioDecoder::FlushBuffers()
 void CFFAudioDecoder::StreamFinish()
 {
 	m_pAVCodec = NULL;
-	if (m_pAVCtx) {
-		if (m_pAVCtx->extradata) {
-			av_freep(&m_pAVCtx->extradata);
-		}
-		if (m_pAVCtx->codec) {
-			avcodec_close(m_pAVCtx);
-		}
-		av_freep(&m_pAVCtx);
-	}
-
 	if (m_pParser) {
 		av_parser_close(m_pParser);
 		m_pParser = NULL;
 	}
 
-	if (m_pFrame) {
-		av_frame_free(&m_pFrame);
+	if (m_pAVCtx) {
+		avcodec_close(m_pAVCtx);
+		av_freep(&m_pAVCtx->extradata);
+		av_freep(&m_pAVCtx);
 	}
+
+	av_frame_free(&m_pFrame);
 }
 
 // RealAudio
@@ -441,7 +438,7 @@ HRESULT CFFAudioDecoder::ParseRealAudioHeader(const BYTE* extra, const int extra
 	uint16_t version = AV_RB16(fmt);
 	fmt += 2;
 	if (version == 3) {
-		TRACE(_T("FFAudioDecoder: RealAudio Header version 3 unsupported\n"));
+		DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::ParseRealAudioHeader() : RealAudio Header version 3 unsupported"));
 		return VFW_E_UNSUPPORTED_AUDIO;
 	} else if (version == 4 || (version == 5 && extralen > 50)) {
 		// main format block
@@ -492,7 +489,7 @@ HRESULT CFFAudioDecoder::ParseRealAudioHeader(const BYTE* extra, const int extra
 			memcpy((void*)m_pAVCtx->extradata, fmt + 4, ra_extralen);
 		}
 	} else {
-		TRACE(_T("FFAudioDecoder: Unknown RealAudio Header version: %d\n"), version);
+		DbgLog((LOG_TRACE, 3, L"CFFAudioDecoder::ParseRealAudioHeader() : Unknown RealAudio Header version: %d", version));
 		return VFW_E_UNSUPPORTED_AUDIO;
 	}
 
@@ -573,6 +570,11 @@ enum AVCodecID CFFAudioDecoder::GetCodecId()
 		return m_pAVCtx->codec_id;
 	}
 	return AV_CODEC_ID_NONE;
+}
+
+const char* CFFAudioDecoder::GetCodecName()
+{
+	return (m_pAVCtx->codec_descriptor)->name;
 }
 
 SampleFormat CFFAudioDecoder::GetSampleFmt()

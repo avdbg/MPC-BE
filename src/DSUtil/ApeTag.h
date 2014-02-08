@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <atlcoll.h>
 #include "GolombBuffer.h"
 
 #define APE_TAG_FOOTER_BYTES		32
@@ -55,7 +56,7 @@ protected:
 	CString			m_key;
 
 	// text value
-	CString			m_value;		
+	CString			m_value;
 
 	// binary value
 	CAtlArray<BYTE>	m_Data;
@@ -84,8 +85,17 @@ public:
 	// tag reading
 	bool ReadFooter(BYTE *buf, size_t len);
 	bool ReadTags(BYTE *buf, size_t len);
-	void ParseTags(IBaseFilter* pBF);
 
 	size_t GetTagSize() const { return m_TagSize; }
 	CApeTagItem* Find(CString key);
 };
+
+// additional functions
+void SetAPETagProperties(IBaseFilter* pBF, const CAPETag* apetag);
+
+
+// ID3v2
+// TODO: remove it from here
+#define ID3v2_HEADER_SIZE 10
+
+int id3v2_match_len(const unsigned char *buf);

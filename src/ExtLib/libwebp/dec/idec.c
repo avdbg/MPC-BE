@@ -20,10 +20,6 @@
 #include "./vp8i.h"
 #include "../utils/utils.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 // In append mode, buffer allocations increase as multiples of this value.
 // Needs to be a power of 2.
 #define CHUNK_SIZE 4096
@@ -250,6 +246,19 @@ static int CheckMemBufferMode(MemBuffer* const mem, MemBufferMode expected) {
   return 1;
 }
 
+// To be called last.
+static VP8StatusCode FinishDecoding(WebPIDecoder* const idec) {
+  const WebPDecoderOptions* const options = idec->params_.options;
+  WebPDecBuffer* const output = idec->params_.output;
+
+  idec->state_ = STATE_DONE;
+  if (options != NULL && options->flip) {
+    return WebPFlipBuffer(output);
+  } else {
+    return VP8_STATUS_OK;
+  }
+}
+
 //------------------------------------------------------------------------------
 // Macroblock-decoding contexts
 
@@ -423,6 +432,7 @@ static VP8StatusCode DecodePartition0(WebPIDecoder* const idec) {
   // This change must be done before calling VP8InitFrame()
   dec->mt_method_ = VP8GetThreadMethod(params->options, NULL,
                                        io->width, io->height);
+  VP8InitDithering(params->options, dec);
   if (!CopyParts0Data(idec)) {
     return IDecError(idec, VP8_STATUS_OUT_OF_MEMORY);
   }
@@ -479,12 +489,11 @@ static VP8StatusCode DecodeRemaining(WebPIDecoder* const idec) {
     return IDecError(idec, VP8_STATUS_USER_ABORT);
   }
   dec->ready_ = 0;
-  idec->state_ = STATE_DONE;
-
-  return VP8_STATUS_OK;
+  return FinishDecoding(idec);
 }
 
-static int ErrorStatusLossless(WebPIDecoder* const idec, VP8StatusCode status) {
+static VP8StatusCode ErrorStatusLossless(WebPIDecoder* const idec,
+                                         VP8StatusCode status) {
   if (status == VP8_STATUS_SUSPENDED || status == VP8_STATUS_NOT_ENOUGH_DATA) {
     return VP8_STATUS_SUSPENDED;
   }
@@ -532,9 +541,7 @@ static VP8StatusCode DecodeVP8LData(WebPIDecoder* const idec) {
     return ErrorStatusLossless(idec, dec->status_);
   }
 
-  idec->state_ = STATE_DONE;
-
-  return VP8_STATUS_OK;
+  return FinishDecoding(idec);
 }
 
   // Main decoding loop
@@ -618,11 +625,11 @@ void WebPIDelete(WebPIDecoder* idec) {
     if (!idec->is_lossless_) {
       if (idec->state_ == STATE_VP8_DATA) {
         // Synchronize the thread, clean-up and check for errors.
-        VP8ExitCritical(idec->dec_, &idec->io_);
+        VP8ExitCritical((VP8Decoder*)idec->dec_, &idec->io_);
       }
-      VP8Delete(idec->dec_);
+      VP8Delete((VP8Decoder*)idec->dec_);
     } else {
-      VP8LDelete(idec->dec_);
+      VP8LDelete((VP8LDecoder*)idec->dec_);
     }
   }
   ClearMemBuffer(&idec->mem_);
@@ -849,6 +856,3 @@ int WebPISetIOHooks(WebPIDecoder* const idec,
   return 1;
 }
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif

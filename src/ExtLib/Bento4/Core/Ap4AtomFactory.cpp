@@ -424,7 +424,6 @@ AP4_AtomFactory::CreateAtomFromStream(AP4_ByteStream& stream,
 		case AP4_ATOM_TYPE_MJPA:
 		case AP4_ATOM_TYPE_MJPB:
 		case AP4_ATOM_TYPE_RPZA:
-		case AP4_ATOM_TYPE_DIV3:
 		case AP4_ATOM_TYPE_DIVX:
 		case AP4_ATOM_TYPE_8BPS:
 		case AP4_ATOM_TYPE_3IV1:
@@ -432,7 +431,8 @@ AP4_AtomFactory::CreateAtomFromStream(AP4_ByteStream& stream,
 		case AP4_ATOM_TYPE_IV32:
 		case AP4_ATOM_TYPE_IV41:
 		case AP4_ATOM_TYPE_VP31:
-		case AP4_ATOM_TYPE_YV12:
+		case AP4_ATOM_TYPE_yv12:
+		case AP4_ATOM_TYPE_yuv2:
 
 		case AP4_ATOM_TYPE_HDV1:
 		case AP4_ATOM_TYPE_HDV2:
@@ -480,12 +480,21 @@ AP4_AtomFactory::CreateAtomFromStream(AP4_ByteStream& stream,
 		case AP4_ATOM_TYPE_AP4H:
 		case AP4_ATOM_TYPE_V210:
 		case AP4_ATOM_TYPE_v210:
+		case AP4_ATOM_TYPE_v308:
+		case AP4_ATOM_TYPE_v408:
 		case AP4_ATOM_TYPE_ICOD:
+		case AP4_ATOM_TYPE_AVdn:
+		case AP4_ATOM_TYPE_FFV1:
 			atom = new AP4_VisualSampleEntry(type, size, stream, *this);
 			break;
 
+		case AP4_ATOM_TYPE_DIV3:
 		case AP4_ATOM_TYPE_3IVD:
 			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE_DIV3, size, stream, *this);
+			break;
+
+		case AP4_ATOM_TYPE_v410:
+			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE('V','4','1','0'), size, stream, *this);
 			break;
 
 		case AP4_ATOM_TYPE_MJPG:
@@ -512,8 +521,13 @@ AP4_AtomFactory::CreateAtomFromStream(AP4_ByteStream& stream,
 			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE('C','D','V','H'), size, stream, *this); // MEDIASUBTYPE_CDVH (LAV)
 			break;
 
-		case AP4_ATOM_TYPE_2VUY: // = 'UYVY'
-			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE('U','Y','V','Y'), size, stream, *this);
+		case AP4_ATOM_TYPE_2vuy:
+		case AP4_ATOM_TYPE_2Vuy:
+			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE('U','Y','V','Y'), size, stream, *this); // = 'UYVY'
+			break;
+		case AP4_ATOM_TYPE_DVOO:
+		case AP4_ATOM_TYPE_yuvs:
+			atom = new AP4_VisualSampleEntry(AP4_ATOM_TYPE('Y','U','Y','2'), size, stream, *this); // = 'YUY2'
 			break;
 
 		case AP4_ATOM_TYPE_SAMR:

@@ -17,10 +17,11 @@
 #include <string.h>     // for memcpy()
 #include "./vp8li.h"
 #include "../utils/bit_reader.h"
+#include "../utils/random.h"
 #include "../utils/thread.h"
 #include "../dsp/dsp.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -29,8 +30,8 @@ extern "C" {
 
 // version numbers
 #define DEC_MAJ_VERSION 0
-#define DEC_MIN_VERSION 3
-#define DEC_REV_VERSION 1
+#define DEC_MIN_VERSION 4
+#define DEC_REV_VERSION 0
 
 // intra prediction modes
 enum { B_DC_PRED = 0,   // 4x4 modes
@@ -173,6 +174,9 @@ typedef struct {  // Top/Left Contexts used for syntax-parsing
 typedef int quant_t[2];      // [DC / AC].  Can be 'uint16_t[2]' too (~slower).
 typedef struct {
   quant_t y1_mat_, y2_mat_, uv_mat_;
+
+  int uv_quant_;   // U/V quantizer value
+  int dither_;     // dithering amplitude (0 = off, max=255)
 } VP8QuantMatrix;
 
 // Data needed to reconstruct a macroblock
@@ -190,6 +194,7 @@ typedef struct {
   // This allows to call specialized transform functions.
   uint32_t non_zero_y_;
   uint32_t non_zero_uv_;
+  uint8_t dither_;      // local dithering strength (deduced from non_zero_*)
 } VP8MBData;
 
 // Persistent information needed by the parallel processing
@@ -243,6 +248,10 @@ struct VP8Decoder {
   int num_parts_;
   // per-partition boolean decoders.
   VP8BitReader parts_[MAX_NUM_PARTITIONS];
+
+  // Dithering strength, deduced from decoding options
+  int dither_;                // whether to use dithering or not
+  VP8Random dithering_rg_;    // random generator for dithering
 
   // dequantization (one set of DC/AC dequant factor per segment)
   VP8QuantMatrix dqm_[NUM_MB_SEGMENTS];
@@ -324,7 +333,10 @@ int VP8ExitCritical(VP8Decoder* const dec, VP8Io* const io);
 int VP8GetThreadMethod(const WebPDecoderOptions* const options,
                        const WebPHeaderStructure* const headers,
                        int width, int height);
-// Process the last decoded row (filtering + output)
+// Initialize dithering post-process if needed.
+void VP8InitDithering(const WebPDecoderOptions* const options,
+                      VP8Decoder* const dec);
+// Process the last decoded row (filtering + output).
 int VP8ProcessRow(VP8Decoder* const dec, VP8Io* const io);
 // To be called at the start of a new scanline, to initialize predictors.
 void VP8InitScanline(VP8Decoder* const dec);
@@ -340,7 +352,7 @@ int VP8DecodeLayer(VP8Decoder* const dec);
 
 //------------------------------------------------------------------------------
 
-#if defined(__cplusplus) || defined(c_plusplus)
+#ifdef __cplusplus
 }    // extern "C"
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * (C) 2008-2013 see Authors.txt
+ * (C) 2008-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -31,12 +31,14 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_DEFAULT_VIDEO_ICON;
 	} else if (_tcsicmp(ext, _T(":audio")) == 0) {
 		iconindex = IDI_DEFAULT_AUDIO_ICON;
+	} else if (_tcsicmp(ext, _T(":playlist")) == 0) {
+		iconindex = IDI_PLAYLIST_ICON;
+	}
 	// icons by extension
-	} else if (_tcsicmp(ext, _T(".3g2")) == 0) {
+	else if (_tcsicmp(ext, _T(".3g2")) == 0) {
 		iconindex = IDI_3G2_ICON;
-	} else if (_tcsicmp(ext, _T(".3ga")) == 0) {
-		iconindex = IDI_3GP_ICON;
-	} else if (_tcsicmp(ext, _T(".3gp")) == 0) {
+	} else if (_tcsicmp(ext, _T(".3ga")) == 0
+			|| _tcsicmp(ext, _T(".3gp")) == 0) {
 		iconindex = IDI_3GP_ICON;
 	} else if (_tcsicmp(ext, _T(".3gp2")) == 0) {
 		iconindex = IDI_3GP2_ICON;
@@ -84,9 +86,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_DSS_ICON;
 	} else if (_tcsicmp(ext, _T(".dsv")) == 0) {
 		iconindex = IDI_DSV_ICON;
-	} else if (_tcsicmp(ext, _T(".dts")) == 0) {
-		iconindex = IDI_DTS_ICON;
-	} else if (_tcsicmp(ext, _T(".dtshd")) == 0) {
+	} else if (_tcsicmp(ext, _T(".dts")) == 0
+			|| _tcsicmp(ext, _T(".dtshd")) == 0) {
 		iconindex = IDI_DTS_ICON;
 	} else if (_tcsicmp(ext, _T(".evo")) == 0) {
 		iconindex = IDI_EVO_ICON;
@@ -100,9 +101,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_FLI_ICON;
 	} else if (_tcsicmp(ext, _T(".flic")) == 0) {
 		iconindex = IDI_FLIC_ICON;
-	} else if (_tcsicmp(ext, _T(".flv")) == 0) {
-		iconindex = IDI_FLV_ICON;
-	} else if (_tcsicmp(ext, _T(".iflv")) == 0) {
+	} else if (_tcsicmp(ext, _T(".flv")) == 0
+			|| _tcsicmp(ext, _T(".iflv")) == 0) {
 		iconindex = IDI_FLV_ICON;
 	} else if (_tcsicmp(ext, _T(".hdmov")) == 0) {
 		iconindex = IDI_HDMOV_ICON;
@@ -141,7 +141,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_MKV_ICON;
 	} else if (_tcsicmp(ext, _T(".mlp")) == 0) {
 		iconindex = IDI_MLP_ICON;
-	} else if (_tcsicmp(ext, _T(".mov")) == 0) {
+	} else if (_tcsicmp(ext, _T(".mov")) == 0
+			|| _tcsicmp(ext, _T(".qt")) == 0) {
 		iconindex = IDI_MOV_ICON;
 	} else if (_tcsicmp(ext, _T(".mp2")) == 0) {
 		iconindex = IDI_MP2_ICON;
@@ -161,7 +162,8 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_MPE_ICON;
 	} else if (_tcsicmp(ext, _T(".mpeg")) == 0) {
 		iconindex = IDI_MPEG_ICON;
-	} else if (_tcsicmp(ext, _T(".mpg")) == 0) {
+	} else if (_tcsicmp(ext, _T(".mpg")) == 0
+			|| _tcsicmp(ext, _T(".pss")) == 0) {
 		iconindex = IDI_MPG_ICON;
 	} else if (_tcsicmp(ext, _T(".mpv2")) == 0) {
 		iconindex = IDI_MPV2_ICON;
@@ -183,30 +185,24 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_OGV_ICON;
 //	} else if (_tcsicmp(ext, _T(".plc")) == 0) {
 //		iconindex = IDI_PLC_ICON;
-	} else if (_tcsicmp(ext, _T(".pss")) == 0) {
-		iconindex = IDI_MPG_ICON;
 	} else if (_tcsicmp(ext, _T(".pva")) == 0) {
 		iconindex = IDI_PVA_ICON;
-	} else if (_tcsicmp(ext, _T(".qt")) == 0) {
-		iconindex = IDI_MOV_ICON;
 	} else if (_tcsicmp(ext, _T(".ra")) == 0) {
 		iconindex = IDI_RA_ICON;
 	} else if (_tcsicmp(ext, _T(".ram")) == 0) {
 		iconindex = IDI_RAM_ICON;
-	} else if (_tcsicmp(ext, _T(".rat")) == 0) {
-		iconindex = IDI_RATDVD_ICON;
-	} else if (_tcsicmp(ext, _T(".ratdvd")) == 0) {
+	} else if (_tcsicmp(ext, _T(".rat")) == 0
+			|| _tcsicmp(ext, _T(".ratdvd")) == 0) {
 		iconindex = IDI_RATDVD_ICON;
 	} else if (_tcsicmp(ext, _T(".rec")) == 0) {
 		iconindex = IDI_REC_ICON;
-	} else if (_tcsicmp(ext, _T(".rm")) == 0) {
+	} else if (_tcsicmp(ext, _T(".rm")) == 0
+			|| _tcsicmp(ext, _T(".rmvb")) == 0) {
 		iconindex = IDI_RM_ICON;
 	} else if (_tcsicmp(ext, _T(".rmi")) == 0) {
 		iconindex = IDI_RMI_ICON;
 	} else if (_tcsicmp(ext, _T(".rmm")) == 0) {
 		iconindex = IDI_RMM_ICON;
-	} else if (_tcsicmp(ext, _T(".rmvb")) == 0) {
-		iconindex = IDI_RM_ICON;
 	} else if (_tcsicmp(ext, _T(".roq")) == 0) {
 		iconindex = IDI_ROQ_ICON;
 	} else if (_tcsicmp(ext, _T(".rp")) == 0) {
@@ -253,41 +249,21 @@ extern "C" __declspec(dllexport) int get_icon_index(LPCTSTR ext)
 		iconindex = IDI_WV_ICON;
 	} else if (_tcsicmp(ext, _T(".opus")) == 0) {
 		iconindex = IDI_OPUS_ICON;
-// Playlist
-	} else if (_tcsicmp(ext, _T(".asx")) == 0) {
+	}
+	// playlists (need for compatibility with older versions)
+	else if (_tcsicmp(ext, _T(".asx")) == 0
+			|| _tcsicmp(ext, _T(".bdmv")) == 0
+			|| _tcsicmp(ext, _T(".m3u")) == 0
+			|| _tcsicmp(ext, _T(".m3u8")) == 0
+			|| _tcsicmp(ext, _T(".mpcpl")) == 0
+			|| _tcsicmp(ext, _T(".mpls")) == 0
+			|| _tcsicmp(ext, _T(".pls")) == 0
+			|| _tcsicmp(ext, _T(".wax")) == 0
+			|| _tcsicmp(ext, _T(".wmx")) == 0
+			|| _tcsicmp(ext, _T(".wvx")) == 0
+			|| _tcsicmp(ext, _T(".xspf")) == 0
+			|| _tcsicmp(ext, _T(".cue")) == 0) {
 		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".bdmv")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".m3u")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".m3u8")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".mpcpl")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".mpls")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".pls")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".wax")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".wmx")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".wvx")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-	} else if (_tcsicmp(ext, _T(".xspf")) == 0) {
-		iconindex = IDI_PLAYLIST_ICON;
-// Other
-	} else if (_tcsicmp(ext, _T(".wtv")) == 0
-			|| _tcsicmp(ext, _T(".dvr-ms")) == 0) {
-		iconindex = IDI_DEFAULT_VIDEO_ICON;
-	} else if (_tcsicmp(ext, _T(".h264")) == 0
-			|| _tcsicmp(ext, _T(".264")) == 0
-			|| _tcsicmp(ext, _T(".vc1")) == 0
-			|| _tcsicmp(ext, _T(".h265")) == 0
-			|| _tcsicmp(ext, _T(".265")) == 0
-			|| _tcsicmp(ext, _T(".hm10")) == 0
-			|| _tcsicmp(ext, _T(".hevc")) == 0) {
-		iconindex = IDI_DEFAULT_VIDEO_ICON;
 	}
 
 	return iconindex;

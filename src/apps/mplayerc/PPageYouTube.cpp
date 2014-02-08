@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -21,7 +21,6 @@
 
 #include "stdafx.h"
 #include "PPageYoutube.h"
-#include "PlayerYouTube.h"
 
 // CPPageYoutube dialog
 
@@ -62,12 +61,18 @@ BOOL CPPageYoutube::OnInitDialog()
 	m_iYoutubeFormatCtrl.AddString(ResStr(IDS_PPAGE_FS_DEFAULT));
 	m_iYoutubeFormatType = 0;
 
-	for (int i = 0; i < _countof(youtubeProfiles) && youtubeProfiles[i].Visible; i++) {
-		CString fmt; fmt.Format(_T("%s@%s"), youtubeProfiles[i].Container, youtubeProfiles[i].Resolution);
-		m_iYoutubeFormatCtrl.AddString(fmt);
+	int j = 0;
+	for (size_t i = 0; i < _countof(youtubeProfiles); i++) {
+		if (youtubeProfiles[i].Visible) {
+			j++;
+			m_YoutubeProfiles.Add(youtubeProfiles[i]);
 
-		if (youtubeProfiles[i].iTag == s.iYoutubeTag) {
-			m_iYoutubeFormatType = i + 1;
+			CString fmt; fmt.Format(_T("%s@%s"), youtubeProfiles[i].Container, youtubeProfiles[i].Resolution);
+			m_iYoutubeFormatCtrl.AddString(fmt);
+
+			if (youtubeProfiles[i].iTag == s.iYoutubeTag) {
+				m_iYoutubeFormatType = j;
+			}
 		}
 	}
 
@@ -92,7 +97,7 @@ BOOL CPPageYoutube::OnApply()
 	if (m_iYoutubeFormatType <= 0 || (m_iYoutubeFormatType - 1) >= _countof(youtubeProfiles)) {
 		s.iYoutubeTag = m_iYoutubeFormatType;
 	} else {
-		s.iYoutubeTag = youtubeProfiles[m_iYoutubeFormatType - 1].iTag;
+		s.iYoutubeTag = m_YoutubeProfiles[m_iYoutubeFormatType - 1].iTag;
 	}
 
 	s.iYoutubeSource = m_iYoutubeSourceType;

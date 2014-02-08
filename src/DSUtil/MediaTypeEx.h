@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -32,9 +32,10 @@ public:
 	void Dump(CAtlList<CString>& sl);
 	bool ValidateSubtitle();
 
+	static CString GetVideoCodecName(const GUID& subtype, DWORD biCompression);
+	static CString GetAudioCodecName(const GUID& subtype, WORD wFormatTag);
+
 private:
-	CString GetVideoCodecName(const GUID& subtype, DWORD biCompression);
-	CString GetAudioCodecName(const GUID& subtype, WORD wFormatTag);
 	CString GetSubtitleCodecName(const GUID& subtype);
 };
 

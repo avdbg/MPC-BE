@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -22,6 +22,7 @@
 #pragma once
 
 #include "PPageBase.h"
+#include "PlayerYouTube.h"
 
 // CPPageYoutube dialog
 
@@ -31,6 +32,8 @@ class CPPageYoutube : public CPPageBase
 
 private:
 	CComboBox m_iYoutubeFormatCtrl;
+
+	CAtlArray<YOUTUBE_PROFILES> m_YoutubeProfiles;
 public:
 	CPPageYoutube();
 	virtual ~CPPageYoutube();

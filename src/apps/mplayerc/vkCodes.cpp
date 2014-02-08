@@ -1,5 +1,5 @@
 /*
- * (C) 2011-2013 see Authors.txt
+ * (C) 2011-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -133,12 +133,12 @@ PCTSTR GetKeyName(UINT vkCode)
 		_T("Num 7"),
 		_T("Num 8"),
 		_T("Num 9"),
-		_T("Mul"),
+		_T("Multiply"),
 		_T("Add"),
 		_T("Separator"),
-		_T("Sub"),
+		_T("Subtract"),
 		_T("Decimal"),
-		_T("Div"),
+		_T("Divide"),
 		_T("F1"),
 		_T("F2"),
 		_T("F3"),

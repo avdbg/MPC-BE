@@ -21,6 +21,7 @@
 #include "stdafx.h"
 #include "ApeTag.h"
 #include "DSUtil.h"
+#include "CUE.h"
 #include "DSMPropertyBag.h"
 
 //
@@ -157,7 +158,29 @@ bool CAPETag::ReadTags(BYTE *buf, size_t len)
 	return true;
 }
 
-void CAPETag::ParseTags(IBaseFilter* pBF)
+CApeTagItem* CAPETag::Find(CString key)
+{
+	CString key_lc = key;
+	key_lc.MakeLower();
+
+	POSITION pos = TagItems.GetHeadPosition();
+	while (pos) {
+		CApeTagItem* item	= TagItems.GetAt(pos);
+		CString TagKey		= item->GetKey();
+		TagKey.MakeLower();
+		if (TagKey == key_lc) {
+			return item;
+		}
+
+		TagItems.GetNext(pos);
+	}
+
+	return NULL;
+}
+
+// additional functions
+
+void SetAPETagProperties(IBaseFilter* pBF, const CAPETag* apetag)
 {
 	CAtlArray<BYTE>		CoverData;
 	CString				CoverMime;
@@ -165,9 +188,9 @@ void CAPETag::ParseTags(IBaseFilter* pBF)
 
 	CString Artist, Comment, Title, Year, Album;
 
-	POSITION pos = TagItems.GetHeadPosition();
+	POSITION pos = apetag->TagItems.GetHeadPosition();
 	while (pos) {
-		CApeTagItem* item	= TagItems.GetAt(pos);
+		CApeTagItem* item	= apetag->TagItems.GetAt(pos);
 		CString TagKey		= item->GetKey();
 		TagKey.MakeLower();
 
@@ -225,8 +248,8 @@ void CAPETag::ParseTags(IBaseFilter* pBF)
 				}
 			}
 		}
-		
-		TagItems.GetNext(pos);
+
+		apetag->TagItems.GetNext(pos);
 	}
 
 	if (CComQIPtr<IDSMPropertyBag> pPB = pBF) {
@@ -244,22 +267,27 @@ void CAPETag::ParseTags(IBaseFilter* pBF)
 	}
 }
 
-CApeTagItem* CAPETag::Find(CString key)
+
+// ID3v2
+// TODO: remove it from here
+
+int id3v2_match_len(const unsigned char *buf)
 {
-	CString key_lc = key;
-	key_lc.MakeLower();
+	if (buf[0] == 'I' && buf[1] == 'D' && buf[2] == '3'
+			&& buf[3] != 0xff && buf[4] != 0xff
+			&& (buf[6] & 0x80) == 0
+			&& (buf[7] & 0x80) == 0
+			&& (buf[8] & 0x80) == 0
+			&& (buf[9] & 0x80) == 0) {
+		int len = ((buf[6] & 0x7f) << 21) +
+			((buf[7] & 0x7f) << 14) +
+			((buf[8] & 0x7f) << 7) +
+			(buf[9] & 0x7f) + ID3v2_HEADER_SIZE;
 
-	POSITION pos = TagItems.GetHeadPosition();
-	while (pos) {
-		CApeTagItem* item	= TagItems.GetAt(pos);
-		CString TagKey		= item->GetKey();
-		TagKey.MakeLower();
-		if (TagKey == key_lc) {
-			return item;
+		if (buf[5] & 0x10) {
+			len += ID3v2_HEADER_SIZE;
 		}
-
-		TagItems.GetNext(pos);
+		return len;
 	}
-
-	return NULL;
+	return 0;
 }

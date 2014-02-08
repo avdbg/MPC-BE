@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -22,6 +22,7 @@
 #include "stdafx.h"
 #include "AviFile.h"
 #include <math.h>
+#include "../../../DSUtil/AudioParser.h"
 
 //
 // CAviFile
@@ -72,6 +73,12 @@ HRESULT CAviFile::Init()
 			// correcting encoder bugs...
 			s->strh.dwScale = 1152;
 			s->strh.dwRate = wfe->nSamplesPerSec;
+		} else if (wfe->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+			WAVEFORMATEXTENSIBLE* wfex = (WAVEFORMATEXTENSIBLE*)s->strf.GetData();
+			if (wfex->dwChannelMask == 0) {
+				// correcting muxer bugs...
+				wfex->dwChannelMask = GetDefChannelMask(wfe->nChannels);
+			}
 		}
 	}
 
@@ -384,7 +391,7 @@ HRESULT CAviFile::BuildIndex()
 				Seek(idx->aIndex[j].qwOffset);
 
 				AVISTDINDEX stdidx;
-				if (S_OK != ByteRead((BYTE*)&stdidx, FIELD_OFFSET(AVISTDINDEX, aIndex))) {
+				if (S_OK != ByteRead((BYTE*)&stdidx, FIELD_OFFSET(AVISTDINDEX, aIndex)) || (WORD)stdidx.fcc != 'xi') { // fcc = 'ix00', 'ix01', 'ix02',...
 					EmptyIndex();
 					return E_FAIL;
 				}

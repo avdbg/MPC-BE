@@ -1,5 +1,5 @@
 /*
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -29,7 +29,29 @@
 #include "ffmpegContext.h"
 #include <math.h>
 
-extern unsigned __int64 GetFileVersion(LPCTSTR fn);	// requires linking with DSUtils which is always the case
+static unsigned __int64 GetFileVersion(LPCTSTR lptstrFilename)
+{
+	unsigned __int64 ret = 0;
+
+	DWORD buff[4];
+	VS_FIXEDFILEINFO* pvsf = (VS_FIXEDFILEINFO*)buff;
+	DWORD d; // a variable that GetFileVersionInfoSize sets to zero (but why is it needed ?????????????????????????????? :)
+	DWORD len = GetFileVersionInfoSize((LPTSTR)lptstrFilename, &d);
+
+	if (len) {
+		TCHAR* b1 = new TCHAR[len];
+		if (b1) {
+			UINT uLen;
+			if (GetFileVersionInfo((LPTSTR)lptstrFilename, 0, len, b1) && VerQueryValue(b1, L"\\", (void**)&pvsf, &uLen)) {
+				ret = ((unsigned __int64)pvsf->dwFileVersionMS << 32) | pvsf->dwFileVersionLS;
+			}
+
+			delete [] b1;
+		}
+	}
+
+	return ret;
+}
 
 extern "C" {
 	#include <ffmpeg/libavcodec/dsputil.h>
@@ -184,10 +206,10 @@ static const WORD PCID_INTEL_4K [] = {
 	0x0D26, // Intel Iris Graphics 5200
 };
 
-bool CheckPCID(DWORD pcid, const WORD* pPCIDs, size_t len)
+static bool CheckPCID(DWORD pcid, const WORD* pPCIDs, size_t count)
 {
 	WORD wPCID = (WORD)pcid;
-	for (size_t i = 0; i < len; i++) {
+	for (size_t i = 0; i < count; i++) {
 		if (wPCID == pPCIDs[i]) {
 			return true;
 		}
@@ -444,7 +466,7 @@ HRESULT FFH264BuildPicParams(struct AVCodecContext* pAVCtx, DWORD nPCIVendor, DW
 	if (cur_sps && cur_pps) {
 		*nPictStruct = h->picture_structure;
 
-		if (cur_sps->mb_width == 0 || cur_sps->mb_height == 0) {
+		if (!cur_sps->mb_width || !cur_sps->mb_height) {
 			return VFW_E_INVALID_FILE_FORMAT;
 		}
 
@@ -478,6 +500,9 @@ HRESULT FFH264BuildPicParams(struct AVCodecContext* pAVCtx, DWORD nPCIVendor, DW
 
 		pDXVAPicParams->log2_max_frame_num_minus4				= cur_sps->log2_max_frame_num - 4;
 		pDXVAPicParams->pic_order_cnt_type						= cur_sps->poc_type;
+
+		pDXVAPicParams->log2_max_pic_order_cnt_lsb_minus4		= 0;
+		pDXVAPicParams->delta_pic_order_always_zero_flag		= 0;
 		if (cur_sps->poc_type == 0)
 			pDXVAPicParams->log2_max_pic_order_cnt_lsb_minus4	= cur_sps->log2_max_poc_lsb - 4;
 		else if (cur_sps->poc_type == 1)
@@ -497,14 +522,14 @@ HRESULT FFH264BuildPicParams(struct AVCodecContext* pAVCtx, DWORD nPCIVendor, DW
 		pDXVAPicParams->pic_init_qp_minus26						= cur_pps->init_qp - 26;
 		pDXVAPicParams->pic_init_qs_minus26						= cur_pps->init_qs - 26;
 
-		pDXVAPicParams->CurrPic.AssociatedFlag = field_pic_flag && (h->picture_structure == PICT_BOTTOM_FIELD);
-		pDXVAPicParams->CurrFieldOrderCnt[0] = 0;
+		pDXVAPicParams->CurrPic.AssociatedFlag					= field_pic_flag && (h->picture_structure == PICT_BOTTOM_FIELD);
+		pDXVAPicParams->CurrFieldOrderCnt[0]					= 0;
 		if ((h->picture_structure & PICT_TOP_FIELD) && current_picture->field_poc[0] != INT_MAX) {
-			pDXVAPicParams->CurrFieldOrderCnt[0] = current_picture->field_poc[0];
+			pDXVAPicParams->CurrFieldOrderCnt[0]				= current_picture->field_poc[0];
 		}
-		pDXVAPicParams->CurrFieldOrderCnt[1] = 0;
+		pDXVAPicParams->CurrFieldOrderCnt[1]					= 0;
 		if ((h->picture_structure & PICT_BOTTOM_FIELD) && current_picture->field_poc[1] != INT_MAX) {
-			pDXVAPicParams->CurrFieldOrderCnt[1] = current_picture->field_poc[1];
+			pDXVAPicParams->CurrFieldOrderCnt[1]				= current_picture->field_poc[1];
 		}
 
 		CopyScalingMatrix (pDXVAScalingMatrix, cur_pps, nPCIVendor, nPCIDevice);
@@ -688,7 +713,7 @@ HRESULT FFVC1DecodeFrame(DXVA_PictureParameters* pPicParams, struct AVCodecConte
 
 	// Section 3.2.20.4
 	pPicParams->bPicOverflowBlocks  = (vc1->quantizer_mode  << 6) | (vc1->multires << 5) |
-									  (vc1->s.resync_marker << 4) | (vc1->rangered << 3) |
+									  (vc1->resync_marker << 4) | (vc1->rangered << 3) |
 									  (vc1->s.max_b_frames);
 
 	// Section 3.2.20.2
@@ -756,8 +781,7 @@ int	MPEG2CheckCompatibility(struct AVCodecContext* pAVCtx)
 
 HRESULT FFMpeg2DecodeFrame(DXVA_PictureParameters* pPicParams, DXVA_QmatrixData* pQMatrixData, DXVA_SliceInfo* pSliceInfo,
 						   struct AVCodecContext* pAVCtx, struct AVFrame* pFrame, BYTE* pBuffer, UINT nSize,
-						   int* nSliceCount, int* nNextCodecIndex,
-						   bool* bIsField, int* b_repeat_pict)
+						   int* nSliceCount, int* nNextCodecIndex, bool* bIsField)
 {
 	HRESULT			hr = E_FAIL;
 	int				i;
@@ -797,10 +821,6 @@ HRESULT FFMpeg2DecodeFrame(DXVA_PictureParameters* pPicParams, DXVA_QmatrixData*
 	is_field									= s->picture_structure != PICT_FRAME;
 	if (bIsField) {
 		*bIsField								= is_field;
-	}
-
-	if (b_repeat_pict) {
-		*b_repeat_pict							= s->current_picture.f.repeat_pict;
 	}
 
 	pPicParams->wPicWidthInMBminus1				= s->mb_width-1;
@@ -872,44 +892,6 @@ HRESULT FFMpeg2DecodeFrame(DXVA_PictureParameters* pPicParams, DXVA_QmatrixData*
 	}
 
 	return S_OK;
-}
-
-int FFGetThreadType(enum AVCodecID nCodecId)
-{
-	switch (nCodecId)
-	{
-		case AV_CODEC_ID_H264			:
-		case AV_CODEC_ID_HEVC			:
-		case AV_CODEC_ID_VP8			:
-			return FF_THREAD_FRAME|FF_THREAD_SLICE;
-			break;
-		case AV_CODEC_ID_MPEG1VIDEO		:
-		case AV_CODEC_ID_MPEG2VIDEO		:
-		case AV_CODEC_ID_DVVIDEO		:
-		case AV_CODEC_ID_FFV1			:
-		case AV_CODEC_ID_PRORES			:
-		case AV_CODEC_ID_VP6A			:
-			return FF_THREAD_SLICE;
-			break;
-		case AV_CODEC_ID_VP3			:
-		case AV_CODEC_ID_THEORA			:
-		case AV_CODEC_ID_RV30			:
-		case AV_CODEC_ID_RV40			:
-		case AV_CODEC_ID_UTVIDEO		:
-		case AV_CODEC_ID_LAGARITH		:
-		case AV_CODEC_ID_JPEG2000		:
-		case AV_CODEC_ID_PNG			:
-			return FF_THREAD_FRAME;
-			break;
-		default :
-			return 0;
-	}
-}
-
-void FFSetThreadNumber(struct AVCodecContext* pAVCtx, enum AVCodecID nCodecId, int nThreadCount)
-{
-	pAVCtx->thread_count	= nThreadCount;
-	pAVCtx->thread_type		= nThreadCount ? FFGetThreadType(nCodecId) : 0;
 }
 
 int FFGetCodedPicture(struct AVCodecContext* pAVCtx)
@@ -1005,12 +987,22 @@ void FFGetFrameProps(struct AVCodecContext* pAVCtx, struct AVFrame* pFrame, int&
 		}
 		break;
 	case AV_CODEC_ID_PRORES:
-		if (pAVCtx->pix_fmt == AV_PIX_FMT_NONE) {
-			av_log(pAVCtx, AV_LOG_INFO, "WARNING! : pAVCtx->pix_fmt == AV_PIX_FMT_NONE\n");
-			pAVCtx->pix_fmt = AV_PIX_FMT_YUV422P10LE; // bad hack
+		if (pAVCtx->pix_fmt == AV_PIX_FMT_NONE && pAVCtx->extradata_size >= 8) {
+			switch (*(DWORD*)(pAVCtx->extradata + 4)) {
+			case 'hcpa': // Apple ProRes 422 High Quality
+			case 'ncpa': // Apple ProRes 422 Standard Definition
+			case 'scpa': // Apple ProRes 422 LT
+			case 'ocpa': // Apple ProRes 422 Proxy
+				pAVCtx->pix_fmt = AV_PIX_FMT_YUV422P10LE;
+				break;
+			case 'h4pa': // Apple ProRes 4444
+				pAVCtx->pix_fmt = pAVCtx->bits_per_coded_sample == 32 ? AV_PIX_FMT_YUVA444P10LE : AV_PIX_FMT_YUV444P10LE;
+				break;
+			}
 		}
 		break;
 	case AV_CODEC_ID_MJPEG:
+	case AV_CODEC_ID_DNXHD:
 		if (pAVCtx->pix_fmt == AV_PIX_FMT_NONE) {
 			av_log(pAVCtx, AV_LOG_INFO, "WARNING! : pAVCtx->pix_fmt == AV_PIX_FMT_NONE\n");
 			pAVCtx->pix_fmt = AV_PIX_FMT_YUV422P; // bad hack
@@ -1038,12 +1030,6 @@ BOOL DXVACheckFramesize(int width, int height, DWORD nPCIVendor, DWORD nPCIDevic
 			return TRUE;
 		} else if (width <= 2032 && height <= 2032 && width * height <= 8190 * 16 * 16) {
 			// tested H.264, VC-1 and MPEG-2 on VP4 (feature set C) (G210M, GT220)
-			return TRUE;
-		}
-	} else if (nPCIVendor == PCIV_ATI) {
-		if (width <= 2048 && height <= 2304 && width * height <= 2048 * 2048) {
-			// tested H.264 on UVD 2.2 (HD5670, HD5770, HD5850)
-			// it may also work if width = 2064, but unstable
 			return TRUE;
 		}
 	} else if (nPCIVendor == PCIV_Intel && nPCIDevice == PCID_Intel_HD4000) {

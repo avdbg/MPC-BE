@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -58,15 +58,15 @@ int g_cTemplates = _countof(g_Templates);
 STDAPI DllRegisterServer()
 {
 	CAtlList<CString> chkbytes;
-	chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564920")); // 'RIFF' ... 'AVI '
-	chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564958")); // 'RIFF' ... 'AVIX'
-	chkbytes.AddTail(_T("0,4,,52494646,8,4,,414D5620")); // 'RIFF' ... 'AMV '
+	chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564920")); // 'RIFF....AVI '
+	chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564958")); // 'RIFF....AVIX'
+	chkbytes.AddTail(_T("0,4,,52494646,8,4,,414D5620")); // 'RIFF....AMV '
 
 	RegisterSourceFilter(
 		CLSID_AsyncReader,
 		MEDIASUBTYPE_Avi,
 		chkbytes,
-		_T(".avi"), _T(".divx"), _T(".vp6"), _T(".amv"), NULL);
+		NULL);
 
 	return AMovieDllRegisterServer2(TRUE);
 }
@@ -267,8 +267,27 @@ HRESULT CAviSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					break;
 				//case BI_RLE8: mt.subtype = MEDIASUBTYPE_RGB8; break;
 				//case BI_RLE4: mt.subtype = MEDIASUBTYPE_RGB4; break;
-				case FCC('AVRn')://uncommon fourcc
-				case FCC('JPGL')://uncommon fourcc
+				case FCC('Y8  '): // uncommon fourcc
+					mt.subtype = FOURCCMap(pbmi->biCompression = FCC('Y800'));
+					break;
+				case FCC('V422'): // uncommon fourcc
+					mt.subtype = FOURCCMap(pbmi->biCompression = FCC('YUY2'));
+					break;
+				case FCC('HDYC'): // UYVY with BT709
+				case FCC('UYNV'): // uncommon fourcc
+				case FCC('UYNY'): // uncommon fourcc
+					mt.subtype = FOURCCMap(pbmi->biCompression = FCC('UYVY'));
+					break;
+				case FCC('P422'):
+					mt.subtype = FOURCCMap(pbmi->biCompression = FCC('Y42B'));
+					break;
+				case FCC('RV24'): // uncommon fourcc
+					pbmi->biCompression = BI_RGB;
+					mt.subtype = MEDIASUBTYPE_RGB24;
+					pbmi->biHeight = -pbmi->biHeight;
+					break;
+				case FCC('AVRn'): // uncommon fourcc
+				case FCC('JPGL'): // uncommon fourcc
 					mt.subtype = MEDIASUBTYPE_MJPG;
 					break;
 				case FCC('mpg2'):

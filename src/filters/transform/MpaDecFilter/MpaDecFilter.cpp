@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -159,6 +159,7 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_COOK},
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_DNET},
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_SIPR},
+	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_SIPR_WAVE},
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_RAAC},
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_RACP},
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_RALF},
@@ -179,8 +180,10 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_TAK},
 	// TTA
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_TTA1},
-	// TRUESPEECH
+	// DSP Group TrueSpeech
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_TRUESPEECH},
+	// Voxware MetaSound
+	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_VOXWARE_RT29},
 	// Windows Media Audio 9 Professional
 	{&MEDIATYPE_Audio,				&MEDIASUBTYPE_WMAUDIO3},
 	// Windows Media Audio Lossless
@@ -301,6 +304,7 @@ channel_mode[] = {
 	{1, AV_CH_LAYOUT_MONO   , _T("1.0") }, // SPK_MONO   "Mono"
 	{2, AV_CH_LAYOUT_STEREO , _T("2.0") }, // SPK_STEREO "Stereo"
 	{4, AV_CH_LAYOUT_QUAD   , _T("4.0") }, // SPK_4_0    "4.0"
+	{5, AV_CH_LAYOUT_5POINT0, _T("5.0") }, // SPK_5_0    "5.0"
 	{6, AV_CH_LAYOUT_5POINT1, _T("5.1") }, // SPK_5_1    "5.1"
 	{8, AV_CH_LAYOUT_7POINT1, _T("7.1") }, // SPK_7_1    "7.1"
 };
@@ -584,9 +588,9 @@ HRESULT CMpaDecFilter::Receive(IMediaSample* pIn)
 
 #if 0
 	if (SUCCEEDED(hr)) {
-		TRACE(_T("CMpaDecFilter::Receive(): rtStart = %10I64d, rtStop = %10I64d\n"), rtStart, rtStop);
+		DbgLog((LOG_TRACE, 3, L"CMpaDecFilter::Receive(): rtStart = %10I64d, rtStop = %10I64d", rtStart, rtStop));
 	} else {
-		TRACE(_T("CMpaDecFilter::Receive(): frame without timestamp\n"));
+		DbgLog((LOG_TRACE, 3, L"CMpaDecFilter::Receive(): frame without timestamp"));
 	}
 #endif
 
@@ -599,7 +603,7 @@ HRESULT CMpaDecFilter::Receive(IMediaSample* pIn)
 		// LOOKATTHIS // m_rtStart = rtStart;
 		m_bResync = true;
 		if (FAILED(hr)) {
-			TRACE(_T("CMpaDecFilter::Receive() : Discontinuity without timestamp\n"));
+			DbgLog((LOG_TRACE, 3, L"CMpaDecFilter::Receive() : Discontinuity without timestamp"));
 			// LOOKATTHIS // return S_OK;
 		}
 	}
@@ -1167,7 +1171,7 @@ HRESULT CMpaDecFilter::ProcessDTS_SPDIF()
 					type = IEC61937_DTS3;
 					break;
 				default:
-					TRACE(_T("CMpaDecFilter:ProcessDTS_SPDIF() - framelength is not supported\n"));
+					DbgLog((LOG_TRACE, 3, L"CMpaDecFilter:ProcessDTS_SPDIF() - framelength is not supported"));
 					return E_FAIL;
 			}
 			if (FAILED(hr = DeliverBitstream(p, size, type, aframe.samplerate, aframe.samples))) {
@@ -1683,7 +1687,7 @@ HRESULT CMpaDecFilter::DeliverBitstream(BYTE* pBuff, int size, WORD type, int sa
 			isHDMI = true;
 			break;
 		default:
-			TRACE(_T("CMpaDecFilter::DeliverBitstream() - type is not supported\n"));
+			DbgLog((LOG_TRACE, 3, L"CMpaDecFilter::DeliverBitstream() - type is not supported"));
 			return E_INVALIDARG;
 	}
 

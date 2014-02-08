@@ -2,7 +2,7 @@
 /* pngerror.c - stub functions for i/o and memory allocation
  *
  * Last changed in libpng 1.7.0 [(PENDING RELEASE)]
- * Copyright (c) 1998-2013 Glenn Randers-Pehrson
+ * Copyright (c) 1998-2014 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -163,7 +163,7 @@ png_format_number(png_const_charp start, png_charp end, int format,
          case PNG_NUMBER_FORMAT_02u:
             /* Expects at least 2 digits. */
             mincount = 2;
-            /* fall through */
+            /* FALL THROUGH */
 
          case PNG_NUMBER_FORMAT_u:
             *--end = digits[number % 10];
@@ -173,7 +173,7 @@ png_format_number(png_const_charp start, png_charp end, int format,
          case PNG_NUMBER_FORMAT_02x:
             /* This format expects at least two digits */
             mincount = 2;
-            /* fall through */
+            /* FALL THROUGH */
 
          case PNG_NUMBER_FORMAT_x:
             *--end = digits[number & 0xf];
@@ -382,6 +382,10 @@ png_benign_error(png_const_structrp png_ptr, png_const_charp error_message)
 #     endif
       png_error(png_ptr, error_message);
    }
+
+#  ifndef PNG_ERROR_TEXT_SUPPORTED
+      PNG_UNUSED(error_message)
+#  endif
 }
 
 void /* PRIVATE */
@@ -391,6 +395,10 @@ png_app_warning(png_const_structrp png_ptr, png_const_charp error_message)
      png_warning(png_ptr, error_message);
   else
      png_error(png_ptr, error_message);
+
+#  ifndef PNG_ERROR_TEXT_SUPPORTED
+      PNG_UNUSED(error_message)
+#  endif
 }
 
 void /* PRIVATE */
@@ -400,6 +408,10 @@ png_app_error(png_const_structrp png_ptr, png_const_charp error_message)
      png_warning(png_ptr, error_message);
   else
      png_error(png_ptr, error_message);
+
+#  ifndef PNG_ERROR_TEXT_SUPPORTED
+      PNG_UNUSED(error_message)
+#  endif
 }
 #endif /* BENIGN_ERRORS */
 
@@ -416,7 +428,8 @@ static PNG_CONST char png_digit[16] = {
 };
 
 #define PNG_MAX_ERROR_TEXT 196 /* Currently limited be profile_error in png.c */
-#if defined(PNG_WARNINGS_SUPPORTED) || defined(PNG_ERROR_TEXT_SUPPORTED)
+#if defined(PNG_WARNINGS_SUPPORTED) || \
+   (defined(PNG_READ_SUPPORTED) && defined(PNG_ERROR_TEXT_SUPPORTED))
 static void /* PRIVATE */
 png_format_buffer(png_const_structrp png_ptr, png_charp buffer, png_const_charp
     error_message)
@@ -506,6 +519,10 @@ png_chunk_benign_error(png_const_structrp png_ptr, png_const_charp
 
    else
       png_chunk_error(png_ptr, error_message);
+
+#  ifndef PNG_ERROR_TEXT_SUPPORTED
+      PNG_UNUSED(error_message)
+#  endif
 }
 #endif
 #endif /* PNG_READ_SUPPORTED */
@@ -513,6 +530,10 @@ png_chunk_benign_error(png_const_structrp png_ptr, png_const_charp
 void /* PRIVATE */
 png_chunk_report(png_const_structrp png_ptr, png_const_charp message, int error)
 {
+#  ifndef PNG_WARNINGS_SUPPORTED
+      PNG_UNUSED(message)
+#  endif
+
    /* This is always supported, but for just read or just write it
     * unconditionally does the right thing.
     */

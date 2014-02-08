@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -62,7 +62,7 @@ void mpc_filehash(CPlaylist& pl, CList<filehash>& fhs)
 	while (pos) {
 		CString fn = pl.GetNext(pos).m_fns.GetHead();
 
-		if (AfxGetAppSettings().m_Formats.FindExt(CPath(fn).GetExtension().MakeLower(), true)) {
+		if (AfxGetAppSettings().m_Formats.FindAudioExt(CPath(fn).GetExtension().MakeLower())) {
 			continue;
 		}
 

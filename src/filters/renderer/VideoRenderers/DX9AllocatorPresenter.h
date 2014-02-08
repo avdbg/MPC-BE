@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-BE.
  *
@@ -22,7 +22,8 @@
 #pragma once
 
 #include "DX9RenderingEngine.h"
-#include "CpuUsage.h"
+#include "CPUUsage.h"
+#include "GPUUsage.h"
 
 #define VMRBITMAP_UPDATE			0x80000000
 
@@ -42,15 +43,6 @@ namespace DSObjects
 		void					UpdateAlphaBitmap();
 
 	protected:
-		typedef enum {
-			Undefined	= State_Stopped-1,
-			Started		= State_Running,
-			Stopped		= State_Stopped,
-			Paused		= State_Paused,
-			Shutdown	= State_Running + 1
-		} RENDER_STATE;
-		RENDER_STATE			m_nRenderState;
-
 		UINT	m_RefreshRate;
 		bool	m_bAlternativeVSync;
 		bool	m_bCompositionEnabled;
@@ -114,15 +106,7 @@ namespace DSObjects
 		virtual HRESULT AllocSurfaces();
 		virtual void DeleteSurfaces();
 
-		// Thread stuff
-		HANDLE			m_hEvtQuit;			// Stop rendering thread event
-		HANDLE			m_hVSyncThread;
-		static DWORD WINAPI VSyncThreadStatic(LPVOID lpParam);
-		void VSyncThread();
-		void StartWorkerThreads();
-		void StopWorkerThreads();
-
-		LONGLONG		m_LastAdapterCheck;
+		LONGLONG m_LastAdapterCheck;
 		UINT GetAdapter(IDirect3D9 *pD3D, bool bGetAdapter = true);
 		DWORD GetVertexProcessing();
 
@@ -296,6 +280,7 @@ namespace DSObjects
 		CString					m_strStatsMsg[10];
 
 		CString					m_D3D9Device;
+		CString					m_D3D9DeviceName;
 
 		CString					m_Decoder;
 
@@ -308,7 +293,8 @@ namespace DSObjects
 
 		D3DPRESENT_PARAMETERS	m_pp;
 
-		CpuUsage				m_CpuUsage;
+		CCPUUsage				m_CPUUsage;
+		CGPUUsage				m_GPUUsage;
 
 	public:
 		CDX9AllocatorPresenter(HWND hWnd, bool bFullscreen, HRESULT& hr, bool bIsEVR, CString &_Error);
