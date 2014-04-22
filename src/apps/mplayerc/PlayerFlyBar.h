@@ -26,7 +26,9 @@ class CFlyBar : public CWnd
 {
 public:
 	CFlyBar();
-	virtual ~CFlyBar();
+	~CFlyBar();
+
+	HRESULT Create(CWnd* pWnd);
 
 	int iw;
 
@@ -43,7 +45,6 @@ private:
 	CRect r_FSIcon;
 	CRect r_LockIcon;
 
-	MPCPngImage m_logobm;
 	CToolTipCtrl m_tooltip;
 	CImageList *m_pButtonsImages;
 
@@ -52,7 +53,6 @@ private:
 	void DrawButton(CDC *pDC, int x, int y, int z);
 	void UpdateWnd(CPoint point);
 	void DrawWnd();
-	void Destroy();
 
 protected:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);

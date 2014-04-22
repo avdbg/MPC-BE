@@ -380,7 +380,7 @@ typedef struct ScalingList {
 } ScalingList;
 
 typedef struct HEVCSPS {
-    int vps_id;
+    unsigned vps_id;
     int chroma_format_idc;
     uint8_t separate_colour_plane_flag;
 
@@ -461,7 +461,7 @@ typedef struct HEVCSPS {
 } HEVCSPS;
 
 typedef struct HEVCPPS {
-    int sps_id; ///< seq_parameter_set_id
+    unsigned int sps_id; ///< seq_parameter_set_id
 
     uint8_t sign_data_hiding_flag;
 
@@ -723,13 +723,14 @@ typedef struct HEVCLocalContext {
     int8_t qp_y;
     int8_t curr_qp_y;
 
+    int qPy_pred;
+
     TransformUnit tu;
 
     uint8_t ctb_left_flag;
     uint8_t ctb_up_flag;
     uint8_t ctb_up_right_flag;
     uint8_t ctb_up_left_flag;
-    int     start_of_tiles_x;
     int     end_of_tiles_x;
     int     end_of_tiles_y;
     /* +7 is for subpixel interpolation, *2 for high bit depths */
@@ -847,6 +848,8 @@ typedef struct HEVCContext {
     HEVCNAL *nals;
     int nb_nals;
     int nals_allocated;
+    // type of the first VCL NAL of the current frame
+    enum NALUnitType first_nal_type;
 
     // for checking the frame checksums
     struct AVMD5 *md5_ctx;

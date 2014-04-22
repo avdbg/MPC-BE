@@ -44,7 +44,6 @@ public :
 	bool				m_object_cropped_flag;
 	bool				m_forced_on_flag;
 	BYTE				m_version_number;
-	BYTE				m_nObjectNumber;
 
 	SHORT				m_horizontal_position;
 	SHORT				m_vertical_position;
@@ -70,14 +69,24 @@ public :
 	const BYTE*			GetRLEData() { return m_pRLEData; };
 	bool				IsRLEComplete() { return m_nRLEPos >= m_nRLEDataSize; };
 
-	void				RenderHdmv(SubPicDesc& spd);
-	void				RenderDvb(SubPicDesc& spd, SHORT nX, SHORT nY);
+	void				RenderHdmv(SubPicDesc& spd, SubPicDesc* spdResized);
+	void				RenderDvb(SubPicDesc& spd, SHORT nX, SHORT nY, SubPicDesc* spdResized);
 	void				RenderXSUB(SubPicDesc& spd);
 	void				WriteSeg (SubPicDesc& spd, SHORT nX, SHORT nY, SHORT nCount, SHORT nPaletteIndex);
 
 	void				SetPalette (int nNbEntry, HDMV_PALETTE* pPalette, bool bIsHD, bool bIsRGB = false);
 	void				SetPalette (int nNbEntry, DWORD* dwColors);
-	bool				HavePalette() { return m_nColorNumber > 0; };
+	const bool			HavePalette() { return m_nColorNumber > 0; };
+
+	CompositionObject* Copy() {
+		CompositionObject* pCompositionObject = DNew CompositionObject(*this);
+		if (m_pRLEData) {
+			pCompositionObject->m_pRLEData = NULL;
+			pCompositionObject->SetRLEData(m_pRLEData, m_nRLEDataSize, m_nRLEDataSize);
+		}
+
+		return pCompositionObject;
+	}
 
 private :
 	BYTE*		m_pRLEData;

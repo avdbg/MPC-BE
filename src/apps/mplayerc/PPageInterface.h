@@ -39,15 +39,10 @@ public:
 	BOOL m_fDisableXPToolbars;
 	CButton m_fDisableXPToolbarsCtrl;
 	int m_nThemeBrightness;
-	int m_nThemeBrightness_Old;
 	int m_nThemeRed;
 	int m_nThemeGreen;
 	int m_nThemeBlue;
-	int m_nThemeRed_Old;
-	int m_nThemeGreen_Old;
-	int m_nThemeBlue_Old;
 	int m_nOSDTransparent;
-	int m_nOSDTransparent_Old;
 	BOOL m_fFileNameOnSeekBar;
 	CSliderCtrl m_ThemeBrightnessCtrl;
 	CSliderCtrl m_ThemeRedCtrl;
@@ -55,13 +50,12 @@ public:
 	CSliderCtrl m_ThemeBlueCtrl;
 	CSliderCtrl m_OSDTransparentCtrl;
 	int m_OSDBorder;
-	int m_OSDBorder_Old;
 	CSpinButtonCtrl m_OSDBorderCtrl;
-	int m_clrFaceABGR;
-	int m_clrOutlineABGR;
-	int m_clrFontABGR;
-	int m_clrGrad1ABGR;
-	int m_clrGrad2ABGR;
+	COLORREF m_clrFaceABGR;
+	COLORREF m_clrOutlineABGR;
+	COLORREF m_clrFontABGR;
+	COLORREF m_clrGrad1ABGR;
+	COLORREF m_clrGrad2ABGR;
 
 	BOOL m_fUseWin7TaskBar;
 	BOOL m_fUseTimeTooltip;
@@ -74,8 +68,23 @@ public:
 	BOOL m_fChapterMarker;
 	BOOL m_fFlybar;
 	BOOL m_fFontShadow;
-	BOOL m_fFontShadow_Old;
 	BOOL m_fFontAA;
+
+	int m_nThemeBrightness_Old;
+	int m_nThemeRed_Old;
+	int m_nThemeGreen_Old;
+	int m_nThemeBlue_Old;
+	int m_nOSDTransparent_Old;
+	int m_OSDBorder_Old;
+
+	COLORREF m_clrFaceABGR_Old;
+	COLORREF m_clrOutlineABGR_Old;
+	COLORREF m_clrFontABGR_Old;
+	COLORREF m_clrGrad1ABGR_Old;
+	COLORREF m_clrGrad2ABGR_Old;
+
+	BOOL m_fFontShadow_Old;
+	BOOL m_fFontAA_Old;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
@@ -84,6 +93,8 @@ protected:
 	void OnCancel();
 
 	DECLARE_MESSAGE_MAP()
+
+	void ApplyOSDTransparent();
 
 public:
 	afx_msg BOOL OnToolTipNotify(UINT id, NMHDR* pNMH, LRESULT* pResult);
@@ -99,6 +110,7 @@ public:
 	afx_msg void OnClickClrGrad2();
 	afx_msg void OnCustomDrawBtns(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnUseTimeTooltipClicked();
+	afx_msg void OnUsePreview();
 	afx_msg void OnChngOSDCombo();
 	afx_msg void OnUpdateThemeBrightness(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateThemeRed(CCmdUI* pCmdUI);

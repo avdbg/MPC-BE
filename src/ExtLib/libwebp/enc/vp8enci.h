@@ -130,8 +130,8 @@ typedef enum {   // Rate-distortion optimization levels
 #define ALIGN_CST 15
 #define DO_ALIGN(PTR) ((uintptr_t)((PTR) + ALIGN_CST) & ~ALIGN_CST)
 
-extern const int VP8Scan[16 + 4 + 4];           // in quant.c
-extern const int VP8UVModeOffsets[4];           // in analyze.c
+extern const int VP8Scan[16];           // in quant.c
+extern const int VP8UVModeOffsets[4];   // in analyze.c
 extern const int VP8I16ModeOffsets[4];
 extern const int VP8I4ModeOffsets[NUM_BMODES];
 
@@ -160,14 +160,16 @@ extern const int VP8I4ModeOffsets[NUM_BMODES];
 #define I4TMP (6 * 16 * BPS + 8 * BPS +  8)
 
 typedef int64_t score_t;     // type used for scores, rate, distortion
+// Note that MAX_COST is not the maximum allowed by sizeof(score_t),
+// in order to allow overflowing computations.
 #define MAX_COST ((score_t)0x7fffffffffffffLL)
 
 #define QFIX 17
 #define BIAS(b)  ((b) << (QFIX - 8))
 // Fun fact: this is the _only_ line where we're actually being lossy and
 // discarding bits.
-static WEBP_INLINE int QUANTDIV(int n, int iQ, int B) {
-  return (n * iQ + B) >> QFIX;
+static WEBP_INLINE int QUANTDIV(uint32_t n, uint32_t iQ, uint32_t B) {
+  return (int)((n * iQ + B) >> QFIX);
 }
 
 // size of histogram used by CollectHistogram.
@@ -236,8 +238,8 @@ typedef struct {
 typedef struct VP8Matrix {
   uint16_t q_[16];        // quantizer steps
   uint16_t iq_[16];       // reciprocals, fixed point.
-  uint16_t bias_[16];     // rounding bias
-  uint16_t zthresh_[16];  // value under which a coefficient is zeroed
+  uint32_t bias_[16];     // rounding bias
+  uint32_t zthresh_[16];  // value below which a coefficient is zeroed
   uint16_t sharpen_[16];  // frequency boosters for slight sharpening
 } VP8Matrix;
 

@@ -33,14 +33,14 @@ CDXVA2Sample::CDXVA2Sample(CVideoDecDXVAAllocator *pAlloc, HRESULT *phr)
 
 STDMETHODIMP CDXVA2Sample::QueryInterface(REFIID riid, __deref_out void **ppv)
 {
-	CheckPointer(ppv,E_POINTER);
-	ValidateReadWritePtr(ppv,sizeof(PVOID));
+	CheckPointer(ppv, E_POINTER);
+	ValidateReadWritePtr(ppv, sizeof(PVOID));
 
 	if (riid == __uuidof(IMFGetService)) {
-		return GetInterface((IMFGetService*) this, ppv);
+		return GetInterface((IMFGetService*)this, ppv);
 	}
 	if (riid == __uuidof(IMPCDXVA2Sample)) {
-		return GetInterface((IMPCDXVA2Sample*) this, ppv);
+		return GetInterface((IMPCDXVA2Sample*)this, ppv);
 	} else {
 		return CMediaSample::QueryInterface(riid, ppv);
 	}
@@ -99,6 +99,9 @@ CVideoDecDXVAAllocator::CVideoDecDXVAAllocator(CMPCVideoDecFilter* pVideoDecFilt
 
 CVideoDecDXVAAllocator::~CVideoDecDXVAAllocator()
 {
+	DbgLog((LOG_TRACE, 3, L"CVideoDecDXVAAllocator::~CVideoDecDXVAAllocator()"));
+
+	m_pVideoDecFilter->FlushDXVADecoder();
 	Free();
 	if (m_pVideoDecFilter && m_pVideoDecFilter->m_pDXVA2Allocator == this) {
 		m_pVideoDecFilter->m_pDXVA2Allocator = NULL;
@@ -119,6 +122,7 @@ HRESULT CVideoDecDXVAAllocator::Alloc()
 
 	if (SUCCEEDED(hr)) {
 		// Free the old resources.
+		m_pVideoDecFilter->FlushDXVADecoder();
 		Free();
 
 		m_nSurfaceArrayCount = m_lCount;
@@ -149,8 +153,17 @@ HRESULT CVideoDecDXVAAllocator::Alloc()
 	}
 
 	if (SUCCEEDED(hr)) {
+		// get the device, for ColorFill() to init the surfaces in black
+		CComPtr<IDirect3DDevice9> pDev;
+		m_ppRTSurfaceArray[0]->GetDevice(&pDev);
+
 		// Important : create samples in reverse order !
 		for (m_lAllocated = m_lCount-1; m_lAllocated >= 0; m_lAllocated--) {
+			// fill the surface in black, to avoid the "green screen" in case the first frame fails to decode.
+			if (pDev) {
+				pDev->ColorFill(m_ppRTSurfaceArray[m_lAllocated], NULL, D3DCOLOR_XYUV(0, 128, 128));
+			}
+
 			CDXVA2Sample *pSample = DNew CDXVA2Sample(this, &hr);
 			if (pSample == NULL) {
 				hr = E_OUTOFMEMORY;
@@ -167,7 +180,7 @@ HRESULT CVideoDecDXVAAllocator::Alloc()
 		}
 
 		hr = m_pVideoDecFilter->CreateDXVA2Decoder(m_lCount, m_ppRTSurfaceArray);
-		if (FAILED (hr)) {
+		if (FAILED(hr)) {
 			Free();
 		}
 	}
@@ -182,8 +195,6 @@ void CVideoDecDXVAAllocator::Free()
 {
 	CMediaSample *pSample = NULL;
 	CAutoLock lock(this);
-
-	m_pVideoDecFilter->FlushDXVADecoder();
 
 	do {
 		pSample = m_lFree.RemoveHead();

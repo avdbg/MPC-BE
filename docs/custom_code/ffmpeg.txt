@@ -11,20 +11,22 @@
 * libavcodec/h264.c
 * libavcodec/h264.h
 * libavcodec/h264_ps.c
+* libavcodec/h264_slice.c
 * libavcodec/internal.h
-* libavcodec/mpeg12.h
 * libavcodec/mpeg12dec.c
 * libavcodec/mpegvideo.c
+* libavcodec/mpegvideo.h
 * libavcodec/options.c
 * libavcodec/utils.c
 * libavcodec/vc1.h
 * libavcodec/vc1dec.c
 * libavcodec/vorbis.c
 
+* libavfilter/allfilters.c 
+
 * libavutil/common.h
 * libavutil/eval.c
 * libavutil/file_open.c
-* libavutil/frame.h
 * libavutil/internal.h
 * libavutil/mathematics.h
 
@@ -32,8 +34,4 @@
 The following files are available only in MPC-BE (compared with ffmpeg):
 
 * config.c
-
-======
-Следующие файлы остаются как есть, без последних изменений из ffmpeg:
-
-* vc1dec.c
+* libavcodec/h264_slice.h

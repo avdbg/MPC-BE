@@ -28,24 +28,34 @@ struct png_t {
 	png_size_t size, pos;
 };
 
-static void read_data_fn(png_structp png_ptr, png_bytep data, png_size_t length)
-{
-	struct png_t* png = (struct png_t*)png_get_progressive_ptr(png_ptr);
-	memcpy(data, &png->data[png->pos], length);
-	png->pos += length;
-}
+enum IMG_TYPE {
+	UNDEF = -1,
+	BMP,
+	PNG
+};
 
-class MPCPngImage : public CImage
+class CMPCPngImage : public CImage
 {
-public:
+	// External Gradient
+	BYTE*		m_pExtGradientDATA;
+	HBITMAP		m_ExtGradientHB;
+	int			m_width, m_height, m_bpp;
+	IMG_TYPE	m_type;
+
 	bool	DecompressPNG(struct png_t* png);
+public:
+	CMPCPngImage();
+	~CMPCPngImage();
+
 	bool	LoadFromResource(UINT id);
 
-	CString	LoadCurrentPath();
-	bool	FileExists(CString& fn, bool bInclJPEG = false);
+	static bool		FileExists(CString& fn, bool bInclJPEG = false);
+	static BYTE*	BrightnessRGB(IMG_TYPE type, BYTE* lpBits, int width, int height, int bpp, int br, int rc, int gc, int bc);
+	static HBITMAP	TypeLoadImage(IMG_TYPE type, BYTE** pData, int* width, int* height, int* bpp, FILE* fp, int resid, int br = -1, int rc = -1, int gc = -1, int bc = -1);
+	static HBITMAP	LoadExternalImage(CString fn, int resid, IMG_TYPE type, int br = -1, int rc = -1, int gc = -1, int bc = -1);
 
-	BYTE*	BrightnessRGB(int type, BYTE* lpBits, int width, int height, int bpp, int br, int rc, int gc, int bc);
-	HBITMAP	TypeLoadImage(int type, BYTE** pData, int* width, int* height, int* bpp, FILE* fp, int resid, int br, int rc, int gc, int bc);
-	HBITMAP	LoadExternalImage(CString fn, int resid, int type, int br, int rc, int gc, int bc);
-	void	LoadExternalGradient(CString fn, CDC* dc, CRect r, int ptop, int br, int rc, int gc, int bc);
+	bool	LoadExternalGradient(CString fn);
+	bool	PaintExternalGradient(CDC* dc, CRect r, int ptop, int br = -1, int rc = -1, int gc = -1, int bc = -1);
+
+	const bool IsExtGradiendLoading() { return m_ExtGradientHB && m_width && m_height && m_bpp; };
 };

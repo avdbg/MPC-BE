@@ -39,11 +39,14 @@ typedef struct {
   // Backward reference prefix-code histogram.
   int distance_[NUM_DISTANCE_CODES];
   int palette_code_bits_;
-  double bit_cost_;   // cached value of VP8LHistogramEstimateBits(this)
+  double bit_cost_;      // cached value of VP8LHistogramEstimateBits(this)
+  double literal_cost_;  // Cached values of dominant entropy costs:
+  double red_cost_;      //   literal, red & blue.
+  double blue_cost_;
 } VP8LHistogram;
 
 // Collection of histograms with fixed capacity, allocated as one
-// big memory chunk. Can be destroyed by simply calling 'free()'.
+// big memory chunk. Can be destroyed by calling WebPSafeFree().
 typedef struct {
   int size;         // number of slots currently in use
   int max_size;     // maximum capacity
@@ -82,9 +85,9 @@ double VP8LHistogramEstimateBits(const VP8LHistogram* const p);
 // represent the entropy code itself.
 double VP8LHistogramEstimateBitsBulk(const VP8LHistogram* const p);
 
-static WEBP_INLINE int VP8LHistogramNumCodes(const VP8LHistogram* const p) {
+static WEBP_INLINE int VP8LHistogramNumCodes(int palette_code_bits) {
   return 256 + NUM_LENGTH_CODES +
-      ((p->palette_code_bits_ > 0) ? (1 << p->palette_code_bits_) : 0);
+      ((palette_code_bits > 0) ? (1 << palette_code_bits) : 0);
 }
 
 // Builds the histogram image.

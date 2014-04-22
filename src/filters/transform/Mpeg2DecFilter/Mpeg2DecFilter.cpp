@@ -31,7 +31,6 @@
 #include <emmintrin.h>
 
 #include "../../../DSUtil/DSUtil.h"
-#include "../../../DSUtil/MediaTypes.h"
 #include "../../../DSUtil/GolombBuffer.h"
 
 #ifdef REGISTER_FILTER
@@ -670,11 +669,6 @@ HRESULT CMpeg2DecFilter::Transform(IMediaSample* pIn)
 	return S_OK;
 }
 
-bool CMpeg2DecFilter::IsVideoInterlaced()
-{
-	return IsInterlacedEnabled();
-}
-
 void CMpeg2DecFilter::UpdateAspectRatio()
 {
 	if (m_bReadARFromStream && m_dec->m_info.m_sequence->pixel_width && m_dec->m_info.m_sequence->pixel_height) {
@@ -962,22 +956,6 @@ HRESULT CMpeg2DecFilter::Deliver(bool fRepeatLast)
 
 HRESULT CMpeg2DecFilter::CheckConnect(PIN_DIRECTION dir, IPin* pPin)
 {
-	if (dir == PINDIR_INPUT) {
-		CComQIPtr<IBaseFilter> pBF = GetFilterFromPin(pPin);
-
-		if (GetCLSID(pBF) != CLSID_DVDNavigator) {
-			BeginEnumMediaTypes(pPin, pEM, pmt) {
-				if (pmt->subtype == MEDIASUBTYPE_DVD_SUBPICTURE) {
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					return E_FAIL;
-				}
-			}
-			EndEnumMediaTypes(pmt)
-		}
-	}
-
 	if (dir == PINDIR_OUTPUT) {
 		if (GetCLSID(m_pInput->GetConnected()) == CLSID_DVDNavigator) {
 			// one of these needed for dynamic format changes

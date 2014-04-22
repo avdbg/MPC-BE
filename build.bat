@@ -263,6 +263,7 @@ IF /I "%SIGN%" == "True" (
   CALL :SubSign %DIR% mpc-be*.exe
   CALL :SubSign %DIR% mpciconlib*.dll
 )
+  CALL :SubCopyDxDLL
 
 TITLE Compiling MPCBEShellExt - %BUILDCFG%...
 "%MSBUILD%" MPCBEShellExt%SLN%.sln %MSBUILD_SWITCHES%^
@@ -407,11 +408,15 @@ IF /I "%NAME%" == "MPC-BE" (
   IF NOT EXIST "%PCKG_NAME%\Lang" MD "%PCKG_NAME%\Lang"
   IF NOT EXIST "%PCKG_NAME%\Shaders" MD "%PCKG_NAME%\Shaders"
   IF /I "%ARCH%" == "x64" (
-    COPY /Y /V "%~1_%ARCH%\mpc-be64.exe"        "%PCKG_NAME%\mpc-be64.exe" >NUL
-    COPY /Y /V "%~1_%ARCH%\MPCBEShellExt64.dll" "%PCKG_NAME%\MPCBEShellExt64.dll" >NUL
+    COPY /Y /V "%~1_%ARCH%\mpc-be64.exe"                     "%PCKG_NAME%\mpc-be64.exe" >NUL
+    COPY /Y /V "%~1_%ARCH%\MPCBEShellExt64.dll"              "%PCKG_NAME%\MPCBEShellExt64.dll" >NUL
+    COPY /Y /V "..\distrib\DirectX\x64\D3DCompiler_43.dll"   "%PCKG_NAME%\D3DCompiler_43.dll" >NUL
+    COPY /Y /V "..\distrib\DirectX\x64\d3dx9_43.dll"         "%PCKG_NAME%\d3dx9_43.dll" >NUL
   ) ELSE (
-    COPY /Y /V "%~1_%ARCH%\mpc-be.exe"          "%PCKG_NAME%\mpc-be.exe" >NUL
-    COPY /Y /V "%~1_%ARCH%\MPCBEShellExt.dll"   "%PCKG_NAME%\MPCBEShellExt.dll" >NUL
+    COPY /Y /V "%~1_%ARCH%\mpc-be.exe"                       "%PCKG_NAME%\mpc-be.exe" >NUL
+    COPY /Y /V "%~1_%ARCH%\MPCBEShellExt.dll"                "%PCKG_NAME%\MPCBEShellExt.dll" >NUL
+    COPY /Y /V "..\distrib\DirectX\x86\D3DCompiler_43.dll"   "%PCKG_NAME%\D3DCompiler_43.dll" >NUL
+    COPY /Y /V "..\distrib\DirectX\x86\d3dx9_43.dll"         "%PCKG_NAME%\d3dx9_43.dll" >NUL
   )
   COPY /Y /V "%~1_%ARCH%\mpciconlib.dll"           "%PCKG_NAME%\*.dll" >NUL
   COPY /Y /V "%~1_%ARCH%\Lang\mpcresources.??.dll" "%PCKG_NAME%\Lang\mpcresources.??.dll" >NUL
@@ -456,11 +461,9 @@ FOR /F "tokens=3,4 delims= " %%A IN (
 FOR /F "tokens=3,4 delims= " %%A IN (
   'FINDSTR /I /L /C:"define MPC_VERSION_PATCH" "include\Version.h"') DO (SET "VerPatch=%%A")
 FOR /F "tokens=3,4 delims= " %%A IN (
-  'FINDSTR /I /L /C:"define MPC_VERSION_STATUS" "include\Version.h"') DO (SET "VerStatus=%%A")
-FOR /F "tokens=3,4 delims= " %%A IN (
   'FINDSTR /I /L /C:"define MPC_VERSION_REV" "include\Version_rev.h"') DO (SET "VerRev=%%A")
 
-SET MPCBE_VER=%VerMajor%.%VerMinor%.%VerPatch%.%VerStatus%.%VerRev%
+SET MPCBE_VER=%VerMajor%.%VerMinor%.%VerPatch%.%VerRev%
 EXIT /B
 
 :SubDetectWinArch
@@ -502,6 +505,16 @@ FOR /F "delims=" %%A IN (
   'REG QUERY "HKEY_LOCAL_MACHINE\SOFTWARE\7-Zip" /v "Path" 2^>Nul ^| FIND "REG_SZ"') DO (
   SET "SEVENZIP_REG=%%A" & CALL :SubSevenzipPath %%SEVENZIP_REG:*REG_SZ=%%
 )
+EXIT /B
+
+:SubCopyDxDLL
+IF /I "%PLATFORM%" == "x64" (
+    COPY /Y /V "distrib\DirectX\x64\D3DCompiler_43.dll"    "%BIN%\mpc-be_x64\*.dll" >NUL
+    COPY /Y /V "distrib\DirectX\x64\d3dx9_43.dll"          "%BIN%\mpc-be_x64\*.dll" >NUL
+    ) ELSE (
+    COPY /Y /V "distrib\DirectX\x86\D3DCompiler_43.dll"    "%BIN%\mpc-be_x86\*.dll" >NUL
+    COPY /Y /V "distrib\DirectX\x86\d3dx9_43.dll"          "%BIN%\mpc-be_x86\*.dll" >NUL
+    )
 EXIT /B
 
 :ShowHelp

@@ -266,6 +266,10 @@
 #define ID_CUSTOM_CHANNEL_MAPPING       993
 #define ID_NORMALIZE                    994
 #define ID_REGAIN_VOLUME                995
+#define ID_SUB_POS_UP                   996
+#define ID_SUB_POS_DOWN                 997
+#define ID_SUB_POS_LEFT                 998
+#define ID_SUB_POS_RIGHT                999
 #define ID_MENU_NAVIGATE_AUDIO          1000
 #define ID_MENU_NAVIGATE_SUBTITLES      1001
 #define ID_MENU_NAVIGATE_JUMPTO         1002
@@ -293,8 +297,6 @@
 #define ID_VIEW_SYNCHRONIZEVIDEO        1024
 #define ID_VIEW_SYNCHRONIZEDISPLAY      1025
 #define ID_VIEW_SYNCHRONIZENEAREST      1026
-#define ID_AFTERPLAYBACK_EXIT           1027
-#define ID_AFTERPLAYBACK_NEXT           1028
 #define ID_AFTERPLAYBACK_ONCE           1029
 #define ID_AFTERPLAYBACK_EVERYTIME      1030
 #define ID_MENU_LANGUAGE                1031
@@ -342,6 +344,10 @@
 #define ID_VIEW_FLUSHGPU_WAIT           1074
 #define ID_VIEW_RESET_DEFAULT           1075
 #define ID_VIEW_RESET_OPTIMAL           1076
+
+#define ID_AFTERPLAYBACK_EXIT               1077
+#define ID_AFTERPLAYBACK_NEXT               1078
+#define ID_AFTERPLAYBACK_EVERYTIMEDONOTHING 1079
 //
 #define ID_FILTERS_SUBITEM_START        2000
 #define ID_FILTERS_SUBITEM_END          2099
@@ -716,7 +722,7 @@
 #define IDC_DX_SURFACE                  10733
 #define IDC_DSVMRYUVMIXER               10734
 #define IDC_DSVMR9LOADMIXER2            10735
-#define IDC_BUTTON_MI                   10736
+#define IDC_BUTTON_MI_SAVEAS            10736
 #define IDC_MIEDIT                      10737
 #define IDC_LISTCHANNELS                10738
 #define IDC_STATUSBAR                   10739
@@ -726,6 +732,7 @@
 #define IDC_MAXQUEUE_SIZE               10743
 #define IDC_CACH_SIZE                   10744
 #define IDC_PERFOMANCE_DEFAULT          10745
+#define IDC_BUTTON_MI_CLIPBOARD         10746
 //
 // 11000...13999 are reserved
 //
@@ -882,6 +889,7 @@
 #define IDS_MPLAYERC_105                24003
 #define IDS_FILE_SAVE_THUMBNAILS        24005
 #define IDC_MAINFRAME_ICON              24006
+#define IDS_OSD_TEST                    24007
 #define IDS_SHADERS_TOGGLE              32771
 #define IDS_AG_CLOSE                    32830
 #define IDS_SHADEREDITORDLG_0           32831
@@ -1233,6 +1241,17 @@
 #define IDS_SAVE_FILE                   33447
 #define IDS_AG_VIDEOFILES               33448
 #define IDS_VOLUME_OSD_MUTE             33449
+#define IDS_COPY_TO_CLIPBOARD           33450
+// stereoscopic subtitles
+#define IDS_SUBTITLES_STEREO              34000
+#define IDS_SUBTITLES_STEREO_DONTUSE      34001
+#define IDS_SUBTITLES_STEREO_SIDEBYSIDE   34002
+#define IDS_SUBTITLES_STEREO_TOPANDBOTTOM 34003
+// subtitle position
+#define IDS_SUB_POS_UP					34010
+#define IDS_SUB_POS_DOWN				34011
+#define IDS_SUB_POS_LEFT				34012
+#define IDS_SUB_POS_RIGHT				34013
 // video files
 #define IDS_MFMT_AVI                    39001
 #define IDS_MFMT_MPEG                   39002

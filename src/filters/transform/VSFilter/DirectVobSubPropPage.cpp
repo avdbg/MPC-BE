@@ -22,16 +22,12 @@
 #include "stdafx.h"
 #include <commdlg.h>
 #include <afxdlgs.h>
+#include <Version.h>
 #include "DirectVobSubFilter.h"
 #include "DirectVobSubPropPage.h"
 #include "VSFilter.h"
 #include "StyleEditorDialog.h"
-
 #include "../../../DSUtil/DSUtil.h"
-#include "../../../DSUtil/MediaTypes.h"
-
-#include <Version.h>
-
 
 BOOL WINAPI MyGetDialogSize(int iResourceID, DLGPROC pDlgProc, LPARAM lParam, SIZE* pResult)
 {
@@ -65,7 +61,7 @@ STDMETHODIMP CDVSBasePPage::GetPageInfo(LPPROPPAGEINFO pPageInfo)
 	}
 
 	WCHAR wszTitle[STR_MAX_LENGTH];
-	wcscpy_s(wszTitle, str);
+	wcscpy_s(wszTitle, STR_MAX_LENGTH, str);
 
 	CheckPointer(pPageInfo, E_POINTER);
 
@@ -132,19 +128,20 @@ INT_PTR CDVSBasePPage::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
 	switch (uMsg) {
 		case WM_COMMAND: {
 			if (m_bIsInitialized) {
-				m_bDirty = TRUE;
-				if (m_pPageSite) {
-					m_pPageSite->OnStatusChange(PROPPAGESTATUS_DIRTY);
-				}
-
 				switch (HIWORD(wParam)) {
 					case BN_CLICKED:
 					case CBN_SELCHANGE:
 					case EN_CHANGE: {
 						AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
+						m_bDirty = TRUE;
+						if (m_pPageSite) {
+							m_pPageSite->OnStatusChange(PROPPAGESTATUS_DIRTY);
+						}
+
 						if (!m_fDisableInstantUpdate
 								&& !(HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDC_INSTANTUPDATE)
+								&& !(HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDC_FONT)
 								&& LOWORD(wParam) != IDC_EDIT1 && LOWORD(wParam) != IDC_ANIMWHENBUFFERING
 								&& !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), 1)) {
 							OnApplyChanges();
@@ -233,11 +230,16 @@ HRESULT CDVSBasePPage::OnApplyChanges()
 
 	AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
-	if (m_bIsInitialized) {
+	if (m_bIsInitialized && m_bDirty) {
 		OnDeactivate();
 		UpdateObjectData(true);
 		m_pDirectVobSub->UpdateRegistry(); // *
 		OnActivate();
+
+		m_bDirty = FALSE;
+		if (m_pPageSite) {
+			m_pPageSite->OnStatusChange(PROPPAGESTATUS_CLEAN);
+		}
 	}
 
 	return NOERROR;
@@ -355,12 +357,28 @@ bool CDVSMainPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 						CStyleEditorDialog dlg(_T("Default"), &m_defStyle, CWnd::FromHandle(m_hwnd));
 
 						if (dlg.DoModal() == IDOK) {
+							BOOL bStyleChanged = FALSE;
+							if (dlg.m_stss != m_defStyle) {
+								bStyleChanged = TRUE;
+							}
 							m_defStyle = dlg.m_stss;
 							CString str = m_defStyle.fontName;
 							if (str.GetLength() > 18) {
 								str = str.Left(16).TrimRight() + _T("...");
 							}
 							m_font.SetWindowText(str);
+
+							if (bStyleChanged) {
+								m_bDirty = TRUE;
+								if (m_pPageSite) {
+									m_pPageSite->OnStatusChange(PROPPAGESTATUS_DIRTY);
+								}
+
+								if (!m_fDisableInstantUpdate
+										&& !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), 1)) {
+									OnApplyChanges();
+								}
+							}
 						}
 
 						return true;
@@ -617,7 +635,8 @@ bool CDVSMiscPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 				case BN_CLICKED: {
 					if (LOWORD(wParam) == IDC_INSTANTUPDATE) {
 						AFX_MANAGE_STATE(AfxGetStaticModuleState());
-						theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), !!m_instupd.GetCheck());
+						m_fApplyImmediatly = !!m_instupd.GetCheck();
+						theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), m_fApplyImmediatly);
 						return true;
 					}
 				}
@@ -640,6 +659,8 @@ void CDVSMiscPPage::UpdateObjectData(bool fSave)
 		m_pDirectVobSub->put_AnimWhenBuffering(m_fAnimWhenBuffering);
 		m_pDirectVobSub->put_SubtitleReloader(m_fReloaderDisabled);
 		m_pDirectVobSub->put_SaveFullPath(m_fSaveFullPath);
+
+		theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), m_fApplyImmediatly);
 	} else {
 		m_pDirectVobSub->get_Flip(&m_fFlipPicture, &m_fFlipSubtitles);
 		m_pDirectVobSub->get_HideSubtitles(&m_fHideSubtitles);
@@ -648,6 +669,8 @@ void CDVSMiscPPage::UpdateObjectData(bool fSave)
 		m_pDirectVobSub->get_AnimWhenBuffering(&m_fAnimWhenBuffering);
 		m_pDirectVobSub->get_SubtitleReloader(&m_fReloaderDisabled);
 		m_pDirectVobSub->get_SaveFullPath(&m_fSaveFullPath);
+
+		m_fApplyImmediatly = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), 1);
 	}
 }
 
@@ -672,7 +695,7 @@ void CDVSMiscPPage::UpdateControlData(bool fSave)
 		m_animwhenbuff.SetCheck(m_fAnimWhenBuffering);
 		m_showosd.SetCheck(m_fOSD);
 		m_autoreload.SetCheck(!m_fReloaderDisabled);
-		m_instupd.SetCheck(!!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_INSTANTUPDATE), 1));
+		m_instupd.SetCheck(m_fApplyImmediatly);
 	}
 }
 
@@ -760,7 +783,7 @@ bool CDVSAboutPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg) {
 		case WM_INITDIALOG: {
-			SetDlgItemText(m_Dlg, IDC_VERSION, _T("DirectVobSub 2.43.") _T(MAKE_STR(MPC_VERSION_REV)) _T(" ") _T(MPC_VERSION_ARCH) _T("\nCopyright 2001-2014 MPC-BE Team"));
+			SetDlgItemText(m_Dlg, IDC_VERSION, _T("DirectVobSub 2.44.") _T(MAKE_STR(MPC_VERSION_REV)) _T(" ") _T(MPC_VERSION_ARCH) _T("\nCopyright 2001-2014 MPC-BE Team"));
 		}
 		break;
 		case WM_COMMAND: {
@@ -940,15 +963,17 @@ void CDVSColorPPage::UpdateObjectData(bool fSave)
 
 void CDVSColorPPage::UpdateControlData(bool fSave)
 {
+	int nCountFmts = _countof(VSFilterDefaultFormats);
+
 	if (fSave) {
-		if ((UINT)m_preflist.GetCount() == VIHSIZE) {
-			BYTE* pData = DNew BYTE[VIHSIZE];
+		if ((UINT)m_preflist.GetCount() == nCountFmts) {
+			BYTE* pData = DNew BYTE[nCountFmts];
 
 			for (ptrdiff_t i = 0; i < m_preflist.GetCount(); i++) {
 				pData[i] = (BYTE)m_preflist.GetItemData(i);
 			}
 
-			theApp.WriteProfileBinary(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_COLORFORMATS), pData, VIHSIZE);
+			theApp.WriteProfileBinary(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_COLORFORMATS), pData, nCountFmts);
 
 			delete [] pData;
 		} else {
@@ -960,27 +985,32 @@ void CDVSColorPPage::UpdateControlData(bool fSave)
 		m_preflist.ResetContent();
 		m_dynchglist.ResetContent();
 
-		BYTE* pData = NULL;
-		UINT nSize;
+		BYTE* pData	= NULL;
+		UINT nSize	= 0;
 
 		if (!theApp.GetProfileBinary(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_COLORFORMATS), &pData, &nSize)
-				|| !pData || nSize != VIHSIZE) {
+				|| !pData || nSize != nCountFmts) {
 			if (pData) {
 				delete [] pData, pData = NULL;
 			}
 
-			nSize = VIHSIZE;
-			pData = DNew BYTE[VIHSIZE];
-			for (size_t i = 0; i < VIHSIZE; i++) {
+			nSize = nCountFmts;
+			pData = DNew BYTE[nCountFmts];
+			for (UINT i = 0; i < nSize; i++) {
 				pData[i] = i;
 			}
 		}
 
 		if (pData) {
-			for (ptrdiff_t i = 0; i < (int)nSize; i++) {
-				m_dynchglist.AddString(VIH2String(pData[i]));
+			for (UINT i = 0; i < nSize; i++) {
+				CString guid = GetGUIDString(*VSFilterDefaultFormats[i].subtype);
+				if (!guid.Left(13).CompareNoCase(_T("MEDIASUBTYPE_"))) {
+					guid = guid.Mid(13);
+				}
+
+				m_dynchglist.AddString(guid);
 				m_dynchglist.SetItemData(i, pData[i]);
-				m_preflist.AddString(VIH2String(pData[i]));
+				m_preflist.AddString(guid);
 				m_preflist.SetItemData(i, pData[i]);
 			}
 

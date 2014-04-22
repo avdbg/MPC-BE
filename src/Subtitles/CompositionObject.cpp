@@ -24,48 +24,39 @@
 #include <d3d9types.h>
 
 CompositionObject::CompositionObject()
+	: m_pRLEData(nullptr)
+	, m_nRLEDataSize(0)
+	, m_nRLEPos(0)
+	, m_nColorNumber(0)
+	, m_object_id_ref(0)
+	, m_window_id_ref(0)
+	, m_object_cropped_flag(false)
+	, m_forced_on_flag(false)
+	, m_version_number(0)
+	, m_horizontal_position(0)
+	, m_vertical_position(0)
+	, m_width(0)
+	, m_height(0)
+	, m_cropping_horizontal_position(0)
+	, m_cropping_vertical_position(0)
+	, m_cropping_width(0)
+	, m_cropping_height(0)
+	, m_compositionNumber(-1)
+	, m_rtStart(INVALID_TIME)
+	, m_rtStop(INVALID_TIME)
 {
-	m_rtStart		= INVALID_TIME;
-	m_rtStop		= INVALID_TIME;
-	m_pRLEData		= NULL;
-	m_nRLEDataSize	= 0;
-	m_nRLEPos		= 0;
-	m_nColorNumber	= 0;
-	m_object_id_ref	= -1;
-	m_window_id_ref	= -1;
-
-	m_object_cropped_flag	= false;
-	m_forced_on_flag		= false;
-
-	m_version_number		= 0;
-	m_nObjectNumber			= 0;
-
-	m_horizontal_position	= 0;
-	m_vertical_position		= 0;
-	m_width					= 0;
-	m_height				= 0;
-
-	m_cropping_horizontal_position	= 0;
-	m_cropping_vertical_position	= 0;
-	m_cropping_width				= 0;
-	m_cropping_height				= 0;
-
-	m_compositionNumber				= -1;
-
-	memsetd (m_Colors, 0xFF000000, sizeof(m_Colors));
+	memsetd(m_Colors, 0xFF000000, sizeof(m_Colors));
 }
 
 CompositionObject::~CompositionObject()
 {
-	if (m_pRLEData) {
-		delete[] m_pRLEData;
-	}
+	SAFE_DELETE_ARRAY(m_pRLEData);
 }
 
 void CompositionObject::SetPalette (int nNbEntry, HDMV_PALETTE* pPalette, bool bIsHD, bool bIsRGB)
 {
 	m_nColorNumber = nNbEntry;
-	for (int i=0; i<nNbEntry; i++) {
+	for (int i = 0; i < nNbEntry; i++) {
 		if (bIsRGB) {
 			m_Colors[pPalette[i].entry_id] = D3DCOLOR_ARGB(pPalette[i].T, pPalette[i].Y, pPalette[i].Cr, pPalette[i].Cb);
 		} else {
@@ -80,29 +71,27 @@ void CompositionObject::SetPalette (int nNbEntry, HDMV_PALETTE* pPalette, bool b
 
 void CompositionObject::SetRLEData(const BYTE* pBuffer, int nSize, int nTotalSize)
 {
-	if (m_pRLEData) {
-		delete[] m_pRLEData;
-	}
+	SAFE_DELETE_ARRAY(m_pRLEData);
 
 	m_pRLEData		= DNew BYTE[nTotalSize];
 	m_nRLEDataSize	= nTotalSize;
 	m_nRLEPos		= min(nSize, nTotalSize);
 
-	memcpy (m_pRLEData, pBuffer, min(nSize, nTotalSize));
+	memcpy(m_pRLEData, pBuffer, min(nSize, nTotalSize));
 }
 
 void CompositionObject::AppendRLEData(const BYTE* pBuffer, int nSize)
 {
 	//ASSERT (m_nRLEPos+nSize <= m_nRLEDataSize);
-	if (m_nRLEPos+nSize <= m_nRLEDataSize) {
-		memcpy (m_pRLEData+m_nRLEPos, pBuffer, nSize);
+	if (m_nRLEPos + nSize <= m_nRLEDataSize) {
+		memcpy(m_pRLEData + m_nRLEPos, pBuffer, nSize);
 		m_nRLEPos += nSize;
 	}
 }
 
-void CompositionObject::RenderHdmv(SubPicDesc& spd)
+void CompositionObject::RenderHdmv(SubPicDesc& spd, SubPicDesc* spdResized)
 {
-	if (!m_pRLEData) {
+	if (!m_pRLEData || !m_nColorNumber) {
 		return;
 	}
 
@@ -129,7 +118,7 @@ void CompositionObject::RenderHdmv(SubPicDesc& spd)
 						nPaletteIndex = 0;
 					}
 				} else {
-					nCount			= (bSwitch&0x3F) <<8 | (SHORT)GBuffer.ReadByte();
+					nCount			= (bSwitch & 0x3F) << 8 | (SHORT)GBuffer.ReadByte();
 					nPaletteIndex	= 0;
 				}
 			} else {
@@ -137,15 +126,15 @@ void CompositionObject::RenderHdmv(SubPicDesc& spd)
 					nCount			= bSwitch & 0x3F;
 					nPaletteIndex	= GBuffer.ReadByte();
 				} else {
-					nCount			= (bSwitch&0x3F) <<8 | (SHORT)GBuffer.ReadByte();
+					nCount			= (bSwitch & 0x3F) << 8 | (SHORT)GBuffer.ReadByte();
 					nPaletteIndex	= GBuffer.ReadByte();
 				}
 			}
 		}
 
-		if (nCount>0) {
+		if (nCount > 0) {
 			if (nPaletteIndex != 0xFF) {	// Fully transparent (section 9.14.4.2.2.1.1)
-				FillSolidRect (spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
+				FillSolidRect(spdResized ? *spdResized : spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
 			}
 			nX += nCount;
 		} else {
@@ -155,21 +144,21 @@ void CompositionObject::RenderHdmv(SubPicDesc& spd)
 	}
 }
 
-void CompositionObject::RenderDvb(SubPicDesc& spd, SHORT nX, SHORT nY)
+void CompositionObject::RenderDvb(SubPicDesc& spd, SHORT nX, SHORT nY, SubPicDesc* spdResized)
 {
 	if (!m_pRLEData) {
 		return;
 	}
 
-	CGolombBuffer	gb (m_pRLEData, m_nRLEDataSize);
+	CGolombBuffer	gb(m_pRLEData, m_nRLEDataSize);
 	SHORT			sTopFieldLength;
 	SHORT			sBottomFieldLength;
 
 	sTopFieldLength		= gb.ReadShort();
 	sBottomFieldLength	= gb.ReadShort();
 
-	DvbRenderField (spd, gb, nX, nY,   sTopFieldLength);
-	DvbRenderField (spd, gb, nX, nY+1, sBottomFieldLength);
+	DvbRenderField(spdResized ? *spdResized : spd, gb, nX, nY,   sTopFieldLength);
+	DvbRenderField(spdResized ? *spdResized : spd, gb, nX, nY+1, sBottomFieldLength);
 }
 
 void CompositionObject::DvbRenderField(SubPicDesc& spd, CGolombBuffer& gb, SHORT nXStart, SHORT nYStart, SHORT nLength)
@@ -215,10 +204,10 @@ void CompositionObject::DvbRenderField(SubPicDesc& spd, CGolombBuffer& gb, SHORT
 
 void CompositionObject::Dvb2PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb, SHORT& nX, SHORT& nY)
 {
-	BYTE			bTemp;
-	BYTE			nPaletteIndex = 0;
-	SHORT			nCount;
-	bool			bQuit	= false;
+	BYTE	bTemp;
+	BYTE	nPaletteIndex = 0;
+	SHORT	nCount;
+	bool	bQuit = false;
 
 	while (!bQuit && !gb.IsEOF()) {
 		nCount			= 0;
@@ -261,7 +250,7 @@ void CompositionObject::Dvb2PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 		}
 
 		if (nCount>0) {
-			FillSolidRect (spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
+			FillSolidRect(spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
 			nX += nCount;
 		}
 	}
@@ -271,10 +260,10 @@ void CompositionObject::Dvb2PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 
 void CompositionObject::Dvb4PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb, SHORT& nX, SHORT& nY)
 {
-	BYTE			bTemp;
-	BYTE			nPaletteIndex = 0;
-	SHORT			nCount;
-	bool			bQuit	= false;
+	BYTE	bTemp;
+	BYTE	nPaletteIndex = 0;
+	SHORT	nCount;
+	bool	bQuit = false;
 
 	while (!bQuit && !gb.IsEOF()) {
 		nCount			= 0;
@@ -324,7 +313,7 @@ void CompositionObject::Dvb4PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 #endif
 
 		if (nCount>0) {
-			FillSolidRect (spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
+			FillSolidRect(spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
 			nX += nCount;
 		}
 	}
@@ -334,10 +323,10 @@ void CompositionObject::Dvb4PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 
 void CompositionObject::Dvb8PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb, SHORT& nX, SHORT& nY)
 {
-	BYTE			bTemp;
-	BYTE			nPaletteIndex = 0;
-	SHORT			nCount;
-	bool			bQuit	= false;
+	BYTE	bTemp;
+	BYTE	nPaletteIndex = 0;
+	SHORT	nCount;
+	bool	bQuit = false;
 
 	while (!bQuit && !gb.IsEOF()) {
 		nCount			= 0;
@@ -364,7 +353,7 @@ void CompositionObject::Dvb8PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 		}
 
 		if (nCount>0) {
-			FillSolidRect (spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
+			FillSolidRect(spd, nX, nY, nCount, 1, m_Colors[nPaletteIndex]);
 			nX += nCount;
 		}
 	}
@@ -373,15 +362,15 @@ void CompositionObject::Dvb8PixelsCodeString(SubPicDesc& spd, CGolombBuffer& gb,
 }
 
 // from ffmpeg
-const BYTE ff_log2_tab[256]={
-		0,0,1,1,2,2,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
-		5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
-		6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
-		6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
-		7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-		7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-		7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-		7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7
+const BYTE ff_log2_tab[256] = {
+	0,0,1,1,2,2,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+	5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+	6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+	6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+	7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+	7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+	7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+	7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7
 };
 
 void CompositionObject::RenderXSUB(SubPicDesc& spd)
@@ -390,13 +379,13 @@ void CompositionObject::RenderXSUB(SubPicDesc& spd)
 		return;
 	}
 
-	CGolombBuffer	gb (m_pRLEData, m_nRLEDataSize);
+	CGolombBuffer	gb(m_pRLEData, m_nRLEDataSize);
 	BYTE			nPaletteIndex = 0;
 	SHORT			nCount;
-	SHORT			nX	= m_horizontal_position;
-	SHORT			nY	= m_vertical_position;
+	SHORT			nX = m_horizontal_position;
+	SHORT			nY = m_vertical_position;
 
-	for (int y = 0; y < m_height; y++) {
+	for (SHORT y = 0; y < m_height; y++) {
 		if (gb.IsEOF()) {
 			break;
 		}

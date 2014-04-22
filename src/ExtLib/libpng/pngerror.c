@@ -195,7 +195,7 @@ png_format_number(png_const_charp start, png_charp end, int format,
           * drop the decimal point.  If the number is a true zero handle that
           * here.
           */
-         if (output)
+         if (output != 0)
             *--end = '.';
          else if (number == 0) /* and !output */
             *--end = '0';
@@ -765,6 +765,9 @@ png_longjmp,(png_const_structrp png_ptr, int val),PNG_NORETURN)
 #ifdef PNG_SETJMP_SUPPORTED
    if (png_ptr && png_ptr->longjmp_fn && png_ptr->jmp_buf_ptr)
       png_ptr->longjmp_fn(*png_ptr->jmp_buf_ptr, val);
+#else
+   PNG_UNUSED(png_ptr)
+   PNG_UNUSED(val)
 #endif
 
    /* If control reaches this point, png_longjmp() must not return. The only
@@ -886,8 +889,8 @@ png_set_strip_error_numbers(png_structrp png_ptr, png_uint_32 strip_mode)
     * possible to implement without setjmp support just so long as there is some
     * way to handle the error return here:
     */
-PNG_FUNCTION(void /* PRIVATE */,
-png_safe_error,(png_structp png_nonconst_ptr, png_const_charp error_message),
+PNG_FUNCTION(void /* PRIVATE */, (PNGCBAPI
+png_safe_error),(png_structp png_nonconst_ptr, png_const_charp error_message),
    PNG_NORETURN)
 {
    const png_const_structrp png_ptr = png_nonconst_ptr;
@@ -922,7 +925,7 @@ png_safe_error,(png_structp png_nonconst_ptr, png_const_charp error_message),
 }
 
 #ifdef PNG_WARNINGS_SUPPORTED
-void /* PRIVATE */
+void /* PRIVATE */ PNGCBAPI
 png_safe_warning(png_structp png_nonconst_ptr, png_const_charp warning_message)
 {
    const png_const_structrp png_ptr = png_nonconst_ptr;
@@ -949,7 +952,7 @@ png_safe_execute(png_imagep image_in, int (*function)(png_voidp), png_voidp arg)
    saved_error_buf = image->opaque->error_buf;
    result = setjmp(safe_jmpbuf) == 0;
 
-   if (result)
+   if (result != 0)
    {
 
       image->opaque->error_buf = safe_jmpbuf;
@@ -959,7 +962,7 @@ png_safe_execute(png_imagep image_in, int (*function)(png_voidp), png_voidp arg)
    image->opaque->error_buf = saved_error_buf;
 
    /* And do the cleanup prior to any failure return. */
-   if (!result)
+   if (result == 0)
       png_image_free(image);
 
    return result;

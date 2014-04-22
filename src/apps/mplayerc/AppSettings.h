@@ -604,10 +604,10 @@ public:
 	CAtlList<CDVBChannel> m_DVBChannels;
 
 	// Internal Filters
-	bool			SrcFilters[SRC_LAST + !SRC_LAST];
-	bool			TraFilters[TRA_LAST + !TRA_LAST];
-	bool			DXVAFilters[TRA_DXVA_LAST + !TRA_DXVA_LAST];
-	bool			FFmpegFilters[FFM_LAST + !FFM_LAST];
+	bool			SrcFilters[SRC_LAST];
+	bool			DXVAFilters[VDEC_DXVA_LAST];
+	bool			VideoFilters[VDEC_LAST];
+	bool			AudioFilters[ADEC_LAST];
 
 	// Audio Switcher
 	bool			fEnableAudioSwitcher;
@@ -649,11 +649,13 @@ public:
 	int				nThemeBlue;
 	int				nOSDTransparent;
 	int				nOSDBorder;
-	int				clrFaceABGR;
-	int				clrOutlineABGR;
-	int				clrFontABGR;
-	int				clrGrad1ABGR;
-	int				clrGrad2ABGR;
+
+	COLORREF		clrFaceABGR;
+	COLORREF		clrOutlineABGR;
+	COLORREF		clrFontABGR;
+	COLORREF		clrGrad1ABGR;
+	COLORREF		clrGrad2ABGR;
+
 	bool			fUseTimeTooltip;
 	int				nTimeTooltipPosition;
 	bool			fFileNameOnSeekBar;
@@ -737,7 +739,9 @@ public:
 	bool			bHidePlaylistFullScreen;
 
 	// OTHER STATES
-	CStringW		strLastOpenDir;
+	CString			strLastOpenDir;
+	CString			strLastSavedPlaylistDir;
+
 	UINT			nLastWindowType;
 	CRect			rcLastWindowPos;
 	UINT			nLastUsedPage;
@@ -783,16 +787,19 @@ public:
 
 	DWORD			nLastFileInfoPage;
 
+	bool			IsISRSelect() const;
+	bool			IsISRAutoLoadEnabled() const;
+
 private :
 	DVD_POSITION	DvdPosition[MAX_DVD_POSITION];
 	int				nCurrentDvdPosition;
 	FILE_POSITION	FilePosition[MAX_FILE_POSITION];
 	int				nCurrentFilePosition;
 
-	CString			SrcFiltersKeys[SRC_LAST + !SRC_LAST];
-	CString			TraFiltersKeys[TRA_LAST + !TRA_LAST];
-	CString			DXVAFiltersKeys[TRA_DXVA_LAST + !TRA_DXVA_LAST];
-	CString			FFMFiltersKeys[FFM_LAST + !FFM_LAST];
+	CString			SrcFiltersKeys[SRC_LAST];
+	CString			DXVAFiltersKeys[VDEC_DXVA_LAST];
+	CString			VideoFiltersKeys[VDEC_LAST];
+	CString			AudioFiltersKeys[ADEC_LAST];
 
 	__int64			ConvertTimeToMSec(CString& time) const;
 	void			ExtractDVDStartPos(CString& strParam);

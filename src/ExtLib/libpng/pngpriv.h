@@ -291,6 +291,11 @@
       extern PNG_FUNCTION(type, name, args, PNG_EMPTY attributes)
 #endif
 
+#ifndef PNG_INTERNAL_CALLBACK
+#  define PNG_INTERNAL_CALLBACK(type, name, args, attributes)\
+      extern PNG_FUNCTION(type, (PNGCBAPI name), args, PNG_EMPTY attributes)
+#endif
+
 /* If floating or fixed point APIs are disabled they may still be compiled
  * internally.  To handle this make sure they are declared as the appropriate
  * internal extern function (otherwise the symbol prefixing stuff won't work and
@@ -424,8 +429,6 @@
 #ifdef PNG_WARNINGS_SUPPORTED
 #  define PNG_WARNING_PARAMETERS(p) png_warning_parameters p;
 #else
-#  define png_warning(s1,s2) ((void)(s1))
-#  define png_chunk_warning(s1,s2) ((void)(s1))
 #  define png_warning_parameter(p,number,string) ((void)0)
 #  define png_warning_parameter_unsigned(p,number,format,value) ((void)0)
 #  define png_warning_parameter_signed(p,number,format,value) ((void)0)
@@ -433,8 +436,6 @@
 #  define PNG_WARNING_PARAMETERS(p)
 #endif
 #ifndef PNG_ERROR_TEXT_SUPPORTED
-#  define png_error(s1,s2) png_err(s1)
-#  define png_chunk_error(s1,s2) png_err(s1)
 #  define png_fixed_error(s1,s2) png_err(s1)
 #endif
 
@@ -1795,11 +1796,11 @@ typedef struct png_control
  * errors that might occur.  Returns true on success, false on failure (either
  * of the function or as a result of a png_error.)
  */
-PNG_INTERNAL_FUNCTION(void,png_safe_error,(png_structp png_ptr,
+PNG_INTERNAL_CALLBACK(void,png_safe_error,(png_structp png_ptr,
    png_const_charp error_message),PNG_NORETURN);
 
 #ifdef PNG_WARNINGS_SUPPORTED
-PNG_INTERNAL_FUNCTION(void,png_safe_warning,(png_structp png_ptr,
+PNG_INTERNAL_CALLBACK(void,png_safe_warning,(png_structp png_ptr,
    png_const_charp warning_message),PNG_EMPTY);
 #else
 #  define png_safe_warning 0/*dummy argument*/

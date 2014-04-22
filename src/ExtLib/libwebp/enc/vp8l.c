@@ -108,7 +108,7 @@ static int AnalyzeEntropy(const uint32_t* argb,
 
   VP8LHistogram* nonpredicted = NULL;
   VP8LHistogram* predicted =
-      (VP8LHistogram*)malloc(2 * sizeof(*predicted));
+      (VP8LHistogram*)WebPSafeMalloc(2ULL, sizeof(*predicted));
   if (predicted == NULL) return 0;
   nonpredicted = predicted + 1;
 
@@ -135,7 +135,7 @@ static int AnalyzeEntropy(const uint32_t* argb,
   }
   *nonpredicted_bits = VP8LHistogramEstimateBitsBulk(nonpredicted);
   *predicted_bits = VP8LHistogramEstimateBitsBulk(predicted);
-  free(predicted);
+  WebPSafeFree(predicted);
   return 1;
 }
 
@@ -186,9 +186,9 @@ static int GetHuffBitLengthsAndCodes(
     const VP8LHistogram* const histo = histogram_image->histograms[i];
     HuffmanTreeCode* const codes = &huffman_codes[5 * i];
     for (k = 0; k < 5; ++k) {
-      const int num_symbols = (k == 0) ? VP8LHistogramNumCodes(histo)
-                            : (k == 4) ? NUM_DISTANCE_CODES
-                            : 256;
+      const int num_symbols =
+          (k == 0) ? VP8LHistogramNumCodes(histo->palette_code_bits_) :
+          (k == 4) ? NUM_DISTANCE_CODES : 256;
       codes[k].num_symbols = num_symbols;
       total_length_size += num_symbols;
     }
@@ -228,7 +228,7 @@ static int GetHuffBitLengthsAndCodes(
 
  End:
   if (!ok) {
-    free(mem_buf);
+    WebPSafeFree(mem_buf);
     // If one VP8LCreateHuffmanTree() above fails, we need to clean up behind.
     memset(huffman_codes, 0, 5 * histogram_image_size * sizeof(*huffman_codes));
   }
@@ -362,7 +362,7 @@ static int StoreFullHuffmanCode(VP8LBitWriter* const bw,
   }
   ok = 1;
  End:
-  free(tokens);
+  WebPSafeFree(tokens);
   return ok;
 }
 
@@ -503,9 +503,9 @@ static int EncodeImageNoHuffman(VP8LBitWriter* const bw,
   ok = 1;
 
  Error:
-  free(histogram_image);
+  WebPSafeFree(histogram_image);
   VP8LClearBackwardRefs(&refs);
-  free(huffman_codes[0].codes);
+  WebPSafeFree(huffman_codes[0].codes);
   return ok;
 }
 
@@ -532,8 +532,8 @@ static int EncodeImageInternal(VP8LBitWriter* const bw,
   assert(histogram_bits <= MAX_HUFFMAN_BITS);
 
   if (histogram_image == NULL || histogram_symbols == NULL) {
-    free(histogram_image);
-    free(histogram_symbols);
+    WebPSafeFree(histogram_image);
+    WebPSafeFree(histogram_symbols);
     return 0;
   }
 
@@ -559,7 +559,7 @@ static int EncodeImageInternal(VP8LBitWriter* const bw,
     goto Error;
   }
   // Free combined histograms.
-  free(histogram_image);
+  WebPSafeFree(histogram_image);
   histogram_image = NULL;
 
   // Color Cache parameters.
@@ -593,7 +593,7 @@ static int EncodeImageInternal(VP8LBitWriter* const bw,
                                 VP8LSubSampleSize(width, histogram_bits),
                                 VP8LSubSampleSize(height, histogram_bits),
                                 quality);
-      free(histogram_argb);
+      WebPSafeFree(histogram_argb);
       if (!ok) goto Error;
     }
   }
@@ -614,14 +614,14 @@ static int EncodeImageInternal(VP8LBitWriter* const bw,
   ok = 1;
 
  Error:
-  free(histogram_image);
+  WebPSafeFree(histogram_image);
 
   VP8LClearBackwardRefs(&refs);
   if (huffman_codes != NULL) {
-    free(huffman_codes->codes);
-    free(huffman_codes);
+    WebPSafeFree(huffman_codes->codes);
+    WebPSafeFree(huffman_codes);
   }
-  free(histogram_symbols);
+  WebPSafeFree(histogram_symbols);
   return ok;
 }
 
@@ -637,7 +637,8 @@ static int EvalAndApplySubtractGreen(VP8LEncoder* const enc,
     int i;
     const uint32_t* const argb = enc->argb_;
     double bit_cost_before, bit_cost_after;
-    VP8LHistogram* const histo = (VP8LHistogram*)malloc(sizeof(*histo));
+    VP8LHistogram* const histo =
+        (VP8LHistogram*)WebPSafeMalloc(1ULL, sizeof(*histo));
     if (histo == NULL) return 0;
 
     VP8LHistogramInit(histo, 1);
@@ -656,7 +657,7 @@ static int EvalAndApplySubtractGreen(VP8LEncoder* const enc,
       ++histo->blue_[((c >> 0) - green) & 0xff];
     }
     bit_cost_after = VP8LHistogramEstimateBits(histo);
-    free(histo);
+    WebPSafeFree(histo);
 
     // Check if subtracting green yields low entropy.
     enc->use_subtract_green_ = (bit_cost_after < bit_cost_before);
@@ -695,9 +696,8 @@ static int ApplyCrossColorFilter(const VP8LEncoder* const enc,
   const int ccolor_transform_bits = enc->transform_bits_;
   const int transform_width = VP8LSubSampleSize(width, ccolor_transform_bits);
   const int transform_height = VP8LSubSampleSize(height, ccolor_transform_bits);
-  const int step = (quality < 25) ? 32 : (quality > 50) ? 8 : 16;
 
-  VP8LColorSpaceTransform(width, height, ccolor_transform_bits, step,
+  VP8LColorSpaceTransform(width, height, ccolor_transform_bits, quality,
                           enc->argb_, enc->transform_data_);
   VP8LWriteBits(bw, 1, TRANSFORM_PRESENT);
   VP8LWriteBits(bw, 2, CROSS_COLOR_TRANSFORM);
@@ -908,7 +908,7 @@ static WebPEncodingError EncodePalette(VP8LBitWriter* const bw,
   }
 
  Error:
-  free(row);
+  WebPSafeFree(row);
   return err;
 }
 
@@ -929,15 +929,24 @@ static int GetHistoBits(int method, int use_palette, int width, int height) {
          (histo_bits > MAX_HUFFMAN_BITS) ? MAX_HUFFMAN_BITS : histo_bits;
 }
 
+static int GetTransformBits(int method, int histo_bits) {
+  const int max_transform_bits = (method < 4) ? 6 : (method > 4) ? 4 : 5;
+  return (histo_bits > max_transform_bits) ? max_transform_bits : histo_bits;
+}
+
+static int GetCacheBits(float quality) {
+  return (quality <= 25.f) ? 0 : 7;
+}
+
 static void FinishEncParams(VP8LEncoder* const enc) {
   const WebPConfig* const config = enc->config_;
   const WebPPicture* const pic = enc->pic_;
   const int method = config->method;
   const float quality = config->quality;
   const int use_palette = enc->use_palette_;
-  enc->transform_bits_ = (method < 4) ? 5 : (method > 4) ? 3 : 4;
   enc->histo_bits_ = GetHistoBits(method, use_palette, pic->width, pic->height);
-  enc->cache_bits_ = (quality <= 25.f) ? 0 : 7;
+  enc->transform_bits_ = GetTransformBits(method, enc->histo_bits_);
+  enc->cache_bits_ = GetCacheBits(quality);
 }
 
 // -----------------------------------------------------------------------------
@@ -945,7 +954,7 @@ static void FinishEncParams(VP8LEncoder* const enc) {
 
 static VP8LEncoder* VP8LEncoderNew(const WebPConfig* const config,
                                    const WebPPicture* const picture) {
-  VP8LEncoder* const enc = (VP8LEncoder*)calloc(1, sizeof(*enc));
+  VP8LEncoder* const enc = (VP8LEncoder*)WebPSafeCalloc(1ULL, sizeof(*enc));
   if (enc == NULL) {
     WebPEncodingSetError(picture, VP8_ENC_ERROR_OUT_OF_MEMORY);
     return NULL;
@@ -959,8 +968,10 @@ static VP8LEncoder* VP8LEncoderNew(const WebPConfig* const config,
 }
 
 static void VP8LEncoderDelete(VP8LEncoder* enc) {
-  free(enc->argb_);
-  free(enc);
+  if (enc != NULL) {
+    WebPSafeFree(enc->argb_);
+    WebPSafeFree(enc);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1040,7 +1051,8 @@ WebPEncodingError VP8LEncodeStream(const WebPConfig* const config,
 
   if (enc->cache_bits_ > 0) {
     if (!VP8LCalculateEstimateForCacheSize(enc->argb_, enc->current_width_,
-                                           height, &enc->cache_bits_)) {
+                                           height, quality,
+                                           &enc->cache_bits_)) {
       err = VP8_ENC_ERROR_INVALID_CONFIGURATION;
       goto Error;
     }
@@ -1093,7 +1105,8 @@ int VP8LEncodeImage(const WebPConfig* const config,
 
   width = picture->width;
   height = picture->height;
-  if (!VP8LBitWriterInit(&bw, (width * height) >> 1)) {
+  // Initialize BitWriter with size corresponding to 8bpp.
+  if (!VP8LBitWriterInit(&bw, width * height)) {
     err = VP8_ENC_ERROR_OUT_OF_MEMORY;
     goto Error;
   }

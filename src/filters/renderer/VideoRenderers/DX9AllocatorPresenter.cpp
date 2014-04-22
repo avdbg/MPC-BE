@@ -49,7 +49,6 @@ CDX9AllocatorPresenter::CDX9AllocatorPresenter(HWND hWnd, bool bFullscreen, HRES
 	, m_nVMR9Surfaces(0)
 	, m_iVMR9Surface(0)
 	, m_rtTimePerFrame(0)
-	, m_bInterlaced(false)
 	, m_nUsedBuffer(0)
 	, m_OrderedPaint(0)
 	, m_bCorrectedFrameTime(0)
@@ -1293,41 +1292,8 @@ STDMETHODIMP_(bool) CDX9AllocatorPresenter::Paint(bool fAll)
 		}
 	}
 
-	// paint the text on the backbuffer
+	// paint subtitles on the backbuffer
 	AlphaBltSubPic(rSrcPri.Size());
-
-	// Casimir666 : show OSD
-	if (m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_UPDATE) {
-		CAutoLock BitMapLock(&m_VMR9AlphaBitmapLock);
-		CRect		rcSrc (m_VMR9AlphaBitmap.rSrc);
-		m_pOSDTexture	= NULL;
-		m_pOSDSurface	= NULL;
-		if ((m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_DISABLE) == 0 && (BYTE *)m_VMR9AlphaBitmapData) {
-			if ( (m_pD3DXLoadSurfaceFromMemory != NULL) &&
-					SUCCEEDED(hr = m_pD3DDev->CreateTexture(rcSrc.Width(), rcSrc.Height(), 1,
-								   D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
-								   D3DPOOL_DEFAULT, &m_pOSDTexture, NULL)) ) {
-				if (SUCCEEDED (hr = m_pOSDTexture->GetSurfaceLevel(0, &m_pOSDSurface))) {
-					hr = m_pD3DXLoadSurfaceFromMemory (m_pOSDSurface,
-													   NULL,
-													   NULL,
-													   (BYTE *)m_VMR9AlphaBitmapData,
-													   D3DFMT_A8R8G8B8,
-													   m_VMR9AlphaBitmapWidthBytes,
-													   NULL,
-													   &m_VMR9AlphaBitmapRect,
-													   D3DX_FILTER_NONE,
-													   m_VMR9AlphaBitmap.clrSrcKey);
-				}
-				if (FAILED (hr)) {
-					m_pOSDTexture	= NULL;
-					m_pOSDSurface	= NULL;
-				}
-			}
-		}
-		m_VMR9AlphaBitmap.dwFlags ^= VMRBITMAP_UPDATE;
-
-	}
 
 	if (pApp->m_bResetStats) {
 		ResetStats();
@@ -1341,10 +1307,55 @@ STDMETHODIMP_(bool) CDX9AllocatorPresenter::Paint(bool fAll)
 		g_bGetFrameType = FALSE;
 	}
 
-	if (m_pOSDTexture) {
-		AlphaBlt(rSrcPri, rDstPri, m_pOSDTexture);
+	// Casimir666 : show OSD
+	if (m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_UPDATE) {
+		CAutoLock BitMapLock(&m_VMR9AlphaBitmapLock);
+		CRect rcSrc(m_VMR9AlphaBitmap.rSrc);
+		m_pOSDTexture.Release();
+		m_pOSDSurface.Release();
+		if ((m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_DISABLE) == 0 && (BYTE *)m_VMR9AlphaBitmapData) {
+			if ((m_pD3DXLoadSurfaceFromMemory != NULL) &&
+					SUCCEEDED(hr = m_pD3DDev->CreateTexture(rcSrc.Width(), rcSrc.Height(), 1,
+								   D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
+								   D3DPOOL_DEFAULT, &m_pOSDTexture, NULL))) {
+				if (SUCCEEDED(hr = m_pOSDTexture->GetSurfaceLevel(0, &m_pOSDSurface))) {
+					hr = m_pD3DXLoadSurfaceFromMemory(m_pOSDSurface,
+													  NULL,
+													  NULL,
+													  (BYTE *)m_VMR9AlphaBitmapData,
+													  D3DFMT_A8R8G8B8,
+													  m_VMR9AlphaBitmapWidthBytes,
+													  NULL,
+													  &m_VMR9AlphaBitmapRect,
+													  D3DX_FILTER_NONE,
+													  m_VMR9AlphaBitmap.clrSrcKey);
+				}
+				if (FAILED (hr)) {
+					m_pOSDTexture.Release();
+					m_pOSDSurface.Release();
+				}
+			}
+		}
+		m_VMR9AlphaBitmap.dwFlags ^= VMRBITMAP_UPDATE;
 	}
 
+	if (m_pOSDTexture) {
+		CRect rcDst(rDstPri);
+		if (s.bSideBySide) {
+			CRect rcTemp(rcDst);
+			rcTemp.right -= rcTemp.Width() / 2;
+			AlphaBlt(rSrcPri, rcTemp, m_pOSDTexture);
+			rcDst.left += rcDst.Width() / 2;
+		} else if (s.bTopAndBottom) {
+			CRect rcTemp(rcDst);
+			rcTemp.bottom -= rcTemp.Height() / 2;
+			AlphaBlt(rSrcPri, rcTemp, m_pOSDTexture);
+			rcDst.top += rcDst.Height() / 2;
+		}
+
+		AlphaBlt(rSrcPri, rcDst, m_pOSDTexture);
+	}
+	
 	m_pD3DDev->EndScene();
 
 	BOOL bCompositionEnabled = m_bCompositionEnabled;
@@ -1707,37 +1718,37 @@ void CDX9AllocatorPresenter::DrawText(const RECT &rc, const CString &strText, in
 		OffsetRect(&Rect2 , -1, -1);
 	}
 	if (Quality > 0) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , 1, 0);
 	if (Quality > 3) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , 1, 0);
 	if (Quality > 2) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , 0, 1);
 	if (Quality > 3) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , 0, 1);
 	if (Quality > 1) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , -1, 0);
 	if (Quality > 3) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , -1, 0);
 	if (Quality > 2) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
 	OffsetRect(&Rect2 , 0, -1);
 	if (Quality > 3) {
-		m_pFont->DrawText( m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
+		m_pFont->DrawText(m_pSprite, strText, -1, &Rect2, DT_NOCLIP, Color0);
 	}
-	m_pFont->DrawText( m_pSprite, strText, -1, &Rect1, DT_NOCLIP, Color1);
+	m_pFont->DrawText(m_pSprite, strText, -1, &Rect1, DT_NOCLIP, Color1);
 }
 
 void CDX9AllocatorPresenter::ResetStats()
@@ -1778,23 +1789,23 @@ void CDX9AllocatorPresenter::DrawStats()
 			break;
 	}
 
-	LONGLONG		llMaxJitter = m_MaxJitter;
-	LONGLONG		llMinJitter = m_MinJitter;
-	LONGLONG		llMaxSyncOffset = m_MaxSyncOffset;
-	LONGLONG		llMinSyncOffset = m_MinSyncOffset;
-	RECT			rc = {40, 40, 0, 0 };
+	LONGLONG	llMaxJitter		= m_MaxJitter;
+	LONGLONG	llMinJitter		= m_MinJitter;
+	LONGLONG	llMaxSyncOffset	= m_MaxSyncOffset;
+	LONGLONG	llMinSyncOffset	= m_MinSyncOffset;
+	RECT		rc				= { 40, 40, 0, 0 };
 
 	static int		TextHeight = 0;
 	static CRect	WindowRect(0, 0, 0, 0);
 
 	if (WindowRect != m_WindowRect) {
-		m_pFont = NULL;
+		m_pFont.Release();
 	}
 	WindowRect = m_WindowRect;
 
 	if (!m_pFont && m_pD3DXCreateFont) {
-		int  FontHeight = max(m_WindowRect.Height()/35, 6); // must be equal to 5 or more
-		UINT FontWidth  = max(m_WindowRect.Width()/130, 4); // 0 = auto
+		int  FontHeight = max(m_WindowRect.Height() / 35, 6); // must be equal to 5 or more
+		UINT FontWidth  = max(m_WindowRect.Width() / 130, 4); // 0 = auto
 		UINT FontWeight = FW_BOLD;
 		if ((m_rcMonitor.Width() - m_WindowRect.Width()) > 100) {
 			FontWeight  = FW_NORMAL;
@@ -1802,26 +1813,26 @@ void CDX9AllocatorPresenter::DrawStats()
 
 		TextHeight = FontHeight;
 
-		m_pD3DXCreateFont( m_pD3DDev,					// D3D device
-							FontHeight,					// Height
-							FontWidth,					// Width
-							FontWeight,					// Weight
-							0,							// MipLevels, 0 = autogen mipmaps
-							FALSE,						// Italic
-							DEFAULT_CHARSET,			// CharSet
-							OUT_DEFAULT_PRECIS,			// OutputPrecision
-							ANTIALIASED_QUALITY,		// Quality
-							FIXED_PITCH | FF_DONTCARE,	// PitchAndFamily
-							L"Lucida Console",			// pFaceName
-							&m_pFont);					// ppFont
+		m_pD3DXCreateFont(m_pD3DDev,					// D3D device
+						  FontHeight,					// Height
+						  FontWidth,					// Width
+						  FontWeight,					// Weight
+						  0,							// MipLevels, 0 = autogen mipmaps
+						  FALSE,						// Italic
+						  DEFAULT_CHARSET,				// CharSet
+						  OUT_DEFAULT_PRECIS,			// OutputPrecision
+						  ANTIALIASED_QUALITY,			// Quality
+						  FIXED_PITCH | FF_DONTCARE,	// PitchAndFamily
+						  L"Lucida Console",			// pFaceName
+						  &m_pFont);					// ppFont
 	}
 
 	if (!m_pSprite && m_pD3DXCreateSprite) {
-		m_pD3DXCreateSprite( m_pD3DDev, &m_pSprite);
+		m_pD3DXCreateSprite(m_pD3DDev, &m_pSprite);
 	}
 
 	if (!m_pLine && m_pD3DXCreateLine) {
-		m_pD3DXCreateLine (m_pD3DDev, &m_pLine);
+		m_pD3DXCreateLine(m_pD3DDev, &m_pLine);
 	}
 
 	if (m_pFont && m_pSprite) {
@@ -1840,13 +1851,13 @@ void CDX9AllocatorPresenter::DrawStats()
 				if (g_nFrameType != PICT_NONE) {
 					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f, %s)   (%7.3f ms = %.03f%s, %2.03f StdDev)  Clock: %1.4f %%", m_fAvrFps, rtMS, rtFPS, g_nFrameType == PICT_FRAME ? L"P" : L"I", GetFrameTime() * 1000.0, GetFrameRate(), m_DetectedLock ? L" L" : L"", m_DetectedFrameTimeStdDev / 10000.0, m_ModeratedTimeSpeed*100.0);
 				} else {
-					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f, %s)   (%7.3f ms = %.03f%s, %2.03f StdDev)  Clock: %1.4f %%", m_fAvrFps, rtMS, rtFPS, m_bInterlaced ? L"I" : L"P", GetFrameTime() * 1000.0, GetFrameRate(), m_DetectedLock ? L" L" : L"", m_DetectedFrameTimeStdDev / 10000.0, m_ModeratedTimeSpeed*100.0);
+					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f)   (%7.3f ms = %.03f%s, %2.03f StdDev)  Clock: %1.4f %%", m_fAvrFps, rtMS, rtFPS, GetFrameTime() * 1000.0, GetFrameRate(), m_DetectedLock ? L" L" : L"", m_DetectedFrameTimeStdDev / 10000.0, m_ModeratedTimeSpeed*100.0);
 				}
 			} else {
 				if (g_nFrameType != PICT_NONE) {
 					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f, %s)", m_fAvrFps, rtMS, rtFPS, g_nFrameType == PICT_FRAME ? L"P" : L"I");
 				} else {
-					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f, %s)", m_fAvrFps, rtMS, rtFPS, m_bInterlaced ? L"I" : L"P");
+					strText.Format(L"Frame rate   : %7.03f   (%7.3f ms = %.03f)", m_fAvrFps, rtMS, rtFPS);
 				}
 			}
 		} else {
@@ -2121,18 +2132,19 @@ void CDX9AllocatorPresenter::DrawStats()
 				OffsetRect(&rc, 0, TextHeight);
 			}
 		}
+		
 		m_pSprite->End();
 		OffsetRect(&rc, 0, TextHeight); // Extra "line feed"
 	}
 
 	if (m_pLine && bDetailedStats) {
-		D3DXVECTOR2		Points[NB_JITTER];
-		int				nIndex;
+		D3DXVECTOR2	Points[NB_JITTER];
+		int			nIndex;
 
 		int StartX = 0;
 		int StartY = 0;
-		float ScaleX = min(1.0f, max(0.4f, 1.4f*m_WindowRect.Width()/m_rcMonitor.Width()));
-		float ScaleY = min(1.0f, max(0.4f, 1.4f*m_WindowRect.Height()/m_rcMonitor.Height()));
+		float ScaleX = min(1.0f, max(0.4f, 1.4f * m_WindowRect.Width() / m_rcMonitor.Width()));
+		float ScaleY = min(1.0f, max(0.4f, 1.4f * m_WindowRect.Height() / m_rcMonitor.Height()));
 		int DrawWidth = 625 * ScaleX + 50 * ScaleX;
 		int DrawHeight = 250 * ScaleY;
 		int Alpha = 80;
@@ -2146,16 +2158,16 @@ void CDX9AllocatorPresenter::DrawStats()
 		//m_pLine->SetGLLines(1);
 		m_pLine->Begin();
 
-		for (int i=10; i < 250 * ScaleY; i += 10 * ScaleY) {
+		for (int i = 10; i < 250 * ScaleY; i += 10 * ScaleY) {
 			Points[0].x = (FLOAT)(StartX);
 			Points[0].y = (FLOAT)(StartY + i);
-			Points[1].x = (FLOAT)(StartX + ((i-10)%40 ? 50 *ScaleX : 625 * ScaleX));
+			Points[1].x = (FLOAT)(StartX + ((i - 10) % 40 ? 50 * ScaleX : 625 * ScaleX));
 			Points[1].y = (FLOAT)(StartY + i);
 			if (i == 130) {
 				Points[1].x += 50 * ScaleX;
 			}
 
-			m_pLine->Draw (Points, 2, D3DCOLOR_XRGB(100,100,255));
+			m_pLine->Draw(Points, 2, D3DCOLOR_XRGB(100, 100, 255));
 		}
 
 		// === Jitter curve
@@ -2167,27 +2179,26 @@ void CDX9AllocatorPresenter::DrawStats()
 				}
 				double Jitter = m_pllJitter[nIndex] - m_fJitterMean;
 				Points[i].x  = (FLOAT)(StartX + (i * 5 * ScaleX + 5));
-				Points[i].y  = (FLOAT)(StartY + ((Jitter * ScaleY)/5000.0 + 125.0 * ScaleY));
+				Points[i].y  = (FLOAT)(StartY + ((Jitter * ScaleY) / 5000.0 + 125.0 * ScaleY));
 			}
-			m_pLine->Draw (Points, NB_JITTER, D3DCOLOR_XRGB(255,100,100));
+			m_pLine->Draw(Points, NB_JITTER, D3DCOLOR_XRGB(255, 100, 100));
 
 			if (m_bSyncStatsAvailable) {
 				for (int i = 0; i < NB_JITTER; i++) {
-					nIndex = (m_nNextSyncOffset+1+i) % NB_JITTER;
+					nIndex = (m_nNextSyncOffset + 1 + i) % NB_JITTER;
 					if (nIndex < 0) {
 						nIndex += NB_JITTER;
 					}
 					Points[i].x  = (FLOAT)(StartX + (i * 5 * ScaleX + 5));
-					Points[i].y  = (FLOAT)(StartY + ((m_pllSyncOffset[nIndex] * ScaleY)/5000 + 125 * ScaleY));
+					Points[i].y  = (FLOAT)(StartY + ((m_pllSyncOffset[nIndex] * ScaleY) / 5000 + 125 * ScaleY));
 				}
-				m_pLine->Draw (Points, NB_JITTER, D3DCOLOR_XRGB(100,200,100));
+				m_pLine->Draw(Points, NB_JITTER, D3DCOLOR_XRGB(100, 200, 100));
 			}
 		}
 		m_pLine->End();
 	}
 
 	// === Text
-
 }
 
 STDMETHODIMP CDX9AllocatorPresenter::GetDIB(BYTE* lpDib, DWORD* size)
@@ -2200,7 +2211,13 @@ STDMETHODIMP CDX9AllocatorPresenter::GetDIB(BYTE* lpDib, DWORD* size)
 	memset(&desc, 0, sizeof(desc));
 	m_pVideoSurface[m_nCurSurface]->GetDesc(&desc);
 
-	DWORD required = sizeof(BITMAPINFOHEADER) + (desc.Width * desc.Height * 32 >> 3);
+	CSize framesize = GetVideoSize(false);
+	CSize dar = GetVideoSize(true);
+	if (dar.cx > 0 && dar.cy > 0) {
+		framesize.cx = MulDiv(framesize.cy, dar.cx, dar.cy);
+	}
+
+	DWORD required = sizeof(BITMAPINFOHEADER) + (framesize.cx * framesize.cy * 4);
 	if (!lpDib) {
 		*size = required;
 		return S_OK;
@@ -2215,7 +2232,10 @@ STDMETHODIMP CDX9AllocatorPresenter::GetDIB(BYTE* lpDib, DWORD* size)
 	if (m_bFullFloatingPointProcessing || m_bHalfFloatingPointProcessing || m_bHighColorResolution) {
 		CComPtr<IDirect3DSurface9> fSurface = m_pVideoSurface[m_nCurSurface];
 		if (FAILED(hr = m_pD3DDev->CreateOffscreenPlainSurface(desc.Width, desc.Height, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &fSurface, NULL))
-				|| FAILED(hr = m_pD3DXLoadSurfaceFromSurface(fSurface, NULL, NULL, m_pVideoSurface[m_nCurSurface], NULL, NULL, D3DX_DEFAULT, 0))) return hr;
+				|| FAILED(hr = m_pD3DXLoadSurfaceFromSurface(fSurface, NULL, NULL, m_pVideoSurface[m_nCurSurface], NULL, NULL, D3DX_DEFAULT, 0))) {
+			return hr;
+		}
+
 		pSurface = fSurface;
 		if (FAILED(hr = pSurface->LockRect(&r, NULL, D3DLOCK_READONLY))) {
 			pSurface = NULL;
@@ -2230,23 +2250,26 @@ STDMETHODIMP CDX9AllocatorPresenter::GetDIB(BYTE* lpDib, DWORD* size)
 			pSurface = NULL;
 			if (FAILED(hr = m_pD3DDev->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &pSurface, NULL))
 					|| FAILED(hr = m_pD3DDev->GetRenderTargetData(m_pVideoSurface[m_nCurSurface], pSurface))
-					|| FAILED(hr = pSurface->LockRect(&r, NULL, D3DLOCK_READONLY))) return hr;
+					|| FAILED(hr = pSurface->LockRect(&r, NULL, D3DLOCK_READONLY))) {
+				return hr;
+			}
 		}
 	}
 
-	BITMAPINFOHEADER* bih = (BITMAPINFOHEADER*)lpDib;
+	BITMAPINFOHEADER* bih	= (BITMAPINFOHEADER*)lpDib;
 	memset(bih, 0, sizeof(BITMAPINFOHEADER));
-	bih->biSize = sizeof(BITMAPINFOHEADER);
-	bih->biWidth = desc.Width;
-	bih->biHeight = desc.Height;
-	bih->biBitCount = 32;
-	bih->biPlanes = 1;
-	bih->biSizeImage = bih->biWidth * bih->biHeight * bih->biBitCount >> 3;
+	bih->biSize				= sizeof(BITMAPINFOHEADER);
+	bih->biWidth			= framesize.cx;
+	bih->biHeight			= framesize.cy;
+	bih->biBitCount			= 32;
+	bih->biPlanes			= 1;
+	bih->biSizeImage		= bih->biWidth * bih->biHeight * 4;
 
-	BitBltFromRGBToRGB(
+	BitBltFromRGBToRGBStretch(
 		bih->biWidth, bih->biHeight,
-		(BYTE*)(bih + 1), bih->biWidth*bih->biBitCount>>3, bih->biBitCount,
-		(BYTE*)r.pBits + r.Pitch*(desc.Height-1), -(int)r.Pitch, 32);
+		(BYTE*)(bih + 1), bih->biWidth * 4, 32,
+		desc.Width, desc.Height,
+		(BYTE*)r.pBits + r.Pitch * (desc.Height - 1), -(int)r.Pitch, 32);
 
 	pSurface->UnlockRect();
 

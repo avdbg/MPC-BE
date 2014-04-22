@@ -55,13 +55,15 @@ class __declspec(uuid("DC257063-045F-4BE2-BD5B-E12279C464F0"))
 
 	HRESULT DemuxNextPacket(REFERENCE_TIME rtStartOffset);
 
-	void HandleStream(CMpegSplitterFile::stream& s, CString fName, DWORD dwPictAspectRatioX, DWORD dwPictAspectRatioY);
+	void HandleStream(CMpegSplitterFile::stream& s, CString fName, DWORD dwPictAspectRatioX, DWORD dwPictAspectRatioY, CStringA& palette);
+
+	CString FormatStreamName(CMpegSplitterFile::stream& s, CMpegSplitterFile::stream_type type);
 
 	REFERENCE_TIME m_rtPlaylistDuration;
 	REFERENCE_TIME m_rtMin, m_rtMax;
 
 private:
-	CString m_csAudioLanguageOrder, m_csSubtitlesLanguageOrder;
+	CString m_AudioLanguageOrder, m_SubtitlesLanguageOrder;
 	bool m_ForcedSub, m_AlternativeDuration, m_SubEmptyPin;
 	int m_AC3CoreOnly;
 	CCritSec m_csProps;
@@ -71,6 +73,8 @@ public:
 	void SetPipo(bool bPipo) {
 		m_pPipoBimbo = bPipo;
 	};
+
+	void GetMediaTypes(CMpegSplitterFile::stream_type sType, CAtlArray<CMediaType>& mts);
 
 	DECLARE_IUNKNOWN
 	STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);
@@ -128,10 +132,11 @@ public:
 
 class CMpegSplitterOutputPin : public CBaseSplitterParserOutputPin
 {
+	CMpegSplitterFile::stream_type m_type;
 public:
-	CMpegSplitterOutputPin(CAtlArray<CMediaType>& mts, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr, int QueueMaxPackets);
+	CMpegSplitterOutputPin(CAtlArray<CMediaType>& mts, CMpegSplitterFile::stream_type type, LPCWSTR pName, CBaseFilter* pFilter, CCritSec* pLock, HRESULT* phr, int QueueMaxPackets);
 
-	HRESULT CheckMediaType(const CMediaType* pmt) { return S_OK; }
+	HRESULT CheckMediaType(const CMediaType* pmt);
 
 	STDMETHODIMP Connect(IPin* pReceivePin, const AM_MEDIA_TYPE* pmt);
 };

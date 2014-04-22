@@ -115,19 +115,19 @@ BOOL CPPageInterface::OnInitDialog()
 	m_nOSDTransparent		= m_nOSDTransparent_Old		= s.nOSDTransparent;
 	m_OSDBorder				= m_OSDBorder_Old			= s.nOSDBorder;
 
-	m_ThemeBrightnessCtrl.SetRange(0, 100);
-	m_ThemeRedCtrl.SetRange(0, 255);
-	m_ThemeGreenCtrl.SetRange(0, 255);
-	m_ThemeBlueCtrl.SetRange(0, 255);
-	m_OSDTransparentCtrl.SetRange(0, 255);
+	m_ThemeBrightnessCtrl.SetRange	(0, 100, TRUE);
+	m_ThemeRedCtrl.SetRange			(0, 255, TRUE);
+	m_ThemeGreenCtrl.SetRange		(0, 255, TRUE);
+	m_ThemeBlueCtrl.SetRange		(0, 255, TRUE);
+	m_OSDTransparentCtrl.SetRange	(0, 255, TRUE);
 	m_OSDBorderCtrl.SetRange32(0, 5);
 
 	m_fFileNameOnSeekBar	= s.fFileNameOnSeekBar;
-	m_clrFaceABGR			= s.clrFaceABGR;
-	m_clrOutlineABGR		= s.clrOutlineABGR;
-	m_clrFontABGR			= s.clrFontABGR;
-	m_clrGrad1ABGR			= s.clrGrad1ABGR;
-	m_clrGrad2ABGR			= s.clrGrad2ABGR;
+	m_clrFaceABGR			= m_clrFaceABGR_Old			= s.clrFaceABGR;
+	m_clrOutlineABGR		= m_clrOutlineABGR_Old		= s.clrOutlineABGR;
+	m_clrFontABGR			= m_clrFontABGR_Old			= s.clrFontABGR;
+	m_clrGrad1ABGR			= m_clrGrad1ABGR_Old		= s.clrGrad1ABGR;
+	m_clrGrad2ABGR			= m_clrGrad2ABGR_Old		= s.clrGrad2ABGR;
 	m_fUseWin7TaskBar		= s.fUseWin7TaskBar;
 	GetDlgItem(IDC_CHECK_WIN7)->EnableWindow(IsWinSevenOrLater());
 
@@ -143,17 +143,17 @@ BOOL CPPageInterface::OnInitDialog()
 	m_fSmartSeek		= s.fSmartSeek;
 	m_fChapterMarker	= s.fChapterMarker;
 	m_fFlybar			= s.fFlybar;
-	m_fFontShadow		= m_fFontShadow_Old = s.fFontShadow;
-	m_fFontAA			= s.fFontAA;
+	m_fFontShadow		= m_fFontShadow_Old	= s.fFontShadow;
+	m_fFontAA			= m_fFontAA_Old		= s.fFontAA;
 	m_FontType.Clear();
 	m_FontSize.Clear();
-	HDC dc = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
+	HDC dc = CreateDC(L"DISPLAY", NULL, NULL, NULL);
 	CAtlArray<CString> fntl;
-	EnumFontFamilies(dc, NULL,(FONTENUMPROC)EnumFontProc, (LPARAM)&fntl);
+	EnumFontFamilies(dc, NULL, (FONTENUMPROC)EnumFontProc, (LPARAM)&fntl);
 	DeleteDC(dc);
 
 	for (size_t i = 0; i < fntl.GetCount(); ++i) {
-		if (i > 0 && fntl[i-1] == fntl[i]) {
+		if (i > 0 && fntl[i - 1] == fntl[i]) {
 			continue;
 		}
 
@@ -162,23 +162,27 @@ BOOL CPPageInterface::OnInitDialog()
 
 	CorrectComboListWidth(m_FontType);
 	int iSel = m_FontType.FindStringExact(0, m_OSD_Font);
-	if (iSel == CB_ERR) iSel = 0;
+	if (iSel == CB_ERR) {
+		iSel = 0;
+	}
 	m_FontType.SetCurSel(iSel);
 
 	CString str;
 
 	for (int i = 10; i < 26; ++i) {
-		str.Format(_T("%d"), i);
+		str.Format(L"%d", i);
 		m_FontSize.AddString(str);
 
 		if (m_OSD_Size == i) {
 			iSel = i;
 		}
 	}
-
 	m_FontSize.SetCurSel(iSel - 10);
 
 	EnableToolTips(TRUE);
+
+	GetDlgItem(IDC_CHECK8)->EnableWindow(!m_fSmartSeek);
+	GetDlgItem(IDC_COMBO3)->EnableWindow(!m_fSmartSeek);
 
 	UpdateData(FALSE);
 
@@ -203,6 +207,8 @@ BOOL CPPageInterface::OnApply()
 	s.nOSDTransparent		= m_nOSDTransparent;
 	s.fFileNameOnSeekBar	= !!m_fFileNameOnSeekBar;
 	s.nOSDBorder			= m_OSDBorder;
+
+	ApplyOSDTransparent();
 
 	HWND WndToolBar			= ((CMainFrame*)AfxGetMainWnd())->m_hWnd_toolbar;
 	BOOL fDisableXPToolbars	= s.fDisableXPToolbars;
@@ -240,6 +246,21 @@ BOOL CPPageInterface::OnApply()
 
 	pFrame->Invalidate();
 
+	m_nThemeBrightness_Old	= s.nThemeBrightness;
+	m_nThemeRed_Old			= s.nThemeRed;
+	m_nThemeGreen_Old		= s.nThemeGreen;
+	m_nThemeBlue_Old		= s.nThemeBlue;
+	m_OSDBorder_Old			= s.nOSDBorder;
+	m_fFontShadow_Old		= s.fFontShadow;
+	m_fFontAA_Old			= s.fFontAA;
+	m_nOSDTransparent_Old	= s.nOSDTransparent;
+
+	m_clrFaceABGR_Old		= s.clrFaceABGR;
+	m_clrOutlineABGR_Old	= s.clrOutlineABGR;
+	m_clrFontABGR_Old		= s.clrFontABGR;
+	m_clrGrad1ABGR_Old		= s.clrGrad1ABGR;
+	m_clrGrad2ABGR_Old		= s.clrGrad2ABGR;
+
 	return __super::OnApply();
 }
 
@@ -251,11 +272,30 @@ void CPPageInterface::OnCancel()
 	s.nThemeRed			= m_nThemeRed_Old;
 	s.nThemeGreen		= m_nThemeGreen_Old;
 	s.nThemeBlue		= m_nThemeBlue_Old;
-	s.nOSDTransparent	= m_nOSDTransparent_Old;
 	s.nOSDBorder		= m_OSDBorder_Old;
 	s.fFontShadow		= !!m_fFontShadow_Old;
+	s.fFontAA			= !!m_fFontAA_Old;
+	s.nOSDTransparent	= m_nOSDTransparent_Old;
+
+	s.clrFaceABGR		= m_clrFaceABGR_Old;
+	s.clrOutlineABGR	= m_clrOutlineABGR_Old;
+	s.clrFontABGR		= m_clrFontABGR_Old;
+	s.clrGrad1ABGR		= m_clrGrad1ABGR_Old;
+	s.clrGrad2ABGR		= m_clrGrad2ABGR_Old;
 
 	OnThemeChange();
+	ApplyOSDTransparent();
+}
+
+void CPPageInterface::ApplyOSDTransparent()
+{
+	CMainFrame* pMainFrame = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrame && pMainFrame->m_OSD) {
+		AppSettings& s = AfxGetAppSettings();
+
+		pMainFrame->m_OSD.SetLayeredWindowAttributes(RGB(255, 0, 255), 255 - s.nOSDTransparent, LWA_ALPHA | LWA_COLORKEY);
+		pMainFrame->m_OSD.ClearMessage();
+	}
 }
 
 void CPPageInterface::OnThemeChange()
@@ -290,6 +330,7 @@ BEGIN_MESSAGE_MAP(CPPageInterface, CPPageBase)
 	ON_BN_CLICKED(IDC_BUTTON_CLROUTLINE, OnClickClrOutline)
 	ON_BN_CLICKED(IDC_BUTTON_CLRDEFAULT, OnClickClrDefault)
 	ON_BN_CLICKED(IDC_CHECK8, OnUseTimeTooltipClicked)
+	ON_BN_CLICKED(IDC_CHECK_PRV, OnUsePreview)
 	ON_CBN_SELCHANGE(IDC_COMBO1, OnChngOSDCombo)
 	ON_CBN_SELCHANGE(IDC_COMBO2, OnChngOSDCombo)
 	ON_UPDATE_COMMAND_UI(IDC_SLIDER1, OnUpdateThemeBrightness)
@@ -313,16 +354,26 @@ void CPPageInterface::OnUpdateCheck3(CCmdUI* pCmdUI)
 
 void CPPageInterface::OnCheckShadow()
 {
+	AppSettings& s = AfxGetAppSettings();
+
 	UpdateData();
-	AfxGetAppSettings().fFontShadow		= !!m_fFontShadow;
+	BOOL fFontShadow = s.fFontShadow;
+	s.fFontShadow = !!m_fFontShadow;
 	OnChngOSDCombo();
+
+	s.fFontShadow = !!fFontShadow;
 }
 
 void CPPageInterface::OnCheckAA()
 {
+	AppSettings& s = AfxGetAppSettings();
+
 	UpdateData();
-	AfxGetAppSettings().fFontAA			= !!m_fFontAA;
+	BOOL fFontAA = s.fFontAA;
+	s.fFontAA = !!m_fFontAA;
 	OnChngOSDCombo();
+
+	s.fFontAA = !!fFontAA;
 }
 
 void CPPageInterface::OnUpdateOSDBorder(CCmdUI* pCmdUI)
@@ -331,8 +382,11 @@ void CPPageInterface::OnUpdateOSDBorder(CCmdUI* pCmdUI)
 
 	if (s.nOSDBorder != m_OSDBorder) {
 		UpdateData();
+		int nOSDBorder = s.nOSDBorder;
 		s.nOSDBorder = m_OSDBorder;
 		OnChngOSDCombo();
+
+		s.nOSDBorder = nOSDBorder;
 	}
 }
 
@@ -352,8 +406,8 @@ void CPPageInterface::OnClickClrDefault()
 	GetDlgItem(IDC_BUTTON_CLRGRAD2)->Invalidate();
 	PostMessage(WM_COMMAND, IDC_CHECK3);
 
-	s.nThemeBrightness	= m_nThemeBrightness	= 15;
-	s.nThemeRed			= m_nThemeRed			= 255;
+	s.nThemeBrightness		= m_nThemeBrightness	= 15;
+	s.nThemeRed				= m_nThemeRed			= 255;
 	s.nThemeGreen			= m_nThemeGreen			= 255;
 	s.nThemeBlue			= m_nThemeBlue			= 255;
 	s.nOSDTransparent		= m_nOSDTransparent		= 100;
@@ -363,82 +417,106 @@ void CPPageInterface::OnClickClrDefault()
 	m_OSDBorder = 1;
 	OnThemeChange();
 
+	m_nThemeBrightness_Old	= s.nThemeBrightness;
+	m_nThemeRed_Old			= s.nThemeRed;
+	m_nThemeGreen_Old		= s.nThemeGreen;
+	m_nThemeBlue_Old		= s.nThemeBlue;
+	m_OSDBorder_Old			= s.nOSDBorder;
+	m_fFontShadow_Old		= s.fFontShadow;
+	m_fFontAA_Old			= s.fFontAA;
+	m_nOSDTransparent_Old	= s.nOSDTransparent;
+
+	m_clrFaceABGR_Old		= s.clrFaceABGR;
+	m_clrOutlineABGR_Old	= s.clrOutlineABGR;
+	m_clrFontABGR_Old		= s.clrFontABGR;
+	m_clrGrad1ABGR_Old		= s.clrGrad1ABGR;
+	m_clrGrad2ABGR_Old		= s.clrGrad2ABGR;
+
 	UpdateData(FALSE);
 }
 
 void CPPageInterface::OnClickClrFace()
 {
 	CColorDialog clrpicker;
-	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
+	clrpicker.m_cc.Flags |= CC_FULLOPEN | CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrFaceABGR;
 
 	if (clrpicker.DoModal() == IDOK) {
+		if (m_clrFaceABGR != clrpicker.GetColor()) {
+			UpdateData(FALSE);
+			PostMessage(WM_COMMAND, IDC_CHECK3);
+		}
 		m_clrFaceABGR = clrpicker.GetColor();
 	}
-
-	PostMessage(WM_COMMAND, IDC_CHECK3);
-
-	UpdateData(FALSE);
 }
 
 void CPPageInterface::OnClickClrOutline()
 {
 	CColorDialog clrpicker;
-	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
+	clrpicker.m_cc.Flags |= CC_FULLOPEN | CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrOutlineABGR;
 
 	if (clrpicker.DoModal() == IDOK) {
+		if (m_clrOutlineABGR != clrpicker.GetColor()) {
+			UpdateData(FALSE);
+			PostMessage(WM_COMMAND, IDC_CHECK3);
+		}
 		m_clrOutlineABGR = clrpicker.GetColor();
 	}
-
-	PostMessage(WM_COMMAND, IDC_CHECK3);
-
-	UpdateData(FALSE);
 }
 
 void CPPageInterface::OnClickClrFont()
 {
 	CColorDialog clrpicker;
-	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
+	clrpicker.m_cc.Flags |= CC_FULLOPEN | CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrFontABGR;
 
 	if (clrpicker.DoModal() == IDOK) {
+		COLORREF clrFontABGR = m_clrFontABGR;
 		m_clrFontABGR = clrpicker.GetColor();
+		if (clrFontABGR != clrpicker.GetColor()) {
+			AppSettings& s = AfxGetAppSettings();
+			s.clrFontABGR = m_clrFontABGR;
+			OnChngOSDCombo();
+			UpdateData(FALSE);
+		}
 	}
-
-	UpdateData();
-	AfxGetAppSettings().clrFontABGR		= m_clrFontABGR;
-	OnChngOSDCombo();
 }
 
 void CPPageInterface::OnClickClrGrad1()
 {
 	CColorDialog clrpicker;
-	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
+	clrpicker.m_cc.Flags |= CC_FULLOPEN | CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrGrad1ABGR;
 
 	if (clrpicker.DoModal() == IDOK) {
+		COLORREF clrGrad1ABGR = m_clrGrad1ABGR;
 		m_clrGrad1ABGR = clrpicker.GetColor();
+		if (clrGrad1ABGR != clrpicker.GetColor()) {
+			AppSettings& s = AfxGetAppSettings();
+			s.clrGrad1ABGR = m_clrGrad1ABGR;
+			OnChngOSDCombo();
+			UpdateData(FALSE);
+		}
 	}
-
-	UpdateData();
-	AfxGetAppSettings().clrGrad1ABGR		= m_clrGrad1ABGR;
-	OnChngOSDCombo();
 }
 
 void CPPageInterface::OnClickClrGrad2()
 {
 	CColorDialog clrpicker;
-	clrpicker.m_cc.Flags |= CC_FULLOPEN|CC_RGBINIT;
+	clrpicker.m_cc.Flags |= CC_FULLOPEN | CC_RGBINIT;
 	clrpicker.m_cc.rgbResult = m_clrGrad2ABGR;
 
 	if (clrpicker.DoModal() == IDOK) {
+		COLORREF clrGrad2ABGR = m_clrGrad2ABGR;
 		m_clrGrad2ABGR = clrpicker.GetColor();
+		if (clrGrad2ABGR != clrpicker.GetColor()) {
+			AppSettings& s = AfxGetAppSettings();
+			s.clrGrad2ABGR = m_clrGrad2ABGR;
+			OnChngOSDCombo();
+			UpdateData(FALSE);
+		}
 	}
-
-	UpdateData();
-	AfxGetAppSettings().clrGrad2ABGR		= m_clrGrad2ABGR;
-	OnChngOSDCombo();
 }
 
 void CPPageInterface::OnCustomDrawBtns(NMHDR *pNMHDR, LRESULT *pResult)
@@ -492,13 +570,15 @@ void CPPageInterface::OnCustomDrawBtns(NMHDR *pNMHDR, LRESULT *pResult)
 
 void CPPageInterface::OnChngOSDCombo()
 {
-	if (((CMainFrame*)AfxGetMainWnd())->m_OSD) {
-		CString str;
-		m_OSD_Size = m_FontSize.GetCurSel()+10;
-		m_FontType.GetLBText(m_FontType.GetCurSel(),str);
+	CMainFrame* pMainFrame = (CMainFrame*)AfxGetMainWnd();
 
-		((CMainFrame*)AfxGetMainWnd())->m_OSD.DisplayMessage(OSD_TOPLEFT, _T("OSD test"), 2000, m_OSD_Size, str);
-		((CMainFrame*)AfxGetMainWnd())->m_OSD.SetLayeredWindowAttributes(RGB(255,0,255), 255 - AfxGetAppSettings().nOSDTransparent, LWA_ALPHA|LWA_COLORKEY);
+	if (pMainFrame->m_OSD) {
+		CString str;
+		m_OSD_Size = m_FontSize.GetCurSel() + 10;
+		m_FontType.GetLBText(m_FontType.GetCurSel(), str);
+
+		pMainFrame->m_OSD.DisplayMessage(OSD_TOPLEFT, ResStr(IDS_OSD_TEST), 2000, m_OSD_Size, str);
+		pMainFrame->m_OSD.SetLayeredWindowAttributes(RGB(255, 0, 255), 255 - AfxGetAppSettings().nOSDTransparent, LWA_ALPHA | LWA_COLORKEY);
 	}
 
 	SetModified();
@@ -509,6 +589,14 @@ void CPPageInterface::OnUseTimeTooltipClicked()
 	m_TimeTooltipPosition.EnableWindow(IsDlgButtonChecked(IDC_CHECK8));
 
 	SetModified();
+}
+
+void CPPageInterface::OnUsePreview()
+{
+	UpdateData();
+
+	GetDlgItem(IDC_CHECK8)->EnableWindow(!m_fSmartSeek);
+	GetDlgItem(IDC_COMBO3)->EnableWindow(!m_fSmartSeek);
 }
 
 void CPPageInterface::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
@@ -529,20 +617,23 @@ void CPPageInterface::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 
 	if (*pScrollBar == m_ThemeGreenCtrl) {
 		UpdateData();
-		s.nThemeGreen			= m_nThemeGreen;
+		s.nThemeGreen		= m_nThemeGreen;
 		OnThemeChange();
 	}
 
 	if (*pScrollBar == m_ThemeBlueCtrl) {
 		UpdateData();
-		s.nThemeBlue			= m_nThemeBlue;
+		s.nThemeBlue		= m_nThemeBlue;
 		OnThemeChange();
 	}
 
 	if (*pScrollBar == m_OSDTransparentCtrl) {
 		UpdateData();
+		int nOSDTransparent	= s.nOSDTransparent;
 		s.nOSDTransparent	= m_nOSDTransparent;
 		OnChngOSDCombo();
+
+		s.nOSDTransparent	= nOSDTransparent;
 	}
 
 	SetModified();

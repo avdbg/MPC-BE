@@ -23,6 +23,7 @@
 #include "APEFile.h"
 #include "TAKFile.h"
 #include "TTAFile.h"
+#include "WavPackFile.h"
 #include "WAVFile.h"
 #include "Wave64File.h"
 
@@ -40,6 +41,7 @@ CAudioFile::CAudioFile()
 	, m_layout(0)
 	, m_rtduration(0)
 	, m_subtype(GUID_NULL)
+	, m_wFormatTag(0)
 	, m_extradata(NULL)
 	, m_extrasize(0)
 	, m_nAvgBytesPerSec(0)
@@ -71,6 +73,8 @@ CAudioFile* CAudioFile::CreateFilter(CBaseSplitterFile* m_pFile)
 		pAudioFile = DNew CTAKFile();
 	} else if (*id == FCC('TTA1')) {
 		pAudioFile = DNew CTTAFile();
+	} else if (*id == FCC('wvpk')) {
+		pAudioFile = DNew CWavPackFile();
 	} else if (*id == FCC('RIFF') && *(DWORD*)(data+8) == FCC('WAVE')) {
 		pAudioFile = DNew CWAVFile();
 	} else if (memcmp(data, w64_guid_riff, 16) == 0 &&  memcmp(data+24, w64_guid_wave, 16) == 0) {
@@ -105,7 +109,7 @@ bool CAudioFile::SetMediaType(CMediaType& mt)
 	mt.SetSampleSize(256000);
 
 	WAVEFORMATEX* wfe		= (WAVEFORMATEX*)mt.AllocFormatBuffer(sizeof(WAVEFORMATEX) + m_extrasize);
-	wfe->wFormatTag			= 0;
+	wfe->wFormatTag			= m_wFormatTag;
 	wfe->nChannels			= m_channels;
 	wfe->nSamplesPerSec		= m_samplerate;
 	wfe->wBitsPerSample		= m_bitdepth;

@@ -62,7 +62,7 @@
 #include <evr.h>
 #include <evr9.h>
 #include <Il21dec.h>
-#include "VMROSD.h"
+#include "OSD.h"
 #include "LcdSupport.h"
 #include "MpcApi.h"
 #include "../../filters/renderer/SyncClock/SyncClock.h"
@@ -293,7 +293,7 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 	void SetupSubtitlesSubMenu();
 	void SetupNavMixAudioSubMenu();
 	void SetupNavMixSubtitleSubMenu();
-	void SetupNavAngleSubMenu();
+	void SetupVideoStreamsSubMenu();
 	void SetupNavChaptersSubMenu();
 	void SetupFavoritesSubMenu();
 	void SetupShadersSubMenu();
@@ -310,16 +310,15 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 	void SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSelGroup);
 	void OnNavMixStreamSubtitleSelectSubMenu(UINT id, DWORD dwSelGroup);
 
-	CMenu m_popupmain, m_popup;
-	CMenu m_opencds;
-	CMenu m_filters, m_subtitles, m_audios;
-	CMenu m_language;
-	CAutoPtrArray<CMenu> m_filterpopups;
-	CMenu m_navangle;
-	CMenu m_navchapters;
-	CMenu m_favorites;
-	CMenu m_shaders;
-	CMenu m_recentfiles;
+	CMenu m_popupMainMenu, m_popupMenu;
+	CMenu m_openCDsMenu;
+	CMenu m_filtersMenu, m_subtitlesMenu, m_audiosMenu;
+	CMenu m_languageMenu;
+	CMenu m_videostreamsMenu;
+	CMenu m_chaptersMenu;
+	CMenu m_favoritesMenu;
+	CMenu m_shadersMenu;
+	CMenu m_recentfilesMenu;
 
 	CInterfaceArray<IUnknown, &IID_IUnknown> m_pparray;
 	CInterfaceArray<IAMStreamSelect> m_ssarray;
@@ -481,8 +480,10 @@ protected:
 	bool			m_fClosingState;
 	bool			m_fAudioOnly;
 
-	dispmode m_dmBeforeFullscreen;
-	CString m_LastOpenFile;
+	dispmode		m_dmBeforeFullscreen;
+
+	CString					m_LastOpenFile;
+	CAutoPtr<OpenMediaData>	m_lastOMD;
 
 	CString m_LastOpenBDPath, m_BDLabel;
 	HMONITOR m_LastWindow_HM;
@@ -616,8 +617,6 @@ public:
 #endif
 
 protected:  // control bar embedded members
-
-	MPCPngImage m_logobm;
 
 	CChildView m_wndView;
 	CPlayerSeekBar m_wndSeekBar;
@@ -970,8 +969,7 @@ public:
 
 	afx_msg void OnUpdateNavMixSubtitles(CCmdUI* pCmdUI);
 
-	afx_msg void OnPlayLanguage(UINT nID);
-	afx_msg void OnUpdatePlayLanguage(CCmdUI* pCmdUI);
+	afx_msg void OnSelectStream(UINT nID);
 	afx_msg void OnPlayVolume(UINT nID);
 	afx_msg void OnPlayVolumeBoost(UINT nID);
 	afx_msg void OnUpdatePlayVolumeBoost(CCmdUI* pCmdUI);
@@ -1019,12 +1017,14 @@ public:
 	afx_msg void OnHelpCheckForUpdate();
 	//afx_msg void OnHelpDocumentation();
 	afx_msg void OnHelpToolbarImages();
-	afx_msg void OnHelpDonate();
+	//afx_msg void OnHelpDonate();
+
+	// Subtitle position
+	afx_msg void OnSubtitlePos(UINT nID);
 
 	afx_msg void OnClose();
 
 	afx_msg void OnLanguage(UINT nID);
-	afx_msg void OnUpdateLanguage(CCmdUI* pCmdUI);
 
 	void OnFilePostOpenMedia(CAutoPtr<OpenMediaData> pOMD);
 	void OnFilePostCloseMedia();
@@ -1057,7 +1057,7 @@ public:
 
 	SIZE			m_fullWndSize;
 	CFullscreenWnd*	m_pFullscreenWnd;
-	CVMROSD		m_OSD;
+	COSD		m_OSD;
 
 	bool		m_bRemainingTime;
 	bool		m_bOSDLocalTime;
@@ -1129,7 +1129,7 @@ public:
 	bool		isWindowMinimized;
 	HBITMAP		CreateCaptureDIB(int nWidth, int nHeight);
 	void		CreateCaptureWindow();
-	MPCPngImage	m_InternalImage, m_InternalImageSmall;
+	CMPCPngImage	m_InternalImage, m_InternalImageSmall;
 	bool		m_bInternalImageRes;
 
 	HBITMAP		m_ThumbCashedBitmap;
@@ -1188,8 +1188,14 @@ public:
 	bool			b_UseVSFilter;
 
 	bool			b_UseReclock;
+
+	void			CheckMenuRadioItem(UINT first, UINT last, UINT check);
 private:
-	typedef enum TH_STATE {TH_START, TH_WORK, TH_CLOSE};
+	enum TH_STATE {
+		TH_START,
+		TH_WORK,
+		TH_CLOSE
+	};
 	TH_STATE	m_fYoutubeThreadWork;
 	CString		m_YoutubeFile;
 	CWinThread*	m_YoutubeThread;
@@ -1209,15 +1215,13 @@ private:
 		return E_FAIL;
 	}
 
-public:
-	UINT		YoutubeThreadProc();
-
-private:
 	int			GetStreamCount(DWORD dwSelGroup);
 
 	DWORD_PTR	m_nMainFilterId;
 
 public:
+	UINT		YoutubeThreadProc();
+
 	BOOL		CheckMainFilter(IBaseFilter* pBF);
 
 	void		AddSubtitlePathsAddons(CString FileName);

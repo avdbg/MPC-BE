@@ -95,7 +95,11 @@ BOOL CInternalPropertyPageWnd::OnWndMsg(UINT message, WPARAM wParam, LPARAM lPar
 {
 	if (message == WM_COMMAND || message == WM_HSCROLL || message == WM_VSCROLL) {
 		WORD notify = HIWORD(wParam);
-		if (notify == BN_CLICKED || notify == CBN_SELCHANGE || notify == EN_CHANGE) {
+		// check only notifications that change the state of a control, otherwise false positives are possible.
+		if (notify == BN_CLICKED
+				|| notify == CBN_SELCHANGE
+				|| notify == EN_CHANGE
+				|| notify == CLBN_CHKCHANGE) {
 			SetDirty(true);
 		}
 	}
@@ -522,13 +526,14 @@ void CPinInfoWnd::OnCbnSelchangeCombo1()
 					str.Format(_T("Module : %s\n"), buff);
 					AddLine(str);
 					key.Close();
-				} else { // Search filter in an external filter list ...
-					const AppSettings& s = AfxGetAppSettings();
+				} else {
+					// Search filter in an external filter list ...
+					AppSettings& s = AfxGetAppSettings();
 					POSITION pos = s.m_filters.GetHeadPosition();
 					while (pos) {
-						FilterOverride* fo = s.m_filters.GetNext(pos);
-						if (fo->clsid == FilterClsid && ::PathFileExists(fo->path)) {
-							str.Format(_T("Module : %s\n"), fo->path);
+						CAutoPtr<FilterOverride> f(DNew FilterOverride(s.m_filters.GetNext(pos)));
+						if (f->clsid == FilterClsid && ::PathFileExists(f->path)) {
+							str.Format(_T("Module : %s\n"), f->path);
 							AddLine(str);
 							break;
 						}

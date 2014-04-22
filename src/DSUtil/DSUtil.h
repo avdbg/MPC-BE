@@ -55,6 +55,8 @@ extern bool				IsAudioWaveRenderer(IBaseFilter* pBF);
 
 extern IBaseFilter*		GetUpStreamFilter(IBaseFilter* pBF, IPin* pInputPin = NULL);
 extern IPin*			GetUpStreamPin(IBaseFilter* pBF, IPin* pInputPin = NULL);
+extern IBaseFilter*		GetDownStreamFilter(IBaseFilter* pBF, IPin* pInputPin = NULL);
+extern IPin*			GetDownStreamPin(IBaseFilter* pBF, IPin* pInputPin = NULL);
 extern IPin*			GetFirstPin(IBaseFilter* pBF, PIN_DIRECTION dir = PINDIR_INPUT);
 extern IPin*			GetFirstDisconnectedPin(IBaseFilter* pBF, PIN_DIRECTION dir);
 extern void				NukeDownstream(IBaseFilter* pBF, IFilterGraph* pFG);
@@ -174,6 +176,8 @@ extern bool				MakeMPEG2MediaType(CMediaType& mt, BYTE* seqhdr, DWORD len, int w
 extern HRESULT			CreateMPEG2VIfromAVC(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TIME AvgTimePerFrame, CSize aspect, BYTE* extra, size_t extralen);
 extern HRESULT			CreateMPEG2VISimple(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_TIME AvgTimePerFrame, CSize aspect, BYTE* extra, size_t extralen);
 extern HRESULT			CreateAVCfromH264(CMediaType* mt);
+
+extern void				CreateVorbisMediaType(CMediaType& mt, CAtlArray<CMediaType>& mts, DWORD Channels, DWORD SamplesPerSec, DWORD BitsPerSample, const BYTE* pData, size_t Count);
 
 extern CStringA			VobSubDefHeader(int w, int h, CStringA palette = "");
 extern void				CorrectWaveFormatEx(CMediaType *pmt);
@@ -333,3 +337,25 @@ static const TCHAR* subext[] = {
 	L"mks"
 };
 
+enum {
+	IEC61937_AC3                = 0x01,          ///< AC-3 data
+	IEC61937_MPEG1_LAYER1       = 0x04,          ///< MPEG-1 layer 1
+	IEC61937_MPEG1_LAYER23      = 0x05,          ///< MPEG-1 layer 2 or 3 data or MPEG-2 without extension
+	IEC61937_MPEG2_EXT          = 0x06,          ///< MPEG-2 data with extension
+	IEC61937_MPEG2_AAC          = 0x07,          ///< MPEG-2 AAC ADTS
+	IEC61937_MPEG2_LAYER1_LSF   = 0x08,          ///< MPEG-2, layer-1 low sampling frequency
+	IEC61937_MPEG2_LAYER2_LSF   = 0x09,          ///< MPEG-2, layer-2 low sampling frequency
+	IEC61937_MPEG2_LAYER3_LSF   = 0x0A,          ///< MPEG-2, layer-3 low sampling frequency
+	IEC61937_DTS1               = 0x0B,          ///< DTS type I   (512 samples)
+	IEC61937_DTS2               = 0x0C,          ///< DTS type II  (1024 samples)
+	IEC61937_DTS3               = 0x0D,          ///< DTS type III (2048 samples)
+	IEC61937_ATRAC              = 0x0E,          ///< Atrac data
+	IEC61937_ATRAC3             = 0x0F,          ///< Atrac 3 data
+	IEC61937_ATRACX             = 0x10,          ///< Atrac 3 plus data
+	IEC61937_DTSHD              = 0x11,          ///< DTS HD data
+	IEC61937_WMAPRO             = 0x12,          ///< WMA 9 Professional data
+	IEC61937_MPEG2_AAC_LSF_2048 = 0x13,          ///< MPEG-2 AAC ADTS half-rate low sampling frequency
+	IEC61937_MPEG2_AAC_LSF_4096 = 0x13 | 0x20,   ///< MPEG-2 AAC ADTS quarter-rate low sampling frequency
+	IEC61937_EAC3               = 0x15,          ///< E-AC-3 data
+	IEC61937_TRUEHD             = 0x16,          ///< TrueHD data
+};

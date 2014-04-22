@@ -235,19 +235,23 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					memcpy(&pvih->bmiHeader, pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
 					mt.subtype = FOURCCMap(pvih->bmiHeader.biCompression);
 					switch (pvih->bmiHeader.biCompression) {
-						case BI_RGB:
-						case BI_BITFIELDS:
-							mt.subtype =
-								pvih->bmiHeader.biBitCount == 1 ? MEDIASUBTYPE_RGB1 :
-								pvih->bmiHeader.biBitCount == 4 ? MEDIASUBTYPE_RGB4 :
-								pvih->bmiHeader.biBitCount == 8 ? MEDIASUBTYPE_RGB8 :
-								pvih->bmiHeader.biBitCount == 16 ? MEDIASUBTYPE_RGB565 :
-								pvih->bmiHeader.biBitCount == 24 ? MEDIASUBTYPE_RGB24 :
-								pvih->bmiHeader.biBitCount == 32 ? MEDIASUBTYPE_ARGB32 :
-								MEDIASUBTYPE_NULL;
-							break;
-							//					case BI_RLE8: mt.subtype = MEDIASUBTYPE_RGB8; break;
-							//					case BI_RLE4: mt.subtype = MEDIASUBTYPE_RGB4; break;
+					case BI_RGB:
+					case BI_BITFIELDS:
+						mt.subtype =
+							pvih->bmiHeader.biBitCount == 1 ? MEDIASUBTYPE_RGB1 :
+							pvih->bmiHeader.biBitCount == 4 ? MEDIASUBTYPE_RGB4 :
+							pvih->bmiHeader.biBitCount == 8 ? MEDIASUBTYPE_RGB8 :
+							pvih->bmiHeader.biBitCount == 16 ? MEDIASUBTYPE_RGB565 :
+							pvih->bmiHeader.biBitCount == 24 ? MEDIASUBTYPE_RGB24 :
+							pvih->bmiHeader.biBitCount == 32 ? MEDIASUBTYPE_ARGB32 :
+							MEDIASUBTYPE_NULL;
+						break;
+					//case BI_RLE8: mt.subtype = MEDIASUBTYPE_RGB8; break;
+					//case BI_RLE4: mt.subtype = MEDIASUBTYPE_RGB4; break;
+					case FCC('v210'):
+						pvih->bmiHeader.biBitCount = 20; // fixed incorrect bitdepth (ffmpeg bug)
+						pvih->bmiHeader.biSizeImage = pvih->bmiHeader.biWidth * pvih->bmiHeader.biHeight * pvih->bmiHeader.biBitCount / 8;
+						break;
 					}
 					if (!bHasVideo) {
 						mts.Add(mt);
@@ -315,8 +319,6 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						}
 					}
 					bHasVideo = true;
-				} else if (CodecID == "V_UNCOMPRESSED") {
-					// TODO
 				} else if (CodecID == "V_MPEG4/ISO/AVC") {
 					if (pTE->CodecPrivate.GetCount() > 9) {
 						CGolombBuffer gb((BYTE*)pTE->CodecPrivate.GetData() + 9, pTE->CodecPrivate.GetCount() - 9);
@@ -452,6 +454,7 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					bHasVideo = true;
 				} else {
 					DWORD fourcc = 0;
+					WORD bitdepth = 0;
 					if (CodecID == "V_MJPEG") {
 						fourcc = FCC('MJPG');
 					} else if (CodecID == "V_MPEG4/MS/V3") {
@@ -473,6 +476,38 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						}
 					} else if (CodecID.Left(9) == "V_REAL/RV" && CodecID.GetLength() == 11) {
 						fourcc = CodecID[7] + (CodecID[8] << 8) + (CodecID[9] << 16) + (CodecID[10] << 24);
+					} else if (CodecID == "V_UNCOMPRESSED") {
+						fourcc = FCC((DWORD)pTE->v.ColourSpace);
+						switch (fourcc) {
+						case FCC('Y8  '):
+						case FCC('Y800'):
+							bitdepth = 8;
+							break;
+						case FCC('YVU9'):
+							bitdepth = 9;
+							break;
+						case FCC('I420'):
+						case FCC('Y41B'):
+						case FCC('NV12'):
+						case FCC('YV12'):
+							bitdepth = 12;
+							break;
+						case FCC('HDYC'):
+						case FCC('UYVY'):
+						case FCC('Y42B'):
+						case FCC('YUY2'):
+						case FCC('YV16'):
+						case FCC('yuv2'):
+							bitdepth = 16;
+							break;
+						case FCC('YV24'):
+							bitdepth = 24;
+							break;
+						default:
+							fourcc = 0; // unknown FourCC
+							break;
+						}
+						// TODO: bitdepth = 8 * framesize / (width * height)
 					}
 
 					if (fourcc) {
@@ -484,8 +519,11 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 						pvih->bmiHeader.biSize = sizeof(pvih->bmiHeader);
 						pvih->bmiHeader.biWidth = (LONG)pTE->v.PixelWidth;
 						pvih->bmiHeader.biHeight = (LONG)pTE->v.PixelHeight;
-						//pvih->bmiHeader.biBitCount = 24;
+						pvih->bmiHeader.biPlanes = 1; // must be set to 1. 
+						pvih->bmiHeader.biBitCount = bitdepth;
 						pvih->bmiHeader.biCompression = fourcc;
+						pvih->bmiHeader.biSizeImage = pvih->bmiHeader.biWidth * pvih->bmiHeader.biHeight * bitdepth / 8;
+
 						if (!bHasVideo) {
 							mts.Add(mt);
 						}
@@ -833,44 +871,11 @@ HRESULT CMatroskaSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					else mt.subtype = FOURCCMap(wfe->wFormatTag);
 					mts.Add(mt);
 				} else if (CodecID == "A_VORBIS") {
-					BYTE* p = pTE->CodecPrivate.GetData();
-					CAtlArray<int> sizes;
-					int totalsize = 0;
-					for (BYTE n = *p++; n > 0; n--) {
-						int size = 0;
-						do {
-							size += *p;
-						} while (*p++ == 0xff);
-						sizes.Add(size);
-						totalsize += size;
-					}
-					sizes.Add(pTE->CodecPrivate.GetCount() - (p - pTE->CodecPrivate.GetData()) - totalsize);
-					totalsize += sizes[sizes.GetCount()-1];
-
-					if (sizes.GetCount() == 3) {
-						mt.subtype = MEDIASUBTYPE_Vorbis2;
-						mt.formattype = FORMAT_VorbisFormat2;
-						VORBISFORMAT2* pvf2 = (VORBISFORMAT2*)mt.AllocFormatBuffer(sizeof(VORBISFORMAT2) + totalsize);
-						memset(pvf2, 0, mt.FormatLength());
-						pvf2->Channels = (WORD)pTE->a.Channels;
-						pvf2->SamplesPerSec = (DWORD)pTE->a.SamplingFrequency;
-						pvf2->BitsPerSample = (DWORD)pTE->a.BitDepth;
-						BYTE* p2 = mt.Format() + sizeof(VORBISFORMAT2);
-						for (size_t i = 0; i < sizes.GetCount(); p += sizes[i], p2 += sizes[i], i++) {
-							memcpy(p2, p, pvf2->HeaderSize[i] = sizes[i]);
-						}
-
-						mts.Add(mt);
-					}
-
-					mt.subtype = MEDIASUBTYPE_Vorbis;
-					mt.formattype = FORMAT_VorbisFormat;
-					VORBISFORMAT* vf = (VORBISFORMAT*)mt.AllocFormatBuffer(sizeof(VORBISFORMAT));
-					memset(vf, 0, mt.FormatLength());
-					vf->nChannels = (WORD)pTE->a.Channels;
-					vf->nSamplesPerSec = (DWORD)pTE->a.SamplingFrequency;
-					vf->nMinBitsPerSec = vf->nMaxBitsPerSec = vf->nAvgBitsPerSec = (DWORD)-1;
-					mts.Add(mt);
+					CreateVorbisMediaType(mt, mts,
+										  (DWORD)pTE->a.Channels,
+										  (DWORD)pTE->a.SamplingFrequency,
+										  DWORD(pTE->a.BitDepth),
+										  pTE->CodecPrivate.GetData(), pTE->CodecPrivate.GetCount());
 				} else if (CodecID.Find("A_AAC/") == 0) {
 					mt.subtype = FOURCCMap(wfe->wFormatTag = WAVE_FORMAT_RAW_AAC1);
 					wfe = (WAVEFORMATEX*)mt.ReallocFormatBuffer(sizeof(WAVEFORMATEX) + 5);

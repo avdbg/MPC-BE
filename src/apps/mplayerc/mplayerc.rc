@@ -1090,7 +1090,7 @@ IDD_PPAGESUBTITLES DIALOGEX 0, 0, 296, 241
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "Auto-load subtitles",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,5,276,8
+    CONTROL         "Use the built-in subtitle renderer",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,5,276,8
     CONTROL         "Prefer external subtitles over embedded subtitles",IDC_CHECK1,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,52,285,8
     CONTROL         "Ignore embedded subtitles",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,64,285,8
@@ -1348,19 +1348,6 @@ IDB_PLAYERTOOLBAR       BITMAP                  "res\\toolbar.bmp"
 //
 // Dialog Info
 //
-
-IDD_PPAGEPLAYBACK DLGINIT
-BEGIN
-    IDC_COMBO1, 0x403, 4, 0
-0x3035, 0x0025, 
-    IDC_COMBO1, 0x403, 5, 0
-0x3031, 0x2530, "\000" 
-    IDC_COMBO1, 0x403, 5, 0
-0x3032, 0x2530, "\000" 
-    IDC_COMBO1, 0x403, 9, 0
-0x7541, 0x6f74, 0x4620, 0x7469, "\000" 
-    0
-END
 
 IDD_PPAGEOUTPUT DLGINIT
 BEGIN
@@ -1658,10 +1645,11 @@ BEGIN
             MENUITEM "Shutdown",                    ID_AFTERPLAYBACK_SHUTDOWN
             MENUITEM "Log Off",                     ID_AFTERPLAYBACK_LOGOFF
             MENUITEM "Lock",                        ID_AFTERPLAYBACK_LOCK
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "------ Every time ------",    ID_AFTERPLAYBACK_EVERYTIME
             MENUITEM "Exit",                        ID_AFTERPLAYBACK_EXIT
-            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "Play next in the folder",     ID_AFTERPLAYBACK_NEXT
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_EVERYTIMEDONOTHING
         END
     END
     POPUP "&Navigate"
@@ -1822,10 +1810,11 @@ BEGIN
             MENUITEM "Shutdown",                    ID_AFTERPLAYBACK_SHUTDOWN
             MENUITEM "Log Off",                     ID_AFTERPLAYBACK_LOGOFF
             MENUITEM "Lock",                        ID_AFTERPLAYBACK_LOCK
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "------ Every time ------",    ID_AFTERPLAYBACK_EVERYTIME
             MENUITEM "Exit",                        ID_AFTERPLAYBACK_EXIT
-            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "Play next in the folder",     ID_AFTERPLAYBACK_NEXT
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_EVERYTIMEDONOTHING
         END
         MENUITEM SEPARATOR
         POPUP "Vi&ew"
@@ -2170,10 +2159,11 @@ BEGIN
             MENUITEM "Shutdown",                    ID_AFTERPLAYBACK_SHUTDOWN
             MENUITEM "Log Off",                     ID_AFTERPLAYBACK_LOGOFF
             MENUITEM "Lock",                        ID_AFTERPLAYBACK_LOCK
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "------ Every time ------",    ID_AFTERPLAYBACK_EVERYTIME
             MENUITEM "Exit",                        ID_AFTERPLAYBACK_EXIT
-            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_DONOTHING
             MENUITEM "Play next in the folder",     ID_AFTERPLAYBACK_NEXT
+            MENUITEM "Do Nothing",                  ID_AFTERPLAYBACK_EVERYTIMEDONOTHING
         END
         MENUITEM SEPARATOR
         POPUP "Renderer Settings"
@@ -2646,6 +2636,7 @@ BEGIN
     IDS_MPLAYERC_16         "Framestep back"
     IDS_AG_GO_TO            "Go To"
     IDS_AG_INCREASE_RATE    "Increase Rate"
+    IDS_COPY_TO_CLIPBOARD   "Copy to Clipboard"
 END
 
 STRINGTABLE
@@ -2961,7 +2952,8 @@ BEGIN
     IDS_VOLUME_BOOST_MAX    "Volume boost Max"
     IDS_USAGE               "Usage: mpc-be.exe ""pathname"" [switches]\n\n""pathname""\tThe main file or directory to be loaded (wildcards\n\t\tallowed)\n/dub ""dubname""\tLoad an additional audio file\n/dubdelay ""file""\tLoad an additional audio file shifted with XXms (if\n\t\tthe file contains ""...DELAY XXms..."")\n/d3dfs\t\tStart rendering in D3D fullscreen mode\n/sub ""subname""\tLoad an additional subtitle file\n/filter ""filtername""\tLoad DirectShow filters from a dynamic link\n\t\tlibrary (wildcards allowed)\n/dvd\t\tRun in dvd mode, ""pathname"" means the dvd\n\t\tfolder (optional)\n/dvdpos T#C\tStart playback at title T, chapter C\n/dvdpos T#hh:mm\tStart playback at title T, position hh:mm:ss\n/cd\t\tLoad all the tracks of an audio cd or (s)vcd,\n\t\t""pathname"" means the drive path (optional)\n/open\t\tOpen the file, don't automatically start playback\n/play\t\tStart playing the file as soon the player is\n\t\tlaunched\n/close\t\tClose the player after playback (only works when\n\t\tused with /play)\n/shutdown\tShutdown the operating system after playback\n/fullscreen\tStart in full-screen mode\n/minimized\tStart in minimized mode\n/new\t\tUse a new instance of the player\n/add\t\tAdd ""pathname"" to playlist, can be combined\n\t\twith /open and /play\n/regvid\t\tCreate file associations for video files\n/regaud\t\tCreate file associations for audio files\n/regpl\t\tCreate file associations for playlist files\n/regall\t\tCreate file associations for all supported file types\n/unregall\t\tRemove all file associations\n/start ms\t\tStart playing at ""ms"" (= milliseconds)\n/startpos hh:mm:ss\tStart playing at position hh:mm:ss\n/fixedsize w,h\tSet a fixed window size\n/monitor N\tStart player on monitor N, where N starts from 1\n/audiorenderer N\tStart using audiorenderer N, where N starts from 1\n\t\t(see ""Output"" settings)\n/reset\t\tRestore default settings\n/help /h /?\tShow help about command line switches\n"
     IDS_UNKNOWN_SWITCH      "Unrecognized switch(es) found in command line string: \n\n"
-	IDS_AG_SETTINGS         "Settings"
+    IDS_AG_SETTINGS         "Settings"
+    IDS_ZOOM_AUTOFIT        "Auto fit"
 END
 
 STRINGTABLE
@@ -3527,6 +3519,23 @@ END
 STRINGTABLE
 BEGIN
     IDS_EXTERNAL                    "external"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_SUBTITLES_STEREO                "Stereoscopic subtitles"
+    IDS_SUBTITLES_STEREO_DONTUSE        "Don't use"
+    IDS_SUBTITLES_STEREO_SIDEBYSIDE     "Side by Side"
+    IDS_SUBTITLES_STEREO_TOPANDBOTTOM   "Top and Bottom"
+    IDS_SUB_POS_UP                      "Subtitle shift positions up"
+    IDS_SUB_POS_DOWN                    "Subtitle shift positions down"
+    IDS_SUB_POS_LEFT                    "Subtitle shift positions left"
+    IDS_SUB_POS_RIGHT                   "Subtitle shift positions right"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_OSD_TEST                        "OSD Test"
 END
 
 #endif    // English (United States) resources

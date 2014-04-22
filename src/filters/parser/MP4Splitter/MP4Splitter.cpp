@@ -33,6 +33,7 @@
 
 #include <Bento4/Core/Ap4.h>
 #include <Bento4/Core/Ap4File.h>
+#include <Bento4/Core/Ap4SttsAtom.h>
 #include <Bento4/Core/Ap4StssAtom.h>
 #include <Bento4/Core/Ap4StsdAtom.h>
 #include <Bento4/Core/Ap4IsmaCryp.h>
@@ -273,8 +274,8 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 
 			CSize Aspect(0, 0);
 			if (AP4_TkhdAtom* tkhd = dynamic_cast<AP4_TkhdAtom*>(track->GetTrakAtom()->GetChild(AP4_ATOM_TYPE_TKHD))) {
-				AP4_UI32 w = tkhd->GetWidth()>>16;
-				AP4_UI32 h = tkhd->GetHeight()>>16;
+				AP4_UI32 w = tkhd->GetWidth() >> 16;
+				AP4_UI32 h = tkhd->GetHeight() >> 16;
 				if (w && h) {
 					Aspect.SetSize(w, h);
 					ReduceDim(Aspect);
@@ -290,6 +291,15 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 			CStringA TrackLanguage = track->GetTrackLanguage().c_str();
 
 			REFERENCE_TIME AvgTimePerFrame = item->GetData()->GetSampleCount() ? item->GetData()->GetDurationMs()*10000 / (item->GetData()->GetSampleCount()) : 0;
+			if (track->GetType() == AP4_Track::TYPE_VIDEO) {
+				if (AP4_SttsAtom* stts = dynamic_cast<AP4_SttsAtom*>(track->GetTrakAtom()->FindChild("mdia/minf/stbl/stts"))) {
+					AP4_Duration totalDuration	= stts->GetTotalDuration();
+					AP4_UI32 totalFrames		= stts->GetTotalFrames();
+					if (totalFrames) {
+						AvgTimePerFrame = 10000000.0 / track->GetMediaTimeScale() * totalDuration / totalFrames;
+					}
+				}
+			}
 
 			CAtlArray<CMediaType> mts;
 
@@ -370,8 +380,10 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 								pbmi.biPlanes		= 1;
 								pbmi.biBitCount		= 24;
 
-								Aspect.cx = pbmi.biWidth;
-								Aspect.cy = pbmi.biHeight;
+								if (Aspect == CSize(0, 0)) {
+									Aspect.cx = pbmi.biWidth;
+									Aspect.cy = pbmi.biHeight;
+								}
 								ReduceDim(Aspect);
 								CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 								mts.Add(mt);
@@ -395,8 +407,10 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 								pbmi.biPlanes		= 1;
 								pbmi.biBitCount		= 24;
 
-								Aspect.cx = pbmi.biWidth;
-								Aspect.cy = pbmi.biHeight;
+								if (Aspect == CSize(0, 0)) {
+									Aspect.cx = pbmi.biWidth;
+									Aspect.cy = pbmi.biHeight;
+								}
 								ReduceDim(Aspect);
 								CreateMPEG2VISimple(&mt, &pbmi, AvgTimePerFrame, Aspect, data, size); 
 								mts.Add(mt);
@@ -510,6 +524,12 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 							}
 							mts.Add(mt);
 							break;
+						case AP4_VORBIS_OTI:
+							CreateVorbisMediaType(mt, mts,
+												  (DWORD)audio_desc->GetChannelCount(),
+												  (DWORD)(audio_desc->GetSampleRate() ? audio_desc->GetSampleRate() : track->GetMediaTimeScale()),
+												  (DWORD)audio_desc->GetSampleSize(), di->GetData(), di->GetDataSize());
+							break;
 					}
 
 					if (mt.subtype == GUID_NULL) {
@@ -610,8 +630,10 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					pbmi.biPlanes		= 1;
 					pbmi.biBitCount		= 24;
 
-					Aspect.cx = pbmi.biWidth;
-					Aspect.cy = pbmi.biHeight;
+					if (Aspect == CSize(0, 0)) {
+						Aspect.cx = pbmi.biWidth;
+						Aspect.cy = pbmi.biHeight;
+					}
 					if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(avc1->GetChild(AP4_ATOM_TYPE_PASP))) {
 						if (pasp->GetNum() > 0 && pasp->GetDen() > 0) {
 							Aspect.cx *= pasp->GetNum();
@@ -646,8 +668,10 @@ HRESULT CMP4SplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 					pbmi.biPlanes		= 1;
 					pbmi.biBitCount		= 24;
 
-					Aspect.cx = pbmi.biWidth;
-					Aspect.cy = pbmi.biHeight;
+					if (Aspect == CSize(0, 0)) {
+						Aspect.cx = pbmi.biWidth;
+						Aspect.cy = pbmi.biHeight;
+					}
 					if (AP4_PaspAtom* pasp = dynamic_cast<AP4_PaspAtom*>(hvc1->GetChild(AP4_ATOM_TYPE_PASP))) {
 						if (pasp->GetNum() > 0 && pasp->GetDen() > 0) {
 							Aspect.cx *= pasp->GetNum();

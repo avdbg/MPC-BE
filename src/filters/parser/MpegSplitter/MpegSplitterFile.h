@@ -83,6 +83,7 @@ public:
 	REFERENCE_TIME m_rtMin, m_rtMax;
 	__int64 m_posMin, m_posMax;
 	int m_rate; // byte/sec
+	BOOL m_bIsBadPacked;
 
 	int m_AC3CoreOnly;
 	bool m_ForcedSub, m_AlternativeDuration, m_SubEmptyPin;
@@ -160,7 +161,7 @@ public:
 			}
 		}
 
-		static CStringW ToString(int type) {
+		static CString ToString(int type) {
 			return
 				type == video	? L"Video" :
 				type == audio	? L"Audio" :
@@ -221,6 +222,4 @@ public:
 	CAtlMap<DWORD, CStringA> m_pPMT_Lang;
 
 	bool GetStreamType(WORD pid, PES_STREAM_TYPE &stream_type);
-
-	BOOL bIsBadPacked;
 };

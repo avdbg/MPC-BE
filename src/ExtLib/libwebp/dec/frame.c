@@ -502,7 +502,7 @@ int VP8GetThreadMethod(const WebPDecoderOptions* const options,
   (void)headers;
   (void)width;
   (void)height;
-  assert(!headers->is_lossless);
+  assert(headers == NULL || !headers->is_lossless);
 #if defined(WEBP_USE_THREAD)
   if (width < MIN_WIDTH_FOR_THREADS) return 0;
   // TODO(skal): tune the heuristic further
@@ -549,7 +549,7 @@ static int AllocateMemory(VP8Decoder* const dec) {
 
   if (needed != (size_t)needed) return 0;  // check for overflow
   if (needed > dec->mem_size_) {
-    free(dec->mem_);
+    WebPSafeFree(dec->mem_);
     dec->mem_size_ = 0;
     dec->mem_ = WebPSafeMalloc(needed, sizeof(uint8_t));
     if (dec->mem_ == NULL) {

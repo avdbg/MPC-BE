@@ -44,8 +44,8 @@
 #define copyright_year   str(MPC_YEAR_COMMENTS)
 #define app_name         str(MPC_WND_CLASS_NAME)
 #define app_url          str(MPC_VERSION_COMMENTS)
-#define app_version      str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH) + "." + str(MPC_VERSION_STATUS)
-#define app_version_out  str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH) + "." + str(MPC_VERSION_STATUS)+ "." + str(MPC_VERSION_REV)
+#define app_version      str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH)
+#define app_version_out  str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH) + "." + str(MPC_VERSION_REV)
 #define quick_launch     "{userappdata}\Microsoft\Internet Explorer\Quick Launch"
 
 #define bin_dir        = "..\bin"
@@ -201,6 +201,8 @@ Name: reset_settings;           Description: {cm:tsk_ResetSettings};     GroupDe
 [Files]
 Source: "{#bindir}\{#mpcbe_exe}";		DestDir: "{app}"; Flags: ignoreversion; Components: main
 Source: "{#bindir}\mpciconlib.dll"; 	DestDir: "{app}"; Flags: ignoreversion; Components: mpciconlib
+Source: "{#bindir}\D3DCompiler_43.dll";	DestDir: "{app}"; Flags: ignoreversion; Components: main
+Source: "{#bindir}\d3dx9_43.dll"; 		DestDir: "{app}"; Flags: ignoreversion; Components: main
 ;#ifdef x64Build
 ;Source: "{#bindir}\MPCBEShellExt64.dll"; DestDir: "{app}"; Flags: ignoreversion noregerror regserver restartreplace uninsrestartdelete; Components: mpcbeshellext
 ;#else

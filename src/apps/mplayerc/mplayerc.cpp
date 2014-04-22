@@ -27,7 +27,6 @@
 #include <psapi.h>
 #include "Ifo.h"
 #include "MultiMonitor.h"
-#define NO_VERSION_REV_NEEDED
 #include "../../DSUtil/WinAPIUtils.h"
 #include "../../DSUtil/SysVersion.h"
 #include "../../DSUtil/FileVersionInfo.h"
@@ -383,11 +382,6 @@ END_MESSAGE_MAP()
 CMPlayerCApp::CMPlayerCApp()
 //	: m_hMutexOneInstance(NULL)
 {
-	TCHAR strApp [_MAX_PATH] = { 0 };
-
-	GetModuleFileNameEx(GetCurrentProcess(), AfxGetMyApp()->m_hInstance, strApp, _MAX_PATH);
-	m_strVersion = CFileVersionInfo::GetFileVersionEx(strApp);
-
 	memset(&m_ColorControl, 0, sizeof(m_ColorControl));
 	ResetColorControlRange();
 
@@ -1085,7 +1079,7 @@ BOOL CMPlayerCApp::InitInstance()
 	}
 
 	if (m_s.nCLSwitches & (CLSW_REGEXTVID | CLSW_REGEXTAUD | CLSW_REGEXTPL)) { // register file types
-		if (IsWinVistaOrLater() && !IsUserAnAdmin()) {
+		if (IsWinVistaOrLater() && !IsUserAdmin()) {
 			TCHAR strApp[_MAX_PATH];
 			GetModuleFileNameEx (GetCurrentProcess(), AfxGetMyApp()->m_hInstance, strApp, _MAX_PATH);
 
@@ -1133,7 +1127,7 @@ BOOL CMPlayerCApp::InitInstance()
 	}
 
 	if ((m_s.nCLSwitches&CLSW_UNREGEXT)) { // unregistered file types
-		if (IsWinVistaOrLater() && !IsUserAnAdmin()) {
+		if (IsWinVistaOrLater() && !IsUserAdmin()) {
 			TCHAR strApp[_MAX_PATH];
 			GetModuleFileNameEx (GetCurrentProcess(), AfxGetMyApp()->m_hInstance, strApp, _MAX_PATH);
 
@@ -2339,9 +2333,9 @@ CString CMPlayerCApp::GetSatelliteDll(int nLanguage)
 	path = path.Left(path.ReverseFind('\\') + 1);
 
 	if (nLanguage < 0 || nLanguage >= languageResourcesCount || languageResources[nLanguage].resourceID == ID_LANGUAGE_ENGLISH) {
-		path = _T("");
+		path.Empty();
 	} else {
-		path.AppendFormat(_T("Lang\\mpcresources.%ws.dll"), languageResources[nLanguage].strcode);
+		path.AppendFormat(L"Lang\\mpcresources.%s.dll", languageResources[nLanguage].strcode);
 	}
 
 	return path;
@@ -2386,11 +2380,9 @@ void CMPlayerCApp::SetLanguage(int nLanguage)
 
 	strSatellite = GetSatelliteDll(nLanguage);
 	if (!strSatellite.IsEmpty()) {
-		CString strSatVersion = CFileVersionInfo::GetFileVersionEx(strSatellite);
+		CString strSatVersion = CFileVersionInfo::GetFileVersionExShort(strSatellite);
 		if (strSatVersion.GetLength()) {
 			CString strNeededVersion = MPC_VERSION_STR;
-			strNeededVersion.Replace(_T(", "), _T("."));
-
 			if (strSatVersion == strNeededVersion) {
 				hMod = LoadLibrary(strSatellite);
 				s.iLanguage = nLanguage;

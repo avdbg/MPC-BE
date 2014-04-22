@@ -30,6 +30,7 @@
 #include "AudioHelper.h"
 #include "../../../DSUtil/DSUtil.h"
 #include "../../../DSUtil/AudioParser.h"
+#include "../../../DSUtil/SysVersion.h"
 
 #ifdef REGISTER_FILTER
 	#include <InitGuid.h>
@@ -43,8 +44,8 @@
 #include <ffmpeg/libavcodec/avcodec.h>
 
 // option names
-#define OPT_REGKEY_MpaDec   _T("Software\\MPC-BE Filters\\MPEG Audio Decoder")
-#define OPT_SECTION_MpaDec  _T("Filters\\MPEG Audio Decoder")
+#define OPT_REGKEY_MpaDec   _T("Software\\MPC-BE Filters\\MPC Audio Decoder")
+#define OPT_SECTION_MpaDec  _T("Filters\\MPC Audio Decoder")
 #define OPTION_SFormat_i16  _T("SampleFormat_int16")
 #define OPTION_SFormat_i24  _T("SampleFormat_int24")
 #define OPTION_SFormat_i32  _T("SampleFormat_int32")
@@ -244,29 +245,6 @@ CFilterApp theApp;
 
 #endif
 
-enum {
-	IEC61937_AC3                = 0x01,          ///< AC-3 data
-	IEC61937_MPEG1_LAYER1       = 0x04,          ///< MPEG-1 layer 1
-	IEC61937_MPEG1_LAYER23      = 0x05,          ///< MPEG-1 layer 2 or 3 data or MPEG-2 without extension
-	IEC61937_MPEG2_EXT          = 0x06,          ///< MPEG-2 data with extension
-	IEC61937_MPEG2_AAC          = 0x07,          ///< MPEG-2 AAC ADTS
-	IEC61937_MPEG2_LAYER1_LSF   = 0x08,          ///< MPEG-2, layer-1 low sampling frequency
-	IEC61937_MPEG2_LAYER2_LSF   = 0x09,          ///< MPEG-2, layer-2 low sampling frequency
-	IEC61937_MPEG2_LAYER3_LSF   = 0x0A,          ///< MPEG-2, layer-3 low sampling frequency
-	IEC61937_DTS1               = 0x0B,          ///< DTS type I   (512 samples)
-	IEC61937_DTS2               = 0x0C,          ///< DTS type II  (1024 samples)
-	IEC61937_DTS3               = 0x0D,          ///< DTS type III (2048 samples)
-	IEC61937_ATRAC              = 0x0E,          ///< Atrac data
-	IEC61937_ATRAC3             = 0x0F,          ///< Atrac 3 data
-	IEC61937_ATRACX             = 0x10,          ///< Atrac 3 plus data
-	IEC61937_DTSHD              = 0x11,          ///< DTS HD data
-	IEC61937_WMAPRO             = 0x12,          ///< WMA 9 Professional data
-	IEC61937_MPEG2_AAC_LSF_2048 = 0x13,          ///< MPEG-2 AAC ADTS half-rate low sampling frequency
-	IEC61937_MPEG2_AAC_LSF_4096 = 0x13 | 0x20,   ///< MPEG-2 AAC ADTS quarter-rate low sampling frequency
-	IEC61937_EAC3               = 0x15,          ///< E-AC-3 data
-	IEC61937_TRUEHD             = 0x16,          ///< TrueHD data
-};
-
 #pragma warning(push)
 #pragma warning(disable : 4245)
 static struct scmap_t {
@@ -372,7 +350,6 @@ CMpaDecFilter::CMpaDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	, m_hdmisize(0)
 	, m_truehd_samplerate(0)
 	, m_truehd_framelength(0)
-	, m_bIsBitstreamOutputSupported(FALSE)
 	, m_bHasVideo(TRUE)
 {
 	if (phr) {
@@ -395,6 +372,8 @@ CMpaDecFilter::CMpaDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 		delete m_pInput, m_pInput = NULL;
 		return;
 	}
+
+	memset(&m_bBitstreamSupported, 0, sizeof(m_bBitstreamSupported));
 
 //	m_DDstats.Reset();
 
@@ -639,19 +618,21 @@ HRESULT CMpaDecFilter::Receive(IMediaSample* pIn)
 	memcpy(m_buff.GetData() + bufflen, pDataIn, len);
 	len += (long)bufflen;
 
-	if (m_bIsBitstreamOutputSupported) {
+	if (m_bBitstreamSupported[SPDIF]) {
 		if (GetSPDIF(ac3) && (subtype == MEDIASUBTYPE_DOLBY_AC3 || subtype == MEDIASUBTYPE_WAVE_DOLBY_AC3 || subtype == MEDIASUBTYPE_DNET)) {
 			return ProcessAC3_SPDIF();
-		}
-		if (GetSPDIF(eac3) && subtype == MEDIASUBTYPE_DOLBY_DDPLUS) {
-			return ProcessEAC3_SPDIF();
-		}
-		if (GetSPDIF(truehd) && subtype == MEDIASUBTYPE_DOLBY_TRUEHD) {
-			return ProcessTrueHD_SPDIF();
 		}
 		if (GetSPDIF(dts) && (subtype == MEDIASUBTYPE_DTS || subtype == MEDIASUBTYPE_DTS2)) {
 			return ProcessDTS_SPDIF();
 		}
+	}
+
+	if (m_bBitstreamSupported[EAC3] && GetSPDIF(eac3) && subtype == MEDIASUBTYPE_DOLBY_DDPLUS) {
+		return ProcessEAC3_SPDIF();
+	}
+
+	if (m_bBitstreamSupported[TRUEHD] && GetSPDIF(truehd) && subtype == MEDIASUBTYPE_DOLBY_TRUEHD) {
+		return ProcessTrueHD_SPDIF();
 	}
 
 //	if (subtype == MEDIASUBTYPE_DOLBY_AC3 || subtype == MEDIASUBTYPE_WAVE_DOLBY_AC3 || subtype == MEDIASUBTYPE_DNET) {
@@ -1153,7 +1134,7 @@ HRESULT CMpaDecFilter::ProcessDTS_SPDIF()
 			break; // need more data
 		}
 
-		bool usehdmi = sizehd &&  GetSPDIF(dtshd);
+		bool usehdmi = sizehd && GetSPDIF(dtshd) && m_bBitstreamSupported[DTSHD];
 		if (usehdmi) {
 			if (FAILED(hr = DeliverBitstream(p, size + sizehd, IEC61937_DTSHD, aframe.samplerate, aframe.samples))) {
 				return hr;
@@ -1556,7 +1537,7 @@ HRESULT CMpaDecFilter::Deliver(BYTE* pBuff, int size, SampleFormat sfmt, DWORD n
 	ASSERT(nChannels == av_popcount(dwChannelMask));
 
 #if ENABLE_AC3_ENCODER
-	if (m_bIsBitstreamOutputSupported && GetSPDIF(ac3enc) /*&& nChannels > 2*/) { // do not encode mono and stereo
+	if (m_bBitstreamSupported[SPDIF] && GetSPDIF(ac3enc) /*&& nChannels > 2*/) { // do not encode mono and stereo
 		return AC3Encode(pBuff, size, sfmt, nSamplesPerSec, nChannels, dwChannelMask);
 	}
 #endif
@@ -2136,14 +2117,18 @@ HRESULT CMpaDecFilter::StartStreaming()
 
 	{
 		// Checking audio renderer for supporting S/PDIF, Bitstream.
-		m_bIsBitstreamOutputSupported = FALSE;
+		memset(&m_bBitstreamSupported, 0, sizeof(m_bBitstreamSupported));
 
-		CMediaType outputMT;
-		CComPtr<IEnumFilters> pEnumFilters;
-		if (m_pGraph && SUCCEEDED(m_pGraph->EnumFilters(&pEnumFilters))) {
-			for (CComPtr<IBaseFilter> pBF; S_OK == pEnumFilters->Next(1, &pBF, 0); pBF = NULL) {
-		
-				if (IsAudioWaveRenderer(pBF)) {
+		if (IsWinVistaOrLater()) {
+			BOOL bFilterFound = FALSE;
+
+			IBaseFilter* pBF = GetDownStreamFilter(this, GetDownStreamPin(this, m_pOutput->GetConnected()));
+			while (pBF && !bFilterFound) {
+				IPin* pPin = GetFirstPin(pBF, PINDIR_OUTPUT);
+				if (pPin) {
+					pBF = GetDownStreamFilter(pBF, pPin);
+				} else {
+					// found the last filter in the filter chain ...
 					BeginEnumPins(pBF, pEP, pPin) {
 						AM_MEDIA_TYPE mt;
 
@@ -2152,37 +2137,41 @@ HRESULT CMpaDecFilter::StartStreaming()
 						}
 
 						if (mt.majortype == MEDIATYPE_Audio) {
-							outputMT = CMediaType(mt);
+							bFilterFound = TRUE;
 						}
 
 						FreeMediaType(mt);
 
-						if (outputMT.pbFormat) {
+						if (bFilterFound) {
+							CMediaType cmt;
+							cmt.InitMediaType();
+
+							cmt = CreateMediaTypeSPDIF();
+							m_bBitstreamSupported[SPDIF]	= (S_OK == pPin->QueryAccept(&cmt));
+							FreeMediaType(cmt);
+
+							cmt = CreateMediaTypeHDMI(IEC61937_EAC3);
+							m_bBitstreamSupported[EAC3]		= (S_OK == pPin->QueryAccept(&cmt));
+							FreeMediaType(cmt);
+
+							cmt = CreateMediaTypeHDMI(IEC61937_TRUEHD);
+							m_bBitstreamSupported[TRUEHD]	= (S_OK == pPin->QueryAccept(&cmt));
+							FreeMediaType(cmt);
+
+							cmt = CreateMediaTypeHDMI(IEC61937_DTSHD);
+							m_bBitstreamSupported[DTSHD]	= (S_OK == pPin->QueryAccept(&cmt));
+							FreeMediaType(cmt);
+
 							break;
 						}
 					}
 					EndEnumPins
 				}
-				if (outputMT.pbFormat) {
-					break;
-				}
 			}
+		} else {
+			m_bBitstreamSupported[SPDIF] = TRUE;
 		}
 
-		if (outputMT.pbFormat) {
-			WAVEFORMATEX *pWaveFormatEx = (WAVEFORMATEX*)outputMT.pbFormat;
-
-			if (pWaveFormatEx->wFormatTag == WAVE_FORMAT_DOLBY_AC3_SPDIF) {
-				m_bIsBitstreamOutputSupported = TRUE;
-			} else if (pWaveFormatEx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && pWaveFormatEx->cbSize == (sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX))) {
-				WAVEFORMATEXTENSIBLE *wfex = (WAVEFORMATEXTENSIBLE*)pWaveFormatEx;
-				m_bIsBitstreamOutputSupported = (wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEC61937_DOLBY_DIGITAL_PLUS
-												|| wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEC61937_DTS_HD
-												|| wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEC61937_DOLBY_MLP);
-			}
-
-			FreeMediaType(outputMT);
-		}
 	}
 
 	{

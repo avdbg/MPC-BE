@@ -12,7 +12,6 @@
 
 #include <assert.h>
 #include <math.h>
-#include <stdio.h>
 
 #include "./backward_references.h"
 #include "./histogram.h"
@@ -25,6 +24,8 @@
 #define HASH_BITS 18
 #define HASH_SIZE (1 << HASH_BITS)
 #define HASH_MULTIPLIER (0xc6a4a7935bd1e995ULL)
+
+#define MAX_ENTROPY    (1e30f)
 
 // 1M window (4M bytes) minus 120 special codes for short distances.
 #define WINDOW_SIZE ((1 << 20) - 120)
@@ -88,7 +89,7 @@ void VP8LInitBackwardRefs(VP8LBackwardRefs* const refs) {
 
 void VP8LClearBackwardRefs(VP8LBackwardRefs* const refs) {
   if (refs != NULL) {
-    free(refs->refs);
+    WebPSafeFree(refs->refs);
     VP8LInitBackwardRefs(refs);
   }
 }
@@ -113,11 +114,16 @@ static WEBP_INLINE uint64_t GetPixPairHash64(const uint32_t* const argb) {
   return key;
 }
 
-static int HashChainInit(HashChain* const p, int size) {
+static HashChain* HashChainNew(int size) {
   int i;
+  HashChain* const p = (HashChain*)WebPSafeMalloc(1ULL, sizeof(*p));
+  if (p == NULL) {
+    return NULL;
+  }
   p->chain_ = (int*)WebPSafeMalloc((uint64_t)size, sizeof(*p->chain_));
   if (p->chain_ == NULL) {
-    return 0;
+    WebPSafeFree(p);
+    return NULL;
   }
   for (i = 0; i < size; ++i) {
     p->chain_[i] = -1;
@@ -125,13 +131,13 @@ static int HashChainInit(HashChain* const p, int size) {
   for (i = 0; i < HASH_SIZE; ++i) {
     p->hash_to_first_index_[i] = -1;
   }
-  return 1;
+  return p;
 }
 
 static void HashChainDelete(HashChain* const p) {
   if (p != NULL) {
-    free(p->chain_);
-    free(p);
+    WebPSafeFree(p->chain_);
+    WebPSafeFree(p);
   }
 }
 
@@ -278,7 +284,7 @@ static int BackwardReferencesHashChain(int xsize, int ysize,
   int cc_init = 0;
   const int use_color_cache = (cache_bits > 0);
   const int pix_count = xsize * ysize;
-  HashChain* const hash_chain = (HashChain*)malloc(sizeof(*hash_chain));
+  HashChain* const hash_chain = HashChainNew(pix_count);
   VP8LColorCache hashers;
   int window_size = WINDOW_SIZE;
   int iter_pos = 1;
@@ -290,7 +296,6 @@ static int BackwardReferencesHashChain(int xsize, int ysize,
     if (!cc_init) goto Error;
   }
 
-  if (!HashChainInit(hash_chain, pix_count)) goto Error;
 
   refs->size = 0;
   GetParamsForHashChainFindCopy(quality, xsize, cache_bits,
@@ -432,7 +437,8 @@ static int CostModelBuild(CostModel* const m, int xsize, int ysize,
   }
   VP8LHistogramCreate(&histo, &refs, cache_bits);
   ConvertPopulationCountTableToBitEstimates(
-      VP8LHistogramNumCodes(&histo), histo.literal_, m->literal_);
+      VP8LHistogramNumCodes(histo.palette_code_bits_),
+      histo.literal_, m->literal_);
   ConvertPopulationCountTableToBitEstimates(
       VALUES_IN_BYTE, histo.red_, m->red_);
   ConvertPopulationCountTableToBitEstimates(
@@ -484,8 +490,8 @@ static int BackwardReferencesHashChainDistanceOnly(
   const int use_color_cache = (cache_bits > 0);
   float* const cost =
       (float*)WebPSafeMalloc((uint64_t)pix_count, sizeof(*cost));
-  CostModel* cost_model = (CostModel*)malloc(sizeof(*cost_model));
-  HashChain* hash_chain = (HashChain*)malloc(sizeof(*hash_chain));
+  CostModel* cost_model = (CostModel*)WebPSafeMalloc(1ULL, sizeof(*cost_model));
+  HashChain* hash_chain = HashChainNew(pix_count);
   VP8LColorCache hashers;
   const double mul0 = (recursive_cost_model != 0) ? 1.0 : 0.68;
   const double mul1 = (recursive_cost_model != 0) ? 1.0 : 0.82;
@@ -495,8 +501,6 @@ static int BackwardReferencesHashChainDistanceOnly(
   int iter_limit = -1;
 
   if (cost == NULL || cost_model == NULL || hash_chain == NULL) goto Error;
-
-  if (!HashChainInit(hash_chain, pix_count)) goto Error;
 
   if (use_color_cache) {
     cc_init = VP8LColorCacheInit(&hashers, cache_bits);
@@ -593,8 +597,8 @@ static int BackwardReferencesHashChainDistanceOnly(
 Error:
   if (cc_init) VP8LColorCacheClear(&hashers);
   HashChainDelete(hash_chain);
-  free(cost_model);
-  free(cost);
+  WebPSafeFree(cost_model);
+  WebPSafeFree(cost);
   return ok;
 }
 
@@ -633,12 +637,11 @@ static int BackwardReferencesHashChainFollowChosenPath(
   int window_size = WINDOW_SIZE;
   int iter_pos = 1;
   int iter_limit = -1;
-  HashChain* hash_chain = (HashChain*)malloc(sizeof(*hash_chain));
+  HashChain* hash_chain = HashChainNew(pix_count);
   VP8LColorCache hashers;
 
-  if (hash_chain == NULL || !HashChainInit(hash_chain, pix_count)) {
-    goto Error;
-  }
+  if (hash_chain == NULL) goto Error;
+
   if (use_color_cache) {
     cc_init = VP8LColorCacheInit(&hashers, cache_bits);
     if (!cc_init) goto Error;
@@ -721,7 +724,7 @@ static int BackwardReferencesTraceBackwards(int xsize, int ysize,
   }
   ok = 1;
  Error:
-  free(dist_array);
+  WebPSafeFree(dist_array);
   return ok;
 }
 
@@ -765,7 +768,8 @@ int VP8LGetBackwardReferences(int width, int height,
 
   {
     double bit_cost_lz77, bit_cost_rle;
-    VP8LHistogram* const histo = (VP8LHistogram*)malloc(sizeof(*histo));
+    VP8LHistogram* const histo =
+        (VP8LHistogram*)WebPSafeMalloc(1ULL, sizeof(*histo));
     if (histo == NULL) goto Error1;
     // Evaluate lz77 coding
     VP8LHistogramCreate(histo, &refs_lz77, cache_bits);
@@ -775,7 +779,7 @@ int VP8LGetBackwardReferences(int width, int height,
     bit_cost_rle = VP8LHistogramEstimateBits(histo);
     // Decide if LZ77 is useful.
     lz77_is_useful = (bit_cost_lz77 < bit_cost_rle);
-    free(histo);
+    WebPSafeFree(histo);
   }
 
   // Choose appropriate backward reference.
@@ -814,24 +818,27 @@ int VP8LGetBackwardReferences(int width, int height,
   return ok;
 }
 
-// Returns 1 on success.
-static int ComputeCacheHistogram(const uint32_t* const argb,
-                                 int xsize, int ysize,
-                                 const VP8LBackwardRefs* const refs,
-                                 int cache_bits,
-                                 VP8LHistogram* const histo) {
+// Returns entropy for the given cache bits.
+static double ComputeCacheEntropy(const uint32_t* const argb,
+                                  int xsize, int ysize,
+                                  const VP8LBackwardRefs* const refs,
+                                  int cache_bits) {
   int pixel_index = 0;
   int i;
   uint32_t k;
-  VP8LColorCache hashers;
   const int use_color_cache = (cache_bits > 0);
   int cc_init = 0;
+  double entropy;
+  const double kSmallPenaltyForLargeCache = 4.0;
+  VP8LColorCache hashers;
+  VP8LHistogram histo;
 
   if (use_color_cache) {
     cc_init = VP8LColorCacheInit(&hashers, cache_bits);
-    if (!cc_init) return 0;
+    if (!cc_init) return MAX_ENTROPY;
   }
 
+  VP8LHistogramInit(&histo, cache_bits);
   for (i = 0; i < refs->size; ++i) {
     const PixOrCopy* const v = &refs->refs[i];
     if (PixOrCopyIsLiteral(v)) {
@@ -840,12 +847,12 @@ static int ComputeCacheHistogram(const uint32_t* const argb,
         // push pixel as a cache index
         const int ix = VP8LColorCacheGetIndex(&hashers, argb[pixel_index]);
         const PixOrCopy token = PixOrCopyCreateCacheIdx(ix);
-        VP8LHistogramAddSinglePixOrCopy(histo, &token);
+        VP8LHistogramAddSinglePixOrCopy(&histo, &token);
       } else {
-        VP8LHistogramAddSinglePixOrCopy(histo, v);
+        VP8LHistogramAddSinglePixOrCopy(&histo, v);
       }
     } else {
-      VP8LHistogramAddSinglePixOrCopy(histo, v);
+      VP8LHistogramAddSinglePixOrCopy(&histo, v);
     }
     if (use_color_cache) {
       for (k = 0; k < PixOrCopyLength(v); ++k) {
@@ -857,34 +864,49 @@ static int ComputeCacheHistogram(const uint32_t* const argb,
   assert(pixel_index == xsize * ysize);
   (void)xsize;  // xsize is not used in non-debug compilations otherwise.
   (void)ysize;  // ysize is not used in non-debug compilations otherwise.
+  entropy = VP8LHistogramEstimateBits(&histo) +
+      kSmallPenaltyForLargeCache * cache_bits;
   if (cc_init) VP8LColorCacheClear(&hashers);
-  return 1;
+  return entropy;
 }
 
 // Returns how many bits are to be used for a color cache.
 int VP8LCalculateEstimateForCacheSize(const uint32_t* const argb,
-                                      int xsize, int ysize,
+                                      int xsize, int ysize, int quality,
                                       int* const best_cache_bits) {
   int ok = 0;
-  int cache_bits;
-  double lowest_entropy = 1e99;
+  int eval_low = 1;
+  int eval_high = 1;
+  double entropy_low = MAX_ENTROPY;
+  double entropy_high = MAX_ENTROPY;
+  int cache_bits_low = 0;
+  int cache_bits_high = MAX_COLOR_CACHE_BITS;
   VP8LBackwardRefs refs;
-  static const double kSmallPenaltyForLargeCache = 4.0;
-  static const int quality = 30;
+
   if (!VP8LBackwardRefsAlloc(&refs, xsize * ysize) ||
       !BackwardReferencesHashChain(xsize, ysize, argb, 0, quality, &refs)) {
     goto Error;
   }
-  for (cache_bits = 0; cache_bits <= MAX_COLOR_CACHE_BITS; ++cache_bits) {
-    double cur_entropy;
-    VP8LHistogram histo;
-    VP8LHistogramInit(&histo, cache_bits);
-    ComputeCacheHistogram(argb, xsize, ysize, &refs, cache_bits, &histo);
-    cur_entropy = VP8LHistogramEstimateBits(&histo) +
-        kSmallPenaltyForLargeCache * cache_bits;
-    if (cache_bits == 0 || cur_entropy < lowest_entropy) {
-      *best_cache_bits = cache_bits;
-      lowest_entropy = cur_entropy;
+  // Do a binary search to find the optimal entropy for cache_bits.
+  while (cache_bits_high - cache_bits_low > 1) {
+    if (eval_low) {
+      entropy_low =
+          ComputeCacheEntropy(argb, xsize, ysize, &refs, cache_bits_low);
+      eval_low = 0;
+    }
+    if (eval_high) {
+      entropy_high =
+          ComputeCacheEntropy(argb, xsize, ysize, &refs, cache_bits_high);
+      eval_high = 0;
+    }
+    if (entropy_high < entropy_low) {
+      *best_cache_bits = cache_bits_high;
+      cache_bits_low = (cache_bits_low + cache_bits_high) / 2;
+      eval_low = 1;
+    } else {
+      *best_cache_bits = cache_bits_low;
+      cache_bits_high = (cache_bits_low + cache_bits_high) / 2;
+      eval_high = 1;
     }
   }
   ok = 1;

@@ -528,7 +528,7 @@ void ChangeInterpolationToTrilinear(cmsPipeline* Lut)
                 _cmsStageCLutData* CLUT = (_cmsStageCLutData*) Stage ->Data;
 
                 CLUT ->Params->dwFlags |= CMS_LERP_FLAGS_TRILINEAR;
-                _cmsSetInterpolationRoutine(CLUT ->Params);
+                _cmsSetInterpolationRoutine(Lut->ContextID, CLUT ->Params);
             }
     }
 }
@@ -906,7 +906,7 @@ cmsBool _cmsWriteProfileSequence(cmsHPROFILE hProfile, const cmsSEQ* seq)
 {
     if (!cmsWriteTag(hProfile, cmsSigProfileSequenceDescTag, seq)) return FALSE;
 
-    if (cmsGetProfileVersion(hProfile) >= 4.0) {
+    if (cmsGetEncodedICCversion(hProfile) >= 0x4000000) {
 
             if (!cmsWriteTag(hProfile, cmsSigProfileSequenceIdTag, seq)) return FALSE;
     }

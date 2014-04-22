@@ -14,7 +14,7 @@
 #include "pngpriv.h"
 
 /* Generate a compiler error if there is an old png.h in the search path. */
-typedef png_libpng_version_1_7_0beta29 Your_png_h_is_not_version_1_7_0beta29;
+typedef png_libpng_version_1_7_0beta35 Your_png_h_is_not_version_1_7_0beta35;
 
 /* Tells libpng that we have already handled the first "num_bytes" bytes
  * of the PNG file signature.  If the PNG data is embedded into another
@@ -165,7 +165,7 @@ png_calculate_crc(png_structrp png_ptr, png_const_bytep ptr, png_size_t length)
 int
 png_user_version_check(png_structrp png_ptr, png_const_charp user_png_ver)
 {
-   if (user_png_ver)
+   if (user_png_ver != NULL)
    {
       int i = 0;
 
@@ -696,13 +696,13 @@ png_get_copyright(png_const_structrp png_ptr)
 #else
 #  ifdef __STDC__
    return PNG_STRING_NEWLINE \
-     "libpng version 1.7.0beta29 - January 20, 2014" PNG_STRING_NEWLINE \
+     "libpng version 1.7.0beta35 - March 22, 2014" PNG_STRING_NEWLINE \
      "Copyright (c) 1998-2014 Glenn Randers-Pehrson" PNG_STRING_NEWLINE \
      "Copyright (c) 1996-1997 Andreas Dilger" PNG_STRING_NEWLINE \
      "Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc." \
      PNG_STRING_NEWLINE;
 #  else
-      return "libpng version 1.7.0beta29 - January 20, 2014\
+      return "libpng version 1.7.0beta35 - March 22, 2014\
       Copyright (c) 1998-2014 Glenn Randers-Pehrson\
       Copyright (c) 1996-1997 Andreas Dilger\
       Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.";
@@ -1466,10 +1466,10 @@ png_colorspace_check_xy(png_XYZ *XYZ, const png_xy *xy)
 
    /* As a side-effect this routine also returns the XYZ endpoints. */
    result = png_XYZ_from_xy(XYZ, xy);
-   if (result) return result;
+   if (result != 0) return result;
 
    result = png_xy_from_XYZ(&xy_test, XYZ);
-   if (result) return result;
+   if (result != 0) return result;
 
    if (png_colorspace_endpoints_match(xy, &xy_test,
       5/*actually, the math is pretty accurate*/))
@@ -1489,10 +1489,10 @@ png_colorspace_check_XYZ(png_xy *xy, png_XYZ *XYZ)
    png_XYZ XYZtemp;
 
    result = png_XYZ_normalize(XYZ);
-   if (result) return result;
+   if (result != 0) return result;
 
    result = png_xy_from_XYZ(xy, XYZ);
-   if (result) return result;
+   if (result != 0) return result;
 
    XYZtemp = *XYZ;
    return png_colorspace_check_xy(&XYZtemp, xy);
@@ -1533,7 +1533,7 @@ png_colorspace_set_xy_and_XYZ(png_const_structrp png_ptr,
       }
 
       /* Only overwrite with preferred values */
-      if (!preferred)
+      if (preferred == 0)
          return 1; /* ok, but no change */
    }
 
@@ -2203,15 +2203,15 @@ png_compare_ICC_profile_with_sRGB(png_const_structrp png_ptr,
             }
          }
 
-#        if PNG_sRGB_PROFILE_CHECKS > 0
-            /* The signature matched, but the profile had been changed in some
-             * way.  This is an apparent violation of the ICC terms of use and,
-             * anyway, probably indicates a data error or uninformed hacking.
-             */
-            if (png_sRGB_checks[i].have_md5)
-               png_benign_error(png_ptr,
-                  "copyright violation: edited ICC profile ignored");
-#        endif
+# if PNG_sRGB_PROFILE_CHECKS > 0
+         /* The signature matched, but the profile had been changed in some
+          * way.  This probably indicates a data error or uninformed hacking.
+          * Fall through to "no match".
+          */
+         png_chunk_report(png_ptr,
+             "Not recognizing known sRGB profile that has been edited", 
+             PNG_CHUNK_WARNING);
+# endif
       }
    }
 
@@ -2341,44 +2341,45 @@ png_check_IHDR(png_const_structrp png_ptr,
       png_warning(png_ptr, "Image width is zero in IHDR");
       error = 1;
    }
+   else if (width > PNG_UINT_31_MAX)
+   {
+      png_warning(png_ptr, "Invalid image width in IHDR");
+      error = 1;
+   }
+   else
+   {
+#     ifdef PNG_SET_USER_LIMITS_SUPPORTED
+      if (width > png_ptr->user_width_max)
+#     else
+      if (width > PNG_USER_WIDTH_MAX)
+#     endif
+      {
+         png_warning(png_ptr, "Image width exceeds user limit in IHDR");
+         error = 1;
+      }
+   }
 
    if (height == 0)
    {
       png_warning(png_ptr, "Image height is zero in IHDR");
       error = 1;
    }
-
-#  ifdef PNG_SET_USER_LIMITS_SUPPORTED
-   if (width > png_ptr->user_width_max)
-
-#  else
-   if (width > PNG_USER_WIDTH_MAX)
-#  endif
-   {
-      png_warning(png_ptr, "Image width exceeds user limit in IHDR");
-      error = 1;
-   }
-
-#  ifdef PNG_SET_USER_LIMITS_SUPPORTED
-   if (height > png_ptr->user_height_max)
-#  else
-   if (height > PNG_USER_HEIGHT_MAX)
-#  endif
-   {
-      png_warning(png_ptr, "Image height exceeds user limit in IHDR");
-      error = 1;
-   }
-
-   if (width > PNG_UINT_31_MAX)
-   {
-      png_warning(png_ptr, "Invalid image width in IHDR");
-      error = 1;
-   }
-
-   if (height > PNG_UINT_31_MAX)
+   else if (height > PNG_UINT_31_MAX)
    {
       png_warning(png_ptr, "Invalid image height in IHDR");
       error = 1;
+   }
+   else
+   {
+#     ifdef PNG_SET_USER_LIMITS_SUPPORTED
+      if (height > png_ptr->user_height_max)
+#     else
+      if (height > PNG_USER_HEIGHT_MAX)
+#     endif
+      {
+         png_warning(png_ptr, "Image height exceeds user limit in IHDR");
+         error = 1;
+      }
    }
 
    /* Check other values */
@@ -2644,7 +2645,7 @@ png_pow10(int power)
       }
       while (power > 0);
 
-      if (recip) d = 1/d;
+      if (recip != 0) d = 1/d;
    }
    /* else power is 0 and d is 1 */
 
@@ -3175,7 +3176,7 @@ png_muldiv(png_fixed_point_p res, png_fixed_point a, png_int_32 times,
             if (s00 >= (D >> 1))
                ++result;
 
-            if (negative)
+            if (negative != 0)
                result = -result;
 
             /* Check for overflow. */
@@ -3877,7 +3878,7 @@ png_build_gamma_table(png_structrp png_ptr, png_fixed_point gamma_val,
        */
       data.adjust = output > PNG_GAMMA_TABLE_8;
 
-      if (use_shift)
+      if (use_shift != 0)
       {
          /* The multiplier does the shift: */
          data.mult = 1U << (8-input_depth);
@@ -3901,7 +3902,7 @@ png_build_gamma_table(png_structrp png_ptr, png_fixed_point gamma_val,
        */
       data.adjust = output == PNG_GAMMA_TABLE_8;
 
-      if (use_shift)
+      if (use_shift != 0)
       {
          data.mult = 1U << (16-input_depth);
          data.add = 0;

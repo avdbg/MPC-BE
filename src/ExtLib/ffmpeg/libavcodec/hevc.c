@@ -283,7 +283,7 @@ static int decode_lt_rps(HEVCContext *s, LongTermRPS *rps, GetBitContext *gb)
 static int set_sps(HEVCContext *s, const HEVCSPS *sps)
 {
     int ret;
-    int num = 0, den = 0;
+    unsigned int num = 0, den = 0;
 
     pic_arrays_free(s);
     ret = pic_arrays_init(s, sps);
@@ -701,11 +701,15 @@ static int hls_slice_header(HEVCContext *s)
 
     sh->slice_ctb_addr_rs = sh->slice_segment_addr;
 
+    if (!s->sh.slice_ctb_addr_rs && s->sh.dependent_slice_segment_flag) {
+        av_log(s->avctx, AV_LOG_ERROR, "Impossible slice segment.\n");
+        return AVERROR_INVALIDDATA;
+    }
+
     s->HEVClc->first_qp_group = !s->sh.dependent_slice_segment_flag;
 
     if (!s->pps->cu_qp_delta_enabled_flag)
-        s->HEVClc->qp_y = FFUMOD(s->sh.slice_qp + 52 + 2 * s->sps->qp_bd_offset,
-                                 52 + s->sps->qp_bd_offset) - s->sps->qp_bd_offset;
+        s->HEVClc->qp_y = s->sh.slice_qp;
 
     s->slice_initialized = 1;
 
@@ -1629,6 +1633,7 @@ static int hls_coding_unit(HEVCContext *s, int x0, int y0, int log2_cb_size)
     int x_cb             = x0 >> log2_min_cb_size;
     int y_cb             = y0 >> log2_min_cb_size;
     int x, y, ret;
+    int qp_block_mask = (1<<(s->sps->log2_ctb_size - s->pps->diff_cu_qp_delta_depth)) - 1;
 
     lc->cu.x                = x0;
     lc->cu.y                = y0;
@@ -1766,6 +1771,11 @@ static int hls_coding_unit(HEVCContext *s, int x0, int y0, int log2_cb_size)
         x += min_cb_width;
     }
 
+    if(((x0 + (1<<log2_cb_size)) & qp_block_mask) == 0 &&
+       ((y0 + (1<<log2_cb_size)) & qp_block_mask) == 0) {
+        lc->qPy_pred = lc->qp_y;
+    }
+
     set_ct_depth(s, x0, y0, log2_cb_size, lc->ct.depth);
 
     return 0;
@@ -1777,6 +1787,7 @@ static int hls_coding_quadtree(HEVCContext *s, int x0, int y0,
     HEVCLocalContext *lc = s->HEVClc;
     const int cb_size    = 1 << log2_cb_size;
     int ret;
+    int qp_block_mask = (1<<(s->sps->log2_ctb_size - s->pps->diff_cu_qp_delta_depth)) - 1;
 
     lc->ct.depth = cb_depth;
     if (x0 + cb_size <= s->sps->width  &&
@@ -1805,14 +1816,27 @@ static int hls_coding_quadtree(HEVCContext *s, int x0, int y0,
         if (more_data < 0)
             return more_data;
 
-        if (more_data && x1 < s->sps->width)
+        if (more_data && x1 < s->sps->width) {
             more_data = hls_coding_quadtree(s, x1, y0, log2_cb_size - 1, cb_depth + 1);
-        if (more_data && y1 < s->sps->height)
+            if (more_data < 0)
+                return more_data;
+        }
+        if (more_data && y1 < s->sps->height) {
             more_data = hls_coding_quadtree(s, x0, y1, log2_cb_size - 1, cb_depth + 1);
+            if (more_data < 0)
+                return more_data;
+        }
         if (more_data && x1 < s->sps->width &&
             y1 < s->sps->height) {
-            return hls_coding_quadtree(s, x1, y1, log2_cb_size - 1, cb_depth + 1);
+            more_data = hls_coding_quadtree(s, x1, y1, log2_cb_size - 1, cb_depth + 1);
+            if (more_data < 0)
+                return more_data;
         }
+
+        if(((x0 + (1<<log2_cb_size)) & qp_block_mask) == 0 &&
+            ((y0 + (1<<log2_cb_size)) & qp_block_mask) == 0)
+            lc->qPy_pred = lc->qp_y;
+
         if (more_data)
             return ((x1 + cb_size_split) < s->sps->width ||
                     (y1 + cb_size_split) < s->sps->height);
@@ -1858,7 +1882,6 @@ static void hls_decode_neighbour(HEVCContext *s, int x_ctb, int y_ctb,
     } else if (s->pps->tiles_enabled_flag) {
         if (ctb_addr_ts && s->pps->tile_id[ctb_addr_ts] != s->pps->tile_id[ctb_addr_ts - 1]) {
             int idxX = s->pps->col_idxX[x_ctb >> s->sps->log2_ctb_size];
-            lc->start_of_tiles_x = x_ctb;
             lc->end_of_tiles_x   = x_ctb + (s->pps->column_width[idxX] << s->sps->log2_ctb_size);
             lc->first_qp_group   = 1;
         }
@@ -1905,6 +1928,14 @@ static int hls_decode_entry(AVCodecContext *avctxt, void *isFilterThread)
         return AVERROR_INVALIDDATA;
     }
 
+    if (s->sh.dependent_slice_segment_flag) {
+        int prev_rs = s->pps->ctb_addr_ts_to_rs[ctb_addr_ts - 1];
+        if (s->tab_slice_address[prev_rs] != s->sh.slice_addr) {
+            av_log(s->avctx, AV_LOG_ERROR, "Previous slice segment missing\n");
+            return AVERROR_INVALIDDATA;
+        }
+    }
+
     while (more_data && ctb_addr_ts < s->sps->ctb_size) {
         int ctb_addr_rs = s->pps->ctb_addr_ts_to_rs[ctb_addr_ts];
 
@@ -1921,8 +1952,11 @@ static int hls_decode_entry(AVCodecContext *avctxt, void *isFilterThread)
         s->filter_slice_edges[ctb_addr_rs]  = s->sh.slice_loop_filter_across_slices_enabled_flag;
 
         more_data = hls_coding_quadtree(s, x_ctb, y_ctb, s->sps->log2_ctb_size, 0);
-        if (more_data < 0)
+        if (more_data < 0) {
+            s->tab_slice_address[ctb_addr_rs] = -1;
             return more_data;
+        }
+
 
         ctb_addr_ts++;
         ff_hevc_save_states(s, ctb_addr_ts);
@@ -1988,8 +2022,10 @@ static int hls_decode_entry_wpp(AVCodecContext *avctxt, void *input_ctb_row, int
         hls_sao_param(s, x_ctb >> s->sps->log2_ctb_size, y_ctb >> s->sps->log2_ctb_size);
         more_data = hls_coding_quadtree(s, x_ctb, y_ctb, s->sps->log2_ctb_size, 0);
 
-        if (more_data < 0)
+        if (more_data < 0) {
+            s->tab_slice_address[ctb_addr_rs] = -1;
             return more_data;
+        }
 
         ctb_addr_ts++;
 
@@ -2188,15 +2224,19 @@ static int set_side_data(HEVCContext *s)
 static int hevc_frame_start(HEVCContext *s)
 {
     HEVCLocalContext *lc = s->HEVClc;
+    int pic_size_in_ctb  = ((s->sps->width  >> s->sps->log2_min_cb_size) + 1) *
+                           ((s->sps->height >> s->sps->log2_min_cb_size) + 1);
     int ret;
+    AVFrame *cur_frame;
 
     memset(s->horizontal_bs, 0, 2 * s->bs_width * (s->bs_height + 1));
     memset(s->vertical_bs,   0, 2 * s->bs_width * (s->bs_height + 1));
     memset(s->cbf_luma,      0, s->sps->min_tb_width * s->sps->min_tb_height);
     memset(s->is_pcm,        0, s->sps->min_pu_width * s->sps->min_pu_height);
+    memset(s->tab_slice_address, -1, pic_size_in_ctb * sizeof(*s->tab_slice_address));
 
-    lc->start_of_tiles_x = 0;
     s->is_decoded        = 0;
+    s->first_nal_type    = s->nal_unit_type;
 
     if (s->pps->tiles_enabled_flag)
         lc->end_of_tiles_x = s->pps->column_width[0] << s->sps->log2_ctb_size;
@@ -2215,6 +2255,9 @@ static int hevc_frame_start(HEVCContext *s)
     ret = set_side_data(s);
     if (ret < 0)
         goto fail;
+
+    cur_frame = s->sps->sao_enabled ? s->sao_frame : s->frame;
+    cur_frame->pict_type = 3 - s->sh.slice_type;
 
     av_frame_unref(s->output_frame);
     ret = ff_hevc_output_frame(s, s->output_frame, 0);
@@ -2246,9 +2289,7 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
     if (ret < 0) {
         av_log(s->avctx, AV_LOG_ERROR, "Invalid NAL unit %d, skipping.\n",
                s->nal_unit_type);
-        if (s->avctx->err_recognition & AV_EF_EXPLODE)
-            return ret;
-        return 0;
+        goto fail;
     } else if (!ret)
         return 0;
 
@@ -2256,23 +2297,23 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
     case NAL_VPS:
         ret = ff_hevc_decode_nal_vps(s);
         if (ret < 0)
-            return ret;
+            goto fail;
         break;
     case NAL_SPS:
         ret = ff_hevc_decode_nal_sps(s);
         if (ret < 0)
-            return ret;
+            goto fail;
         break;
     case NAL_PPS:
         ret = ff_hevc_decode_nal_pps(s);
         if (ret < 0)
-            return ret;
+            goto fail;
         break;
     case NAL_SEI_PREFIX:
     case NAL_SEI_SUFFIX:
         ret = ff_hevc_decode_nal_sei(s);
         if (ret < 0)
-            return ret;
+            goto fail;
         break;
     case NAL_TRAIL_R:
     case NAL_TRAIL_N:
@@ -2318,6 +2359,13 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
                 return ret;
         } else if (!s->ref) {
             av_log(s->avctx, AV_LOG_ERROR, "First slice in a frame missing.\n");
+            goto fail;
+        }
+
+        if (s->nal_unit_type != s->first_nal_type) {
+            av_log(s->avctx, AV_LOG_ERROR,
+                   "Non-matching NAL types of the VCL NALUs: %d %d\n",
+                   s->first_nal_type, s->nal_unit_type);
             return AVERROR_INVALIDDATA;
         }
 
@@ -2327,8 +2375,7 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
             if (ret < 0) {
                 av_log(s->avctx, AV_LOG_WARNING,
                        "Error constructing the reference lists for the current slice.\n");
-                if (s->avctx->err_recognition & AV_EF_EXPLODE)
-                    return ret;
+                goto fail;
             }
         }
 
@@ -2344,8 +2391,10 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
                 restore_tqb_pixels(s);
         }
 
-        if (ctb_addr_ts < 0)
-            return ctb_addr_ts;
+        if (ctb_addr_ts < 0) {
+            ret = ctb_addr_ts;
+            goto fail;
+        }
         break;
     case NAL_EOS_NUT:
     case NAL_EOB_NUT:
@@ -2360,6 +2409,10 @@ static int decode_nal_unit(HEVCContext *s, const uint8_t *nal, int length)
                "Skipping NAL unit %d\n", s->nal_unit_type);
     }
 
+    return 0;
+fail:
+    if (s->avctx->err_recognition & AV_EF_EXPLODE)
+        return ret;
     return 0;
 }
 
@@ -2573,8 +2626,7 @@ static int decode_nal_units(HEVCContext *s, const uint8_t *buf, int length)
         if (ret < 0) {
             av_log(s->avctx, AV_LOG_WARNING,
                    "Error parsing NAL unit #%d.\n", i);
-            if (s->avctx->err_recognition & AV_EF_EXPLODE)
-                goto fail;
+            goto fail;
         }
     }
 

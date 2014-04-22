@@ -62,7 +62,7 @@ public:
 			POSITION pos = fmts.GetHeadPosition();
 			while (pos) {
 				SUPPORTED_FORMATS fmt = fmts.GetNext(pos);
-				if (m_IsPreview || s.FFmpegFilters[fmt.FFMPEGCode] || s.DXVAFilters[fmt.DXVACode]) {
+				if (m_IsPreview || s.VideoFilters[fmt.FFMPEGCode] || s.DXVAFilters[fmt.DXVACode]) {
 					AddType(*fmt.clsMajorType, *fmt.clsMinorType);
 				}
 			}
@@ -85,28 +85,33 @@ public:
 			return hr;
 		}
 
-		bool ffmpeg_filters[FFM_LAST + !FFM_LAST];
-		bool dxva_filters[TRA_DXVA_LAST + !TRA_DXVA_LAST];
+		bool dxva_filters[VDEC_DXVA_LAST];
+		bool video_filters[VDEC_LAST];
+		bool audio_filters[ADEC_LAST];
+
 
 		AppSettings& s = AfxGetAppSettings();
 
-		memcpy(&ffmpeg_filters, &s.FFmpegFilters, sizeof(s.FFmpegFilters));
 		memcpy(&dxva_filters, &s.DXVAFilters, sizeof(s.DXVAFilters));
+		memcpy(&video_filters, &s.VideoFilters, sizeof(s.VideoFilters));
+		memcpy(&audio_filters, &s.AudioFilters, sizeof(s.AudioFilters));
 
 		if (m_merit == MERIT64_DO_USE) {
-			memset(&ffmpeg_filters, true, sizeof(ffmpeg_filters));
 			memset(&dxva_filters, true, sizeof(dxva_filters));
+			memset(&video_filters, true, sizeof(video_filters));
+			memset(&audio_filters, true, sizeof(audio_filters));
 		}
 		if (m_IsPreview) {
-			memset(&ffmpeg_filters, true, sizeof(ffmpeg_filters));
 			memset(&dxva_filters, false, sizeof(dxva_filters));
+			memset(&video_filters, true, sizeof(video_filters));
+			memset(&audio_filters, false, sizeof(audio_filters));
 		}
 
-		for (size_t i = 0; i < TRA_DXVA_LAST + !TRA_DXVA_LAST; i++) {
+		for (size_t i = 0; i < VDEC_DXVA_LAST; i++) {
 			pBF->SetDXVACodec(i, dxva_filters[i]);
 		}
-		for (size_t i = 0; i < FFM_LAST + !FFM_LAST; i++) {
-			pBF->SetFFMpegCodec(i, ffmpeg_filters[i]);
+		for (size_t i = 0; i < VDEC_LAST; i++) {
+			pBF->SetFFMpegCodec(i, video_filters[i]);
 		}
 
 		*ppBF = pBF.Detach();
@@ -526,8 +531,7 @@ HRESULT CFGManager::EnumSourceFilters(LPCWSTR lpcwstrFileName, CFGFilterList& fl
 	AppSettings& s	= AfxGetAppSettings();
 	bool *src		= s.SrcFilters;
 	if ((ext == _T(".amr") && src[SRC_AMR])
-			|| (ext == _T(".wv") && src[SRC_WPAC])
-			|| (ext == _T(".mpc") && src[SRC_MPAC])) { // hack for internal Splitter without Source - add File Source (Async) with high merit
+			|| (ext == _T(".mpc") && src[SRC_MUSEPACK])) { // hack for internal Splitter without Source - add File Source (Async) with high merit
 		CFGFilter* pFGF = LookupFilterRegistry(CLSID_AsyncReader, m_override, MERIT64_ABOVE_DSHOW - 1);
 		pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_NULL);
 		fl.Insert(pFGF, 3);
@@ -1440,8 +1444,7 @@ STDMETHODIMP CFGManager::ConnectFilter(IBaseFilter* pBF, IPin* pPinIn)
 
 			// Disable MEDIATYPE_AUXLine21Data - prevent connect Line 21 Decoder
 			if (GetPinName(pPin)[0] == '~' && FindMT(pPin, MEDIATYPE_AUXLine21Data)) {
-				if ((clsid == CLSID_CMPEG2VidDecoderDS && (s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM || s.iDSVideoRendererType == VIDRNDT_DS_SYNC))
-					|| clsid == __uuidof(CMpeg2DecFilter)
+				if (clsid == __uuidof(CMpeg2DecFilter)
 					|| clsid == CLSID_NvidiaVideoDecoder
 					|| clsid == CLSID_SonicCinemasterVideoDecoder) {
 
@@ -1859,10 +1862,10 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	bool		bOverrideBroadcom = false;
 	CFGFilter*	pFGF;
 
-	bool *src				= s.SrcFilters;
-	bool *tra				= s.TraFilters;
-	bool *dxva_filters		= s.DXVAFilters;
-	bool *ffmpeg_filters	= s.FFmpegFilters;
+	bool *src	= s.SrcFilters;
+	bool *dxva	= s.DXVAFilters;
+	bool *video	= s.VideoFilters;
+	bool *audio	= s.AudioFilters;
 
 	// Source filters
 
@@ -1915,7 +1918,7 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_source.AddTail(pFGF);
 	}
 
-	if (src[SRC_REALMEDIA] || IsPreview) {
+	if (src[SRC_REAL] || IsPreview) {
 		pFGF = DNew CFGFilterInternal<CRealMediaSourceFilter>();
 		pFGF->m_chkbytes.AddTail(_T("0,4,,2E524D46"));
 		m_source.AddTail(pFGF);
@@ -2015,6 +2018,12 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_source.AddTail(pFGF);
 	}
 
+	if (src[SRC_WAVPACK] && !IsPreview) {
+		pFGF = DNew CFGFilterInternal<CAudioSourceFilter>();
+		pFGF->m_chkbytes.AddTail(_T("0,4,,7776706B"));               // 'wvpk'
+		m_source.AddTail(pFGF);
+	}
+
 	if (src[SRC_WAV] && !IsPreview) {
 		pFGF = DNew CFGFilterInternal<CAudioSourceFilter>();
 		pFGF->m_chkbytes.AddTail(_T("0,4,,52494646,8,4,,57415645")); // 'RIFF....WAVE'
@@ -2083,7 +2092,7 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
 	m_transform.AddTail(pFGF);
 
-	if (src[SRC_REALMEDIA] || IsPreview) {
+	if (src[SRC_REAL] || IsPreview) {
 		pFGF = DNew CFGFilterInternal<CRealMediaSplitterFilter>(RMSplitterName, MERIT64_ABOVE_DSHOW);
 	} else {
 		pFGF = DNew CFGFilterInternal<CRealMediaSplitterFilter>(LowMerit(RMSplitterName), MERIT64_DO_USE);
@@ -2131,18 +2140,7 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	}
 
 	if (!IsPreview) {
-		if (src[SRC_WPAC]) {
-			pFGF = DNew CFGFilterInternal<CWavPackSplitterFilter>(WavPackSplitterName, MERIT64_ABOVE_DSHOW);
-		} else {
-			pFGF = DNew CFGFilterInternal<CWavPackSplitterFilter>(LowMerit(WavPackSplitterName), MERIT64_DO_USE);
-		}
-		pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_WAVPACK_Stream);
-		pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
-		m_transform.AddTail(pFGF);
-	}
-
-	if (!IsPreview) {
-		if (src[SRC_MPAC]) {
+		if (src[SRC_MUSEPACK]) {
 			pFGF = DNew CFGFilterInternal<CMusePackSplitter>(MusePackSplitterName, MERIT64_ABOVE_DSHOW);
 		} else {
 			pFGF = DNew CFGFilterInternal<CMusePackSplitter>(LowMerit(MusePackSplitterName), MERIT64_DO_USE);
@@ -2195,8 +2193,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CAudioSplitterFilter>(
-					(src[SRC_APE] && src[SRC_TAK] && src[SRC_WAV]) ? AudioSplitterName : LowMerit(AudioSplitterName),
-					(src[SRC_APE] && src[SRC_TAK] && src[SRC_WAV]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(src[SRC_APE] && src[SRC_TAK] && src[SRC_TTA] && src[SRC_WAVPACK] && src[SRC_WAV]) ? AudioSplitterName : LowMerit(AudioSplitterName),
+					(src[SRC_APE] && src[SRC_TAK] && src[SRC_TTA] && src[SRC_WAVPACK] && src[SRC_WAV]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
 		m_transform.AddTail(pFGF);
 	}
@@ -2226,8 +2224,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	// Transform filters
 	if (!IsPreview) {
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MP3);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1AudioPayload);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1Payload);
@@ -2235,8 +2233,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_AUDIO);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_AUDIO);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_AUDIO);
@@ -2244,16 +2242,16 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_AMR]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_AMR]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_AMR]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_AMR]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SAMR);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_AMR);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SAWB);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_LPCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_LPCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_LPCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_LPCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DVD_LPCM_AUDIO);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DVD_LPCM_AUDIO);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DVD_LPCM_AUDIO);
@@ -2262,8 +2260,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_AC3]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_AC3]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_AC3]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_AC3]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DOLBY_AC3);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DOLBY_AC3);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DOLBY_AC3);
@@ -2275,8 +2273,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_DTS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_DTS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_DTS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_DTS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DTS);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DTS);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DTS);
@@ -2285,8 +2283,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_AAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_AAC]) ? MERIT64_ABOVE_DSHOW+1 : MERIT64_DO_USE);
+					(audio[ADEC_AAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_AAC]) ? MERIT64_ABOVE_DSHOW+1 : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_RAW_AAC1);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_RAW_AAC1);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RAW_AAC1);
@@ -2301,8 +2299,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_PS2AUD]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_PS2AUD]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_PS2]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_PS2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_PS2_PCM);
 		pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_PS2_PCM);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PS2_PCM);
@@ -2313,8 +2311,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	}
 
 	pFGF = DNew CFGFilterInternal<CRealVideoDecoder>(
-				(ffmpeg_filters[FFM_RV] || IsPreview) ? RMVideoDecoderName : LowMerit(RMVideoDecoderName),
-				(ffmpeg_filters[FFM_RV] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+				(video[VDEC_REAL] || IsPreview) ? RMVideoDecoderName : LowMerit(RMVideoDecoderName),
+				(video[VDEC_REAL] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV10);
 	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV20);
 	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV30);
@@ -2323,8 +2321,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 
 	if (!IsPreview) {
 		pFGF = DNew CFGFilterInternal<CRealAudioDecoder>(
-					(tra[TRA_RA]) ? RMAudioDecoderName : LowMerit(RMAudioDecoderName),
-					(tra[TRA_RA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_REAL]) ? RMAudioDecoderName : LowMerit(RMAudioDecoderName),
+					(audio[ADEC_REAL]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_14_4);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_28_8);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ATRC);
@@ -2336,20 +2334,10 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 	}
 
-	// TODO - make optional RoQ A/V decoder
-	pFGF = DNew CFGFilterInternal<CRoQVideoDecoder>(RoQVideoDecoderName, MERIT64_ABOVE_DSHOW);
-	m_transform.AddTail(pFGF);
-
-	if (!IsPreview) {
-		pFGF = DNew CFGFilterInternal<CRoQAudioDecoder>(RoQAudioDecoderName, MERIT64_ABOVE_DSHOW);
-		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RoQA);
-		m_transform.AddTail(pFGF);
-	}
-
 	if (!IsPreview) {
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_RA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_RA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_REAL]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_REAL]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_14_4);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_28_8);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ATRC);
@@ -2363,38 +2351,38 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_VORBIS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_VORBIS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_VORBIS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_VORBIS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_Vorbis2);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_FLAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_FLAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_FLAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_FLAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_FLAC_FRAMED);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_NELLY]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_NELLY]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_NELLY]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_NELLY]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NELLYMOSER);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_ALAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_ALAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_ALAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_ALAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ALAC);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_ALS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_ALS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_ALS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_ALS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ALS);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(tra[TRA_PCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(tra[TRA_PCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_PCM_ADPCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_PCM_ADPCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_NONE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_RAW);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_TWOS);
@@ -2411,112 +2399,112 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_QDM2]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_QDM2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_QDM2]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_QDM2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_QDM2);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_WPAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_WPAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_WAVPACK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_WAVPACK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVPACK4);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_MPAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_MPAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_MUSEPACK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_MUSEPACK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPC7);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPC8);
 		m_transform.AddTail(pFGF);
 
 		// APE
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_APE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_APE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_APE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_APE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_APE);
 		m_transform.AddTail(pFGF);
 
 		// TAK
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_TAK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_TAK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_TAK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_TAK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_TAK);
 		m_transform.AddTail(pFGF);
 
 		// TTA
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_TTA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_TTA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_TTA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_TTA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_TTA1);
 		m_transform.AddTail(pFGF);
 
 		// DSP Group TrueSpeech
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_TRUESPEECH]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_TRUESPEECH]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_TRUESPEECH]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_TRUESPEECH]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_TRUESPEECH);
 		m_transform.AddTail(pFGF);
 
 		// Voxware MetaSound
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_VOXWARE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_VOXWARE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_VOXWARE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_VOXWARE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_VOXWARE_RT29);
 		m_transform.AddTail(pFGF);
 
 		// Bink Audio
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_BINKA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_BINKA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_BINK]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_BINK]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_BINKA_DCT);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_BINKA_RDFT);
 		m_transform.AddTail(pFGF);
 
 		// Windows Media Audio 9 Professional
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_WMAPRO]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_WMAPRO]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_WMA9]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_WMA9]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WMAUDIO3);
 		m_transform.AddTail(pFGF);
 
 		// Windows Media Audio Lossless
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_WMALOSS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_WMALOSS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_WMALOSSLESS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_WMALOSSLESS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WMAUDIO_LOSSLESS);
 		m_transform.AddTail(pFGF);
 
 		// Windows Media Audio 1, 2
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_WMA2]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_WMA2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_WMA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_WMA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MSAUDIO1);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WMAUDIO2);
 		m_transform.AddTail(pFGF);
 
 		// Windows Media Audio Voice
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_WMAVOICE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_WMAVOICE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_WMAVOICE]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_WMAVOICE]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WMSP1);
 		m_transform.AddTail(pFGF);
 
 		// Indeo Audio Coder
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_IAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_IAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_INDEO]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_INDEO]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_IAC);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_OPUS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_OPUS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_OPUS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_OPUS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_OPUS);
 		m_transform.AddTail(pFGF);
 
 		pFGF = DNew CFGFilterInternal<CMpaDecFilter>(
-					(ffmpeg_filters[FFM_SPEEX]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
-					(ffmpeg_filters[FFM_SPEEX]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+					(audio[ADEC_SPEEX]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+					(audio[ADEC_SPEEX]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SPEEX);
 		m_transform.AddTail(pFGF);
 	}
@@ -2547,8 +2535,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 
 	// Keep MPEG decoder after DXVA/ffmpeg decoder !
 	pFGF = DNew CFGFilterInternal<CMpeg2DecFilter>(
-				(tra[TRA_MPEG2] || IsPreview) ? Mpeg2DecFilterName : LowMerit(Mpeg2DecFilterName),
-				(tra[TRA_MPEG2] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+				(video[VDEC_LIBMPEG2_MPEG2] || IsPreview) ? Mpeg2DecFilterName : LowMerit(Mpeg2DecFilterName),
+				(video[VDEC_LIBMPEG2_MPEG2] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 	pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
 	pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
 	pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_VIDEO);
@@ -2557,11 +2545,22 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	m_transform.AddTail(pFGF);
 
 	pFGF = DNew CFGFilterInternal<CMpeg2DecFilter>(
-				(tra[TRA_MPEG1] || IsPreview) ? Mpeg2DecFilterName : Mpeg2DecFilterName,
-				(tra[TRA_MPEG1] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+				(video[VDEC_LIBMPEG2_MPEG1] || IsPreview) ? Mpeg2DecFilterName : Mpeg2DecFilterName,
+				(video[VDEC_LIBMPEG2_MPEG1] || IsPreview) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
 	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Packet);
 	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Payload);
 	m_transform.AddTail(pFGF);
+
+	// TODO - make optional RoQ A/V decoder
+	pFGF = DNew CFGFilterInternal<CRoQVideoDecoder>(RoQVideoDecoderName, MERIT64_ABOVE_DSHOW);
+	pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RoQV);
+	m_transform.AddTail(pFGF);
+
+	if (!IsPreview) {
+		pFGF = DNew CFGFilterInternal<CRoQAudioDecoder>(RoQAudioDecoderName, MERIT64_ABOVE_DSHOW);
+		pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RoQA);
+		m_transform.AddTail(pFGF);
+	}
 
 	// Blocked filters
 
@@ -2606,24 +2605,21 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd, boo
 	// mainconcept color space converter
 	m_transform.AddTail(DNew CFGFilterRegistry(GUIDFromCString(_T("{272D77A0-A852-4851-ADA4-9091FEAD4C86}")), MERIT64_DO_NOT_USE));
 
-	if (s.fBlockVSFilter) {
-		if ((s.fAutoloadSubtitles
-				&& (s.iDSVideoRendererType == VIDRNDT_DS_VMR7RENDERLESS
-					|| s.iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS
-					|| s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM
-					|| s.iDSVideoRendererType == VIDRNDT_DS_DXR
-					|| s.iDSVideoRendererType == VIDRNDT_DS_SYNC
-					|| s.iDSVideoRendererType == VIDRNDT_DS_MADVR))
-				|| (IsCLSIDRegistered(CLSID_XySubFilter) && s.iDSVideoRendererType == VIDRNDT_DS_MADVR)) {
-				// Block VSFilter when internal subtitle renderer will get used or when XySubFilter is available + madVR
-			m_transform.AddTail(DNew CFGFilterRegistry(CLSID_VSFilter, MERIT64_DO_NOT_USE));
-		}
+	// VSFilter blocking routines
+	if (s.fBlockVSFilter && s.IsISRAutoLoadEnabled()) {
+		// Prevent VSFilter from connecting while the ISR is select
+		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_VSFilter, MERIT64_DO_NOT_USE));
+		// Prevent XySubFilter from connecting while the ISR is select
+		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter, MERIT64_DO_NOT_USE));
+		// Prevent XySubFilter's loader from connecting while the ISR is select
+		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter_AutoLoader, MERIT64_DO_NOT_USE));
+	}
 
-		if (s.iDSVideoRendererType != VIDRNDT_DS_MADVR) {
-			// XySubFilter is available only with madVR ...
-			m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter, MERIT64_DO_NOT_USE));
-		}
-
+	if (s.iDSVideoRendererType != VIDRNDT_DS_MADVR) {
+		// Prevent XySubFilter from connecting while the renderer not a madVR
+		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter, MERIT64_DO_NOT_USE));
+		// Prevent XySubFilter's loader from connecting while the renderer not a madVR
+		m_transform.AddTail(DNew CFGFilterRegistry(CLSID_XySubFilter_AutoLoader, MERIT64_DO_NOT_USE));
 	}
 
 	// Blacklist Accusoft PICVideo M-JPEG Codec 2.1 since causes a DEP crash

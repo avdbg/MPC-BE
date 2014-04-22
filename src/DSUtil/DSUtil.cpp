@@ -264,6 +264,30 @@ IPin* GetUpStreamPin(IBaseFilter* pBF, IPin* pInputPin)
 	return NULL;
 }
 
+IBaseFilter* GetDownStreamFilter(IBaseFilter* pBF, IPin* pInputPin)
+{
+	return GetFilterFromPin(GetDownStreamPin(pBF, pInputPin));
+}
+
+IPin* GetDownStreamPin(IBaseFilter* pBF, IPin* pInputPin)
+{
+	BeginEnumPins(pBF, pEP, pPin) {
+		if (!pInputPin || (pInputPin == pPin)) {
+			PIN_DIRECTION dir;
+			CComPtr<IPin> pPinConnectedTo;
+			if (SUCCEEDED(pPin->QueryDirection(&dir)) && dir == PINDIR_OUTPUT
+					&& SUCCEEDED(pPin->ConnectedTo(&pPinConnectedTo))) {
+				IPin* pRet = pPinConnectedTo.Detach();
+				pRet->Release();
+				return pRet;
+			}
+		}
+	}
+	EndEnumPins
+
+	return NULL;
+}
+
 IPin* GetFirstPin(IBaseFilter* pBF, PIN_DIRECTION dir)
 {
 	if (!pBF) {
@@ -2534,10 +2558,10 @@ typedef struct {
 static const DXVA2_DECODER DXVA2Decoder[] = {
 	{&GUID_NULL,						_T("Unknown")},
 	{&GUID_NULL,						_T("Not using DXVA")},
-	{&DXVA_Intel_H264_ClearVideo,		_T("H.264 bitstream decoder, ClearVideo(tm)")},  // Intel ClearVideo H264 bitstream decoder
-	{&DXVA_Intel_VC1_ClearVideo,		_T("VC-1 bitstream decoder, ClearVideo(tm)")},   // Intel ClearVideo VC-1 bitstream decoder
-	{&DXVA_Intel_VC1_ClearVideo_2,		_T("VC-1 bitstream decoder 2, ClearVideo(tm)")}, // Intel ClearVideo VC-1 bitstream decoder 2
-	{&DXVA_MPEG4_ASP,					_T("MPEG-4 ASP bitstream decoder")},             // Nvidia MPEG-4 ASP bitstream decoder
+	{&DXVA_Intel_H264_ClearVideo,		_T("H.264 bitstream decoder, ClearVideo")},  // Intel ClearVideo H264 bitstream decoder
+	{&DXVA_Intel_VC1_ClearVideo,		_T("VC-1 bitstream decoder, ClearVideo")},   // Intel ClearVideo VC-1 bitstream decoder
+	{&DXVA_Intel_VC1_ClearVideo_2,		_T("VC-1 bitstream decoder 2, ClearVideo")}, // Intel ClearVideo VC-1 bitstream decoder 2
+	{&DXVA_MPEG4_ASP,					_T("MPEG-4 ASP bitstream decoder")},         // Nvidia MPEG-4 ASP bitstream decoder
 	{&DXVA_ModeNone,					_T("Mode none")},
 	{&DXVA_ModeH261_A,					_T("H.261 A, post processing")},
 	{&DXVA_ModeH261_B,					_T("H.261 B, deblocking")},
@@ -2567,16 +2591,18 @@ static const DXVA2_DECODER DXVA2Decoder[] = {
 	{&DXVA_ModeVC1_B,					_T("VC-1 B, motion compensation")},
 	{&DXVA_ModeVC1_C,					_T("VC-1 C, IDCT")},
 	{&DXVA_ModeVC1_D,					_T("VC-1 D, bitstream decoder")},
+	{&DXVA2_ModeVC1_D2010,				_T("VC-1 D, bitstream decoder (2010)")},
 	{&DXVA_NoEncrypt,					_T("No encryption")},
 	{&DXVA2_ModeMPEG2_MoComp,			_T("MPEG-2 motion compensation")},
 	{&DXVA2_ModeMPEG2_IDCT,				_T("MPEG-2 IDCT")},
 	{&DXVA2_ModeMPEG2_VLD,				_T("MPEG-2 variable-length decoder")},
+	{&DXVA_ModeMPEG2and1_VLD,			_T("MPEG-2 and MPEG-1 variable-length decoder")},
 	{&DXVA2_ModeH264_A,					_T("H.264 A, motion compensation, no FGT")},
 	{&DXVA2_ModeH264_B,					_T("H.264 B, motion compensation, FGT")},
 	{&DXVA2_ModeH264_C,					_T("H.264 C, IDCT, no FGT")},
 	{&DXVA2_ModeH264_D,					_T("H.264 D, IDCT, FGT")},
 	{&DXVA2_ModeH264_E,					_T("H.264 E, bitstream decoder, no FGT")},
-	{&DXVA2_ModeH264_Flash,				_T("H.264 Flash,  bitstream decoder, FGT")},
+	{&DXVA2_ModeH264_Flash,				_T("H.264 Flash, bitstream decoder, FGT")},
 	{&DXVA2_ModeH264_F,					_T("H.264 F, bitstream decoder, FGT")},
 	{&DXVA2_ModeWMV8_A,					_T("WMV8 A, post processing")},
 	{&DXVA2_ModeWMV8_B,					_T("WMV8 B, motion compensation")},
@@ -3105,19 +3131,60 @@ HRESULT CreateAVCfromH264(CMediaType* mt)
 	delete[] dst;
 
 	return dstSize ? S_OK : E_FAIL;
-} 
+}
+
+void CreateVorbisMediaType(CMediaType& mt, CAtlArray<CMediaType>& mts, DWORD Channels, DWORD SamplesPerSec, DWORD BitsPerSample, const BYTE* pData, size_t Count)
+{
+	const BYTE* p = pData;
+	CAtlArray<int> sizes;
+	int totalsize = 0;
+	for (BYTE n = *p++; n > 0; n--) {
+		int size = 0;
+		do {
+			size += *p;
+		} while (*p++ == 0xff);
+		sizes.Add(size);
+		totalsize += size;
+	}
+	sizes.Add(Count - (p - pData) - totalsize);
+	totalsize += sizes[sizes.GetCount()-1];
+
+	if (sizes.GetCount() == 3) {
+		mt.subtype			= MEDIASUBTYPE_Vorbis2;
+		mt.formattype		= FORMAT_VorbisFormat2;
+		VORBISFORMAT2* pvf2	= (VORBISFORMAT2*)mt.AllocFormatBuffer(sizeof(VORBISFORMAT2) + totalsize);
+		memset(pvf2, 0, mt.FormatLength());
+		pvf2->Channels		= Channels;
+		pvf2->SamplesPerSec	= SamplesPerSec;
+		pvf2->BitsPerSample	= BitsPerSample;
+		BYTE* p2 = mt.Format() + sizeof(VORBISFORMAT2);
+		for (size_t i = 0; i < sizes.GetCount(); p += sizes[i], p2 += sizes[i], i++) {
+			memcpy(p2, p, pvf2->HeaderSize[i] = sizes[i]);
+		}
+
+		mts.Add(mt);
+	}
+
+	mt.subtype = MEDIASUBTYPE_Vorbis;
+	mt.formattype = FORMAT_VorbisFormat;
+	VORBISFORMAT* vf = (VORBISFORMAT*)mt.AllocFormatBuffer(sizeof(VORBISFORMAT));
+	memset(vf, 0, mt.FormatLength());
+	vf->nChannels		= Channels;
+	vf->nSamplesPerSec	= SamplesPerSec;
+	vf->nMinBitsPerSec	= vf->nMaxBitsPerSec = vf->nAvgBitsPerSec = DWORD_MAX;
+	mts.Add(mt);
+}
 
 CStringA VobSubDefHeader(int w, int h, CStringA palette)
 {
 	CStringA def_palette = "000000,e0e0e0,808080,202020,3333fa,1111bb,fa3333,bb1111,33fa33,11bb11,fafa33,bbbb11,fa33fa,bb11bb,33fafa,11bbbb";
-	//"000000, 000000, 000000, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff, ffffff"; // some vobsub better, some worse !
 
 	CStringA hdr;
 	hdr.Format(
 		"# VobSub index file, v7 (do not modify this line!)\n"
 		"size: %dx%d\n"
 		"palette: %s\n",
-		w, h, !palette.IsEmpty() ? palette : def_palette);
+		w, h, palette.GetLength() > 0 ? palette : def_palette);
 
 	return hdr;
 }
