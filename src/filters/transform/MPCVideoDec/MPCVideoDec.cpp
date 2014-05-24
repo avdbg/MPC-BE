@@ -235,7 +235,7 @@ FFMPEG_CODECS ffCodecs[] = {
 
 	// MPEG-2
 	{ &MEDIASUBTYPE_MPEG2_VIDEO, AV_CODEC_ID_MPEG2VIDEO, &DXVA_Mpeg2, VDEC_MPEG2, VDEC_DXVA_MPEG2 },
-	{ &MEDIASUBTYPE_MPG2,		 AV_CODEC_ID_MPEG2VIDEO, &DXVA_Mpeg2, VDEC_MPEG2, VDEC_DXVA_MPEG2 },
+	{ &MEDIASUBTYPE_MPG2,        AV_CODEC_ID_MPEG2VIDEO, &DXVA_Mpeg2, VDEC_MPEG2, VDEC_DXVA_MPEG2 },
 
 	// MPEG-1
 	{ &MEDIASUBTYPE_MPEG1Packet,  AV_CODEC_ID_MPEG1VIDEO, NULL, VDEC_MPEG1, -1 },
@@ -278,7 +278,7 @@ FFMPEG_CODECS ffCodecs[] = {
 	{ &MEDIASUBTYPE_MJPG,   AV_CODEC_ID_MJPEG,    NULL, VDEC_MJPEG, -1 },
 	{ &MEDIASUBTYPE_QTJpeg, AV_CODEC_ID_MJPEG,    NULL, VDEC_MJPEG, -1 },
 	{ &MEDIASUBTYPE_MJPA,   AV_CODEC_ID_MJPEG,    NULL, VDEC_MJPEG, -1 },
-	{ &MEDIASUBTYPE_MJPB,   AV_CODEC_ID_MJPEGB,	  NULL, VDEC_MJPEG, -1 },
+	{ &MEDIASUBTYPE_MJPB,   AV_CODEC_ID_MJPEGB,   NULL, VDEC_MJPEG, -1 },
 	{ &MEDIASUBTYPE_MJP2,   AV_CODEC_ID_JPEG2000, NULL, VDEC_MJPEG, -1 },
 	{ &MEDIASUBTYPE_MJ2C,   AV_CODEC_ID_JPEG2000, NULL, VDEC_MJPEG, -1 },
 
@@ -306,19 +306,21 @@ FFMPEG_CODECS ffCodecs[] = {
 	{ &MEDIASUBTYPE_QTRpza, AV_CODEC_ID_RPZA,  NULL, VDEC_QT, -1 },
 
 	// Screen recorder
-	{ &MEDIASUBTYPE_CSCD, AV_CODEC_ID_CSCD,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_TSCC, AV_CODEC_ID_TSCC,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_TSCC2, AV_CODEC_ID_TSCC2,	   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_VMnc, AV_CODEC_ID_VMNC,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_FLASHSV1, AV_CODEC_ID_FLASHSV, NULL, VDEC_SCREEN, -1 },
-	//{ &MEDIASUBTYPE_FLASHSV2,  CODEC_ID_FLASHSV2, NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_FPS1, AV_CODEC_ID_FRAPS,	   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_MSS1, AV_CODEC_ID_MSS1,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_MSS2, AV_CODEC_ID_MSS2,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_MSA1, AV_CODEC_ID_MSA1,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_MTS2, AV_CODEC_ID_MTS2,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_G2M, AV_CODEC_ID_G2M,		   NULL, VDEC_SCREEN, -1 },
-	{ &MEDIASUBTYPE_CRAM, AV_CODEC_ID_MSVIDEO1,	   NULL, VDEC_SCREEN, -1 }, // CRAM - Microsoft Video 1
+	{ &MEDIASUBTYPE_CSCD,     AV_CODEC_ID_CSCD,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_TSCC,     AV_CODEC_ID_TSCC,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_TSCC2,    AV_CODEC_ID_TSCC2,    NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_VMnc,     AV_CODEC_ID_VMNC,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_FLASHSV1, AV_CODEC_ID_FLASHSV,  NULL, VDEC_SCREEN, -1 },
+//	{ &MEDIASUBTYPE_FLASHSV2, AV_CODEC_ID_FLASHSV2, NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_FPS1,     AV_CODEC_ID_FRAPS,    NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_MSS1,     AV_CODEC_ID_MSS1,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_MSS2,     AV_CODEC_ID_MSS2,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_MSA1,     AV_CODEC_ID_MSA1,     NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_MTS2,     AV_CODEC_ID_MTS2,     NULL, VDEC_SCREEN, -1 },
+//	{ &MEDIASUBTYPE_G2M2,     AV_CODEC_ID_G2M,      NULL, VDEC_SCREEN, -1 },
+//	{ &MEDIASUBTYPE_G2M3,     AV_CODEC_ID_G2M,      NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_G2M4,     AV_CODEC_ID_G2M,      NULL, VDEC_SCREEN, -1 },
+	{ &MEDIASUBTYPE_CRAM,     AV_CODEC_ID_MSVIDEO1, NULL, VDEC_SCREEN, -1 }, // CRAM - Microsoft Video 1
 
 	// UtVideo
 	{ &MEDIASUBTYPE_UTVD_ULRG, AV_CODEC_ID_UTVIDEO, NULL, VDEC_UT, -1 },
@@ -342,18 +344,18 @@ FFMPEG_CODECS ffCodecs[] = {
 	{ &MEDIASUBTYPE_IV50, AV_CODEC_ID_INDEO5, NULL, VDEC_INDEO, -1 },
 
 	// H264/AVC
-	{ &MEDIASUBTYPE_H264,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_h264,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_X264,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_x264,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_VSSH,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_vssh,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_DAVC,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_davc,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_PAVC,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_pavc,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_AVC1,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
-	{ &MEDIASUBTYPE_avc1,	  AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_H264,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_h264,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_X264,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_x264,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_VSSH,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_vssh,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_DAVC,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_davc,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_PAVC,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_pavc,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_AVC1,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
+	{ &MEDIASUBTYPE_avc1,     AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
 	{ &MEDIASUBTYPE_H264_bis, AV_CODEC_ID_H264, &DXVA_H264, VDEC_H264, VDEC_DXVA_H264 },
 
 	// SVQ3
@@ -616,7 +618,9 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesIn[] = {
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MSS2 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MSA1 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_MTS2 },
-	{ &MEDIATYPE_Video, &MEDIASUBTYPE_G2M },
+//	{ &MEDIATYPE_Video, &MEDIASUBTYPE_G2M2 },
+//	{ &MEDIATYPE_Video, &MEDIASUBTYPE_G2M3 },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_G2M4 },
 	{ &MEDIATYPE_Video, &MEDIASUBTYPE_CRAM }, // CRAM - Microsoft Video 1
 
 	// UtVideo
@@ -788,10 +792,10 @@ const AMOVIESETUP_MEDIATYPE sudPinTypesOut[] = {
 };
 
 VIDEO_OUTPUT_FORMATS DXVAFormats[] = { // DXVA2
-	{&MEDIASUBTYPE_NV12,  1, 12, FCC('dxva')},
-	{&MEDIASUBTYPE_NV12,  1, 12, FCC('DXVA')},
-	{&MEDIASUBTYPE_NV12,  1, 12, FCC('DxVA')},
-	{&MEDIASUBTYPE_NV12,  1, 12, FCC('DXvA')}
+	{&MEDIASUBTYPE_NV12, 1, 12, FCC('dxva')},
+	{&MEDIASUBTYPE_NV12, 1, 12, FCC('DXVA')},
+	{&MEDIASUBTYPE_NV12, 1, 12, FCC('DxVA')},
+	{&MEDIASUBTYPE_NV12, 1, 12, FCC('DXvA')}
 };
 
 #ifdef REGISTER_FILTER
@@ -896,6 +900,8 @@ CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	, m_nFrameType(PICT_FRAME)
 	, m_PixelFormat(AV_PIX_FMT_NONE)
 	, m_fSYNC(0)
+	, m_dwFrameCount(0)
+	, m_nWrongFramesOrdering(0)
 {
 	if (phr) {
 		*phr = S_OK;
@@ -1428,6 +1434,12 @@ HRESULT CMPCVideoDecFilter::SetMediaType(PIN_DIRECTION direction, const CMediaTy
 		if (FAILED(hr)) {
 			return hr;
 		}
+
+		if (*pmt != m_InputMT) {
+			m_dwFrameCount = 0;
+		}
+
+		m_InputMT = *pmt;
 	} else if (direction == PINDIR_OUTPUT) {
 		BITMAPINFOHEADER bihOut;
 		if (!ExtractBIH(&m_pOutput->CurrentMediaType(), &bihOut)) {
@@ -1562,7 +1574,8 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 	// code from LAV ... thanks to it's author
 	// Use ffmpegs logic to reorder timestamps
 	// This is required for H264 content (except AVI), and generally all codecs that use frame threading
-	m_bReorderBFrame = bH264_HEVCIsAVI || bMPEG4BFrames
+	m_bReorderBFrame = bH264_HEVCIsAVI
+						|| bMPEG4BFrames
 						|| !((m_pAVCodec->capabilities & CODEC_CAP_FRAME_THREADS)
 								|| m_nCodecId == AV_CODEC_ID_MPEG2VIDEO
 								|| m_nCodecId == AV_CODEC_ID_MPEG1VIDEO
@@ -2412,7 +2425,6 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 		}
 
 		ReorderBFrames(rtStart, rtStop);
-
 		UpdateFrameTime(rtStart, rtStop, PULLDOWN_FLAG);
 
 		m_rtPrevStop = rtStop;
@@ -2662,6 +2674,18 @@ void CMPCVideoDecFilter::UpdateAspectRatio()
 void CMPCVideoDecFilter::ReorderBFrames(REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop)
 {
 	// Re-order B-frames if needed
+	if (m_dwFrameCount < 30 && m_nCodecId == AV_CODEC_ID_H264 && !m_bReorderBFrame) {
+		if ((rtStart + m_rtAvrTimePerFrame) < m_rtLastStop && rtStart != INVALID_TIME) {
+			if (m_nWrongFramesOrdering == 5) {
+				m_bReorderBFrame = true;
+			} else {
+				m_nWrongFramesOrdering++;
+			}
+		}
+	}
+
+	m_dwFrameCount++;
+
 	if (m_pAVCtx->has_b_frames && m_bReorderBFrame) {
 		rtStart	= m_BFrames[m_nPosB].rtStart;
 		rtStop	= m_BFrames[m_nPosB].rtStop;
@@ -3386,10 +3410,10 @@ STDMETHODIMP_(CString) CMPCVideoDecFilter::GetInformation(MPCInfo index)
 		break;
 	case INFO_FrameSize:
 		if (m_w && m_h) {
-			int sarx = m_arx * m_h;
-			int sary = m_ary * m_w;
+			LONG sarx = m_arx * m_h;
+			LONG sary = m_ary * m_w;
 			ReduceDim(sarx, sary);
-			infostr.Format(_T("%dx%d, SAR %d:%d, DAR %d:%d"), m_w, m_h, sarx, sary, m_arx, m_ary);
+			infostr.Format(_T("%dx%d, SAR %ld:%ld, DAR %d:%d"), m_w, m_h, sarx, sary, m_arx, m_ary);
 		}
 		break;
 	case INFO_OutputFormat:

@@ -122,6 +122,7 @@ int ff_h264_ref_picture(H264Context *h, H264Picture *dst, H264Picture *src)
     dst->crop_top      = src->crop_top;
     dst->recovered     = src->recovered;
     dst->invalid_gap   = src->invalid_gap;
+    dst->sei_recovery_frame_cnt = src->sei_recovery_frame_cnt;
 
     return 0;
 fail:
@@ -129,9 +130,9 @@ fail:
     return ret;
 }
 
-#if CONFIG_ERROR_RESILIENCE
 void ff_h264_set_erpic(ERPicture *dst, H264Picture *src)
 {
+#if CONFIG_ERROR_RESILIENCE
     int i;
 
     memset(dst, 0, sizeof(*dst));
@@ -149,8 +150,8 @@ void ff_h264_set_erpic(ERPicture *dst, H264Picture *src)
 
     dst->mb_type = src->mb_type;
     dst->field_picture = src->field_picture;
-}
 #endif /* CONFIG_ERROR_RESILIENCE */
+}
 
 int ff_h264_field_end(H264Context *h, int in_setup)
 {

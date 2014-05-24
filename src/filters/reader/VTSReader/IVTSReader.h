@@ -20,9 +20,16 @@
 
 #pragma once
 
+#include <basestruct.h>
+
 interface __declspec(uuid("CFCFBA29-5E0D-4031-BC58-407291F56C11"))
 IVTSReader :
 public IUnknown {
-	STDMETHOD_(REFERENCE_TIME, GetDuration()) = 0;
-	STDMETHOD_(AV_Rational, GetAspect()) = 0;
+	STDMETHOD(Apply()) PURE;
+
+	STDMETHOD(SetReadAllProgramChains(BOOL nValue)) PURE;
+	STDMETHOD_(BOOL, GetReadAllProgramChains()) PURE;
+
+	STDMETHOD_(REFERENCE_TIME, GetDuration()) PURE;
+	STDMETHOD_(AV_Rational, GetAspect()) PURE;
 };

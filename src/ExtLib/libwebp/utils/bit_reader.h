@@ -141,6 +141,10 @@ struct VP8BitReader {
 void VP8InitBitReader(VP8BitReader* const br,
                       const uint8_t* const start, const uint8_t* const end);
 
+// Update internal pointers to displace the byte buffer by the
+// relative offset 'offset'.
+void VP8RemapBitReader(VP8BitReader* const br, ptrdiff_t offset);
+
 // return the next value made of 'num_bits' bits
 uint32_t VP8GetValue(VP8BitReader* const br, int num_bits);
 static WEBP_INLINE uint32_t VP8Get(VP8BitReader* const br) {
@@ -312,6 +316,9 @@ static WEBP_INLINE int VP8GetSigned(VP8BitReader* const br, int v) {
 // -----------------------------------------------------------------------------
 // Bitreader for lossless format
 
+// maximum number of bits (inclusive) the bit-reader can handle:
+#define VP8L_MAX_NUM_BIT_READ 24
+
 typedef uint64_t vp8l_val_t;  // right now, this bit-reader can only use 64bit.
 
 typedef struct {
@@ -332,9 +339,10 @@ void VP8LInitBitReader(VP8LBitReader* const br,
 void VP8LBitReaderSetBuffer(VP8LBitReader* const br,
                             const uint8_t* const buffer, size_t length);
 
-// Reads the specified number of bits from Read Buffer.
-// Flags an error in case end_of_stream or n_bits is more than allowed limit.
-// Flags eos if this read attempt is going to cross the read buffer.
+// Reads the specified number of bits from read buffer.
+// Flags an error in case end_of_stream or n_bits is more than the allowed limit
+// of VP8L_MAX_NUM_BIT_READ (inclusive).
+// Flags eos_ if this read attempt is going to cross the read buffer.
 uint32_t VP8LReadBits(VP8LBitReader* const br, int n_bits);
 
 // Return the prefetched bits, so they can be looked up.

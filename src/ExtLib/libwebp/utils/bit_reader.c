@@ -35,6 +35,13 @@ void VP8InitBitReader(VP8BitReader* const br,
   br->eof_     = 0;
 }
 
+void VP8RemapBitReader(VP8BitReader* const br, ptrdiff_t offset) {
+  if (br->buf_ != NULL) {
+    br->buf_ += offset;
+    br->buf_end_ += offset;
+  }
+}
+
 const uint8_t kVP8Log2Range[128] = {
      7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4,
   3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
@@ -109,13 +116,11 @@ int32_t VP8GetSignedValue(VP8BitReader* const br, int bits) {
 //------------------------------------------------------------------------------
 // VP8LBitReader
 
-#define MAX_NUM_BIT_READ 25
-
 #define LBITS 64      // Number of bits prefetched.
 #define WBITS 32      // Minimum number of bytes needed after VP8LFillBitWindow.
 #define LOG8_WBITS 4  // Number of bytes needed to store WBITS bits.
 
-static const uint32_t kBitMask[MAX_NUM_BIT_READ] = {
+static const uint32_t kBitMask[VP8L_MAX_NUM_BIT_READ + 1] = {
   0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383, 32767,
   65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607, 16777215
 };
@@ -141,14 +146,24 @@ void VP8LInitBitReader(VP8LBitReader* const br,
   }
 }
 
+// Special version that assumes br->pos_ <= br_len_.
+static int IsEndOfStreamSpecial(const VP8LBitReader* const br) {
+  assert(br->pos_ <= br->len_);
+  return br->pos_ == br->len_ && br->bit_pos_ >= LBITS;
+}
+
+static int IsEndOfStream(const VP8LBitReader* const br) {
+  return (br->pos_ > br->len_) || IsEndOfStreamSpecial(br);
+}
+
 void VP8LBitReaderSetBuffer(VP8LBitReader* const br,
                             const uint8_t* const buf, size_t len) {
   assert(br != NULL);
   assert(buf != NULL);
   assert(len < 0xfffffff8u);   // can't happen with a RIFF chunk.
-  br->eos_ = (br->pos_ >= len);
   br->buf_ = buf;
   br->len_ = len;
+  br->eos_ = IsEndOfStream(br);
 }
 
 // If not at EOS, reload up to LBITS byte-by-byte
@@ -175,26 +190,20 @@ void VP8LFillBitWindow(VP8LBitReader* const br) {
     }
 #endif
     ShiftBytes(br);       // Slow path.
-    if (br->pos_ == br->len_ && br->bit_pos_ >= LBITS) {
-      br->eos_ = 1;
-    }
+    br->eos_ = IsEndOfStreamSpecial(br);
   }
 }
 
 uint32_t VP8LReadBits(VP8LBitReader* const br, int n_bits) {
   assert(n_bits >= 0);
   // Flag an error if end_of_stream or n_bits is more than allowed limit.
-  if (!br->eos_ && n_bits < MAX_NUM_BIT_READ) {
+  if (!br->eos_ && n_bits <= VP8L_MAX_NUM_BIT_READ) {
     const uint32_t val =
         (uint32_t)(br->val_ >> br->bit_pos_) & kBitMask[n_bits];
     const int new_bits = br->bit_pos_ + n_bits;
     br->bit_pos_ = new_bits;
     // If this read is going to cross the read buffer, set the eos flag.
-    if (br->pos_ == br->len_) {
-      if (new_bits >= LBITS) {
-        br->eos_ = 1;
-      }
-    }
+    br->eos_ = IsEndOfStreamSpecial(br);
     ShiftBytes(br);
     return val;
   } else {

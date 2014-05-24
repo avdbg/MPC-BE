@@ -28,6 +28,13 @@
 #include "avcodec.h"
 #include "version.h"
 
+#define REGISTER_HWACCEL(X, x)                                          \
+    {                                                                   \
+        extern AVHWAccel ff_##x##_hwaccel;                              \
+        if (CONFIG_##X##_HWACCEL)                                       \
+            av_register_hwaccel(&ff_##x##_hwaccel);                     \
+    }
+
 #define REGISTER_ENCODER(X, x)                                          \
     {                                                                   \
         extern AVCodec ff_##x##_encoder;                                \
@@ -49,6 +56,13 @@
         extern AVCodecParser ff_##x##_parser;                           \
         if (CONFIG_##X##_PARSER)                                        \
             av_register_codec_parser(&ff_##x##_parser);                 \
+    }
+
+#define REGISTER_BSF(X, x)                                              \
+    {                                                                   \
+        extern AVBitStreamFilter ff_##x##_bsf;                          \
+        if (CONFIG_##X##_BSF)                                           \
+            av_register_bitstream_filter(&ff_##x##_bsf);                \
     }
 
 void avcodec_register_all(void)
@@ -152,6 +166,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (MP2FLOAT, mp2float);
     REGISTER_DECODER (MP3FLOAT, mp3float);
     REGISTER_DECODER (NELLYMOSER, nellymoser);
+    REGISTER_DECODER(OPUS, opus);
     REGISTER_DECODER (RA_144, ra_144);
     REGISTER_DECODER (RA_288, ra_288);
     REGISTER_DECODER (RALF, ralf);
@@ -207,7 +222,7 @@ void avcodec_register_all(void)
 
     /* external libraries */
     REGISTER_DECODER (LIBOPENJPEG, libopenjpeg);
-    REGISTER_DECODER (LIBOPUS, libopus);
+/*  REGISTER_DECODER (LIBOPUS, libopus); */
     REGISTER_DECODER (LIBSPEEX, libspeex);
 /*  REGISTER_DECODER (LIBVPX_VP9, libvpx_vp9); */
 }

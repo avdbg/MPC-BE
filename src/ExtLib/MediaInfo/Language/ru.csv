@@ -911,10 +911,11 @@ SamplingRate;Частота
 Save;Сохранить
 ScanType;Тип развёртки
 ScanType_Original;Тип развёртки в оригинале
+ScanType_StoreMethod;
 ScanOrder;Порядок развёртки
 ScanOrder_Original;Порядок развёртки в оригинале
-ScanOrder_Stored;
-ScanOrder_StoredDisplayedInverted;
+ScanOrder_Stored;Сохранённый порядок развёртки
+ScanOrder_StoredDisplayedInverted;Порядок развёртки, сохранённый в обратном порядке
 ScanOrder_StoreMethod;
 ScreenplayBy;Сценарист
 Season;Сезон
@@ -947,6 +948,10 @@ Source_SamplingCount;Количество примеров оригинала
 Source_StreamSize;Размер потока оригинала
 Source_StreamSize_Encoded;Закодированный размер потока оригинала
 Standard;Стандарт вещания
+StoreMethod_InterleavedFields;
+StoreMethod_SeparatedFields;
+StoreMethod_SeparatedFields_1;
+StoreMethod_SeparatedFields_2;
 Stream;Поток
 Stream_MoreInfo;Дополнительная информация о потоке
 StreamCount;Кол-во потоков такого типа

@@ -549,7 +549,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_NAVIGATION, OnUpdateViewNavigation)
 
 	// Subtitle position
-	ON_COMMAND_RANGE(ID_SUB_POS_UP, ID_SUB_POS_RIGHT, OnSubtitlePos)
+	ON_COMMAND_RANGE(ID_SUB_POS_UP, IDS_SUB_POS_RESTORE, OnSubtitlePos)
 
 	ON_WM_WTSSESSION_CHANGE()
 END_MESSAGE_MAP()
@@ -938,6 +938,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	m_hStopNotifyRenderThreadEvent		= CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_hRefreshNotifyRenderThreadEvent	= CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_ExtSubPathsHandles.RemoveAll();
 	m_ExtSubPathsHandles.Add(m_hStopNotifyRenderThreadEvent);
 	m_ExtSubPathsHandles.Add(m_hRefreshNotifyRenderThreadEvent);
 
@@ -2844,7 +2845,7 @@ bool CMainFrame::GraphEventComplete()
 			if (s.fNextInDirAfterPlayback) {
 				NextMediaExist = SearchInDir(true);
 			}
-			if (!s.fNextInDirAfterPlayback || !(NextMediaExist>1)) {
+			if (!s.fNextInDirAfterPlayback || !(NextMediaExist > 1)) {
 				if (s.fRewind) {
 					SendMessage(WM_COMMAND, ID_PLAY_STOP);
 				} else {
@@ -4487,37 +4488,26 @@ void CMainFrame::OnStreamAudio(UINT nID)
 			if (SUCCEEDED(pSS->Count(&cStreamsS)) && cStreamsS > 0) {
 				for (int i = 0; i < (int)cStreamsS; i++) {
 					//iSel = 0;
-					AM_MEDIA_TYPE* pmt	= NULL;
-					DWORD dwFlags		= 0;
-					LCID lcid			= 0;
-					DWORD dwGroup		= 0;
-					WCHAR* pszName		= NULL;
-					if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					DWORD dwFlags = DWORD_MAX;
+					DWORD dwGroup = DWORD_MAX;
+					if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 						return;
 					}
 
 					if (dwGroup == 1) {
-						if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+						if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 							iSel = MixAS.GetCount();
 							//iSel = 1;
 						}
 						as.iFilter	= 1;
 						as.iIndex	= i;
-						as.iNum++;
 						as.iSel		= iSel;
+						as.iNum++;
 						MixAS.Add(as);
-					}
-
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					if (pszName) {
-						CoTaskMemFree(pszName);
 					}
 				}
 			}
 		}
-
 
 		CComQIPtr<IAMStreamSelect> pSSa = FindSwitcherFilter();
 		if (pSSa) {
@@ -4527,23 +4517,12 @@ void CMainFrame::OnStreamAudio(UINT nID)
 			if (SUCCEEDED(pSSa->Count(&cStreamsA)) && cStreamsA > 0) {
 				for (i; i < (int)cStreamsA; i++) {
 					//iSel = 0;
-					AM_MEDIA_TYPE* pmt	= NULL;
-					DWORD dwFlags		= 0;
-					LCID lcid			= 0;
-					DWORD dwGroup		= 0;
-					WCHAR* pszName		= NULL;
-					if (FAILED(pSSa->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					DWORD dwFlags = DWORD_MAX;
+					if (FAILED(pSSa->Info(i, NULL, &dwFlags, NULL, NULL, NULL, NULL, NULL))) {
 						return;
 					}
 
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					if (pszName) {
-						CoTaskMemFree(pszName);
-					}
-
-					if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+					if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 						//iSel = 1;
 						iSel = MixAS.GetCount();
 						for (size_t i = 0; i < MixAS.GetCount(); i++) {
@@ -4555,8 +4534,8 @@ void CMainFrame::OnStreamAudio(UINT nID)
 
 					as.iFilter	= 2;
 					as.iIndex	= i;
-					as.iNum++;
 					as.iSel		= iSel;
+					as.iNum++;
 					MixAS.Add(as);
 				}
 			}
@@ -4577,11 +4556,7 @@ void CMainFrame::OnStreamAudio(UINT nID)
 				}
 			}
 
-			AM_MEDIA_TYPE* pmt	= NULL;
-			DWORD dwFlags		= 0;
-			LCID lcid			= 0;
-			DWORD dwGroup		= 0;
-			WCHAR* pszName		= NULL;
+			WCHAR* pszName = NULL;
 
 			bool ExtStream = false;
 			if (iF == 1) { // Splitter Audio Tracks
@@ -4600,7 +4575,7 @@ void CMainFrame::OnStreamAudio(UINT nID)
 				}
 				pSS->Enable(nNewStream, AMSTREAMSELECTENABLE_ENABLE);
 
-				if (SUCCEEDED(pSS->Info(nNewStream, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+				if (SUCCEEDED(pSS->Info(nNewStream, NULL, NULL, NULL, NULL, &pszName, NULL, NULL))) {
 					CString	strMessage;
 					CString audio_stream = pszName;
 					int k = audio_stream.Find(_T("Audio - "));
@@ -4609,30 +4584,20 @@ void CMainFrame::OnStreamAudio(UINT nID)
 					}
 					strMessage.Format (ResStr(IDS_AUDIO_STREAM), audio_stream);
 					m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
-
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					if (pszName) {
-						CoTaskMemFree(pszName);
-					}
 				}
 			} else if (iF == 2) { // AudioSwitcher Audio Tracks
 
 				pSSa->Enable(nNewStream, AMSTREAMSELECTENABLE_ENABLE);
 
-				if (SUCCEEDED(pSSa->Info(nNewStream, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+				if (SUCCEEDED(pSSa->Info(nNewStream, NULL, NULL, NULL, NULL, &pszName, NULL, NULL))) {
 					CString	strMessage;
 					strMessage.Format (ResStr(IDS_AUDIO_STREAM), pszName);
 					m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
-
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					if (pszName) {
-						CoTaskMemFree(pszName);
-					}
 				}
+			}
+
+			if (pszName) {
+				CoTaskMemFree(pszName);
 			}
 		}
 	} else if (GetPlaybackMode() == PM_DVD) {
@@ -4670,24 +4635,18 @@ void CMainFrame::OnStreamSub(UINT nID)
 							DWORD cStreamsS = 0;
 							pSS->Count(&cStreamsS);
 							for (long i = 0; i < (long)cStreamsS; i++) {
-								DWORD dwFlags, dwGroup;
-								LCID lcid;
-								WCHAR* pszName = NULL;
+								DWORD dwFlags = DWORD_MAX;
+								DWORD dwGroup = DWORD_MAX;
 
-								if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-										|| !pszName) {
+								if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 									continue;
-								}
-
-								if (pszName) {
-									CoTaskMemFree(pszName);
 								}
 
 								if (dwGroup != 2) {
 									continue;
 								}
 
-								if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+								if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 									iSelected = selectedStream;
 								}
 
@@ -4715,14 +4674,14 @@ void CMainFrame::OnStreamSub(UINT nID)
 							DWORD cStreamsS = 0;
 							pSS->Count(&cStreamsS);
 							for (long i = 0; i < (long)cStreamsS; i++) {
-								DWORD dwFlags, dwGroup;
-								LCID lcid;
+								DWORD dwGroup = DWORD_MAX;
 
-								if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pName, NULL, NULL))
+								if (FAILED(pSS->Info(i, NULL, NULL, NULL, &dwGroup, &pName, NULL, NULL))
 										|| !pName) {
 									continue;
 								}
 
+								CString sub_stream(pName);
 								if (pName) {
 									CoTaskMemFree(pName);
 								}
@@ -4733,15 +4692,11 @@ void CMainFrame::OnStreamSub(UINT nID)
 
 								if (substream == iSelected) {
 									pSS->Enable(i, AMSTREAMSELECTENABLE_ENABLE);
-
-									if (SUCCEEDED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pName, NULL, NULL))) {
-										CString sub_stream(pName);
-										int k = sub_stream.Find(_T("Subtitle - "));
-										if (k >= 0) {
-											sub_stream = sub_stream.Right(sub_stream.GetLength() - k - 8);
-										}
-										strMessage.Format(ResStr(IDS_SUBTITLE_STREAM), sub_stream);
+									int k = sub_stream.Find(_T("Subtitle - "));
+									if (k >= 0) {
+										sub_stream = sub_stream.Right(sub_stream.GetLength() - k - 8);
 									}
+									strMessage.Format(ResStr(IDS_SUBTITLE_STREAM), sub_stream);
 
 									break;
 								}
@@ -4750,11 +4705,7 @@ void CMainFrame::OnStreamSub(UINT nID)
 							}
 						}
 
-						if (pName) {
-							CoTaskMemFree(pName);
-						}
 						m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
-
 						return;
 					}
 
@@ -4798,12 +4749,9 @@ void CMainFrame::OnStreamSub(UINT nID)
 				}
 
 				for (DWORD i = 0; i < cStreamsS; i++) {
-					AM_MEDIA_TYPE* pmt	= NULL;
-					DWORD dwFlags		= 0;
-					LCID lcid			= 0;
-					DWORD dwGroup		= 0;
-					WCHAR* pszName		= NULL;
-					if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					DWORD dwFlags = DWORD_MAX;
+					DWORD dwGroup = DWORD_MAX;
+					if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 						return;
 					}
 
@@ -4813,16 +4761,9 @@ void CMainFrame::OnStreamSub(UINT nID)
 						}
 						ss.iFilter	= 1;
 						ss.iIndex	= i;
-						ss.iNum++;
 						ss.iSel		= iSel;
+						ss.iNum++;
 						MixSS.Add(ss);
-					}
-
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
-					if (pszName) {
-						CoTaskMemFree(pszName);
 					}
 				}
 			}
@@ -4863,12 +4804,6 @@ void CMainFrame::OnStreamSub(UINT nID)
 				}
 			}
 
-			AM_MEDIA_TYPE* pmt	= NULL;
-			DWORD dwFlags		= 0;
-			LCID lcid			= 0;
-			DWORD dwGroup		= 0;
-			WCHAR* pszName		= NULL;
-
 			bool ExtStream = false;
 			if (iF == 1) { // Splitter Subtitle Tracks
 
@@ -4887,7 +4822,8 @@ void CMainFrame::OnStreamSub(UINT nID)
 				}
 				pSS->Enable(nNewStream, AMSTREAMSELECTENABLE_ENABLE);
 
-				if (SUCCEEDED(pSS->Info(nNewStream, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+				WCHAR* pszName = NULL;
+				if (SUCCEEDED(pSS->Info(nNewStream, NULL, NULL, NULL, NULL, &pszName, NULL, NULL))) {
 					CString	strMessage;
 					CString sub_stream = pszName;
 					int k = sub_stream.Find(_T("Subtitle - "));
@@ -4897,9 +4833,6 @@ void CMainFrame::OnStreamSub(UINT nID)
 					strMessage.Format (ResStr(IDS_SUBTITLE_STREAM), sub_stream);
 					m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
 
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
 					if (pszName) {
 						CoTaskMemFree(pszName);
 					}
@@ -4994,54 +4927,36 @@ void CMainFrame::OnOgmAudio(UINT nID)
 	DWORD cStreams = 0;
 	if (SUCCEEDED(pSS->Count(&cStreams)) && cStreams > 1) {
 		for (int i = 0; i < (int)cStreams; i++) {
-			AM_MEDIA_TYPE* pmt = NULL;
-			DWORD dwFlags = 0;
-			LCID lcid = 0;
-			DWORD dwGroup = 0;
-			WCHAR* pszName = NULL;
-			if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+			DWORD dwFlags = DWORD_MAX;
+			DWORD dwGroup = DWORD_MAX;
+			if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 				return;
 			}
 
 			if (dwGroup == 1) {
-				if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+				if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 					iSel = snds.GetCount();
 				}
 				snds.Add(i);
-			}
-
-			if (pmt) {
-				DeleteMediaType(pmt);
-			}
-			if (pszName) {
-				CoTaskMemFree(pszName);
 			}
 		}
 
 		int cnt = snds.GetCount();
 		if (cnt > 1 && iSel >= 0) {
-			int nNewStream = snds[(iSel+(nID==0?1:cnt-1))%cnt];
+			int nNewStream = snds[(iSel + (nID == 0 ? 1 : cnt -1 )) % cnt];
 			pSS->Enable(nNewStream, AMSTREAMSELECTENABLE_ENABLE);
 
-			AM_MEDIA_TYPE* pmt = NULL;
-			DWORD dwFlags = 0;
-			LCID lcid = 0;
-			DWORD dwGroup = 0;
 			WCHAR* pszName = NULL;
-
-			if (SUCCEEDED(pSS->Info(nNewStream, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+			if (SUCCEEDED(pSS->Info(nNewStream, NULL, NULL, NULL, NULL, &pszName, NULL, NULL))) {
 				CString	strMessage;
 				CString audio_stream = pszName;
 				int k = audio_stream.Find(_T("Audio - "));
-				if (k>=0) {
+				if (k >= 0) {
 					audio_stream = audio_stream.Right(audio_stream.GetLength() - k - 8);
 				}
 				strMessage.Format (ResStr(IDS_AUDIO_STREAM), audio_stream);
 				m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
 
-				if (pmt) {
-					DeleteMediaType(pmt);
-				}
 				if (pszName) {
 					CoTaskMemFree(pszName);
 				}
@@ -5069,55 +4984,40 @@ void CMainFrame::OnOgmSub(UINT nID)
 	DWORD cStreams = 0;
 	if (SUCCEEDED(pSS->Count(&cStreams)) && cStreams > 1) {
 		for (int i = 0; i < (int)cStreams; i++) {
-			AM_MEDIA_TYPE* pmt = NULL;
-			DWORD dwFlags = 0;
-			LCID lcid = 0;
-			DWORD dwGroup = 0;
-			WCHAR* pszName = NULL;
-			if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+			DWORD dwFlags = DWORD_MAX;
+			DWORD dwGroup = DWORD_MAX;
+			if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 				return;
 			}
 
 			if (dwGroup == 2) {
-				if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+				if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 					iSel = subs.GetCount();
 				}
 				subs.Add(i);
-			}
-
-			if (pmt) {
-				DeleteMediaType(pmt);
-			}
-			if (pszName) {
-				CoTaskMemFree(pszName);
 			}
 		}
 
 		int cnt = subs.GetCount();
 		if (cnt > 1 && iSel >= 0) {
-			int nNewStream = subs[(iSel+(nID==0?1:cnt-1))%cnt];
+			int nNewStream = subs[(iSel + (nID == 0 ? 1 : cnt - 1)) % cnt];
 			pSS->Enable(nNewStream, AMSTREAMSELECTENABLE_ENABLE);
 
-			AM_MEDIA_TYPE* pmt = NULL;
-			DWORD dwFlags = 0;
-			LCID lcid = 0;
-			DWORD dwGroup = 0;
+			LCID lcid = DWORD_MAX;
 			WCHAR* pszName = NULL;
-			if (SUCCEEDED(pSS->Info(nNewStream, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+			if (SUCCEEDED(pSS->Info(nNewStream, NULL, NULL, &lcid, NULL, &pszName, NULL, NULL))) {
 				CString lang;
 				CString	strMessage;
 				if (lcid == 0) {
 					lang = pszName;
 				} else {
 					int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, lang.GetBuffer(64), 64);
-					lang.ReleaseBufferSetLength(max(len-1, 0));
+					lang.ReleaseBufferSetLength(max(len - 1, 0));
 				}
 
-				strMessage.Format (ResStr(IDS_SUBTITLE_STREAM), lang);
+				strMessage.Format(ResStr(IDS_SUBTITLE_STREAM), lang);
 				m_OSD.DisplayMessage(OSD_TOPLEFT, strMessage);
-				if (pmt) {
-					DeleteMediaType(pmt);
-				}
+				
 				if (pszName) {
 					CoTaskMemFree(pszName);
 				}
@@ -6374,12 +6274,9 @@ void CMainFrame::SaveThumbnails(LPCTSTR fn)
 			const int MAX_FILE_SIZE_BUFFER = 65;
 			WCHAR szFileSize[MAX_FILE_SIZE_BUFFER];
 			StrFormatByteSizeW(size, szFileSize, MAX_FILE_SIZE_BUFFER);
-			CStringW strByteSize;
-			strByteSize.Format(_T("%I64d"), size);
-			for (int i = strByteSize.GetLength() - 3; i > 0; i -= 3) {
-				strByteSize.Insert(i, L'\x00A0');
-			}
-			fs.Format(ResStr(IDS_MAINFRM_58), szFileSize, strByteSize);
+			CString szByteSize;
+			szByteSize.Format(L"%I64d", size);
+			fs.Format(ResStr(IDS_MAINFRM_58), szFileSize, FormatNumber(szByteSize));
 		}
 
 		CStringW ar;
@@ -9490,12 +9387,12 @@ void CMainFrame::OnUpdatePlayAudio(CCmdUI* pCmdUI)
 	}
 	else*/
 	if (i >= 0 && pSS) {
-		DWORD flags = 0;
+		DWORD flags = DWORD_MAX;
 
 		if (SUCCEEDED(pSS->Info(i, NULL, &flags, NULL, NULL, NULL, NULL, NULL))) {
-			if (flags&AMSTREAMSELECTINFO_EXCLUSIVE) {
+			if (flags & AMSTREAMSELECTINFO_EXCLUSIVE) {
 				//pCmdUI->SetRadio(TRUE);
-			} else if (flags&AMSTREAMSELECTINFO_ENABLED) {
+			} else if (flags & AMSTREAMSELECTINFO_ENABLED) {
 				pCmdUI->SetCheck(TRUE);
 			} else {
 				pCmdUI->SetCheck(FALSE);
@@ -9798,8 +9695,8 @@ void CMainFrame::OnSelectStream(UINT nID)
 	DWORD iGr = 0;
 	DWORD cStreams;
 	if (!FAILED(pAMSS->Count(&cStreams))) {
-		DWORD dwGroup;
-		if (!FAILED(pAMSS->Info(nID-i, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
+		DWORD dwGroup = DWORD_MAX;
+		if (!FAILED(pAMSS->Info(nID - i, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
 			iGr = dwGroup;
 		}
 	}
@@ -9811,7 +9708,7 @@ void CMainFrame::OnSelectStream(UINT nID)
 			DWORD cStreamsA = 0;
 			if (SUCCEEDED(pSSA->Count(&cStreamsA)) && cStreamsA > 1) {
 				for (DWORD n = 1; n < cStreamsA; n++) {
-					DWORD flags = 0;
+					DWORD flags = DWORD_MAX;
 					if (SUCCEEDED(pSSA->Info(n, NULL, &flags, NULL, NULL, NULL, NULL, NULL))) {
 						if (flags & AMSTREAMSELECTINFO_EXCLUSIVE/* |flags&AMSTREAMSELECTINFO_ENABLED*/) {
 							bExternalTrack = true;
@@ -10104,6 +10001,13 @@ void CMainFrame::OnAfterplayback(UINT nID)
 			break;
 		case ID_AFTERPLAYBACK_NEXT:
 			s.fNextInDirAfterPlayback = true;
+			s.fNextInDirAfterPlaybackLooped = false;
+			s.fExitAfterPlayback = false;
+			osdMsg = ResStr(IDS_AFTERPLAYBACK_NEXT);
+			break;
+		case ID_AFTERPLAYBACK_NEXT_LOOPED:
+			s.fNextInDirAfterPlayback = true;
+			s.fNextInDirAfterPlaybackLooped = true;
 			s.fExitAfterPlayback = false;
 			osdMsg = ResStr(IDS_AFTERPLAYBACK_NEXT);
 			break;
@@ -10153,10 +10057,13 @@ void CMainFrame::OnUpdateAfterplayback(CCmdUI* pCmdUI)
 			fChecked = !!s.fExitAfterPlayback;
 			break;
 		case ID_AFTERPLAYBACK_NEXT:
-			fChecked = !!s.fNextInDirAfterPlayback;
+			fChecked = !!s.fNextInDirAfterPlayback && !s.fNextInDirAfterPlaybackLooped;
+			break;
+		case ID_AFTERPLAYBACK_NEXT_LOOPED:
+			fChecked = !!s.fNextInDirAfterPlayback && !!s.fNextInDirAfterPlaybackLooped;
 			break;
 		case ID_AFTERPLAYBACK_EVERYTIMEDONOTHING:
-			fChecked = (!s.fExitAfterPlayback) && (!s.fNextInDirAfterPlayback);
+			fChecked = !s.fExitAfterPlayback && !s.fNextInDirAfterPlayback;
 			break;
 	}
 
@@ -10465,17 +10372,10 @@ void CMainFrame::OnNavMixStreamSubtitleSelectSubMenu(UINT id, DWORD dwSelGroup)
 						}
 
 						for (int m = 0, j = cStreams; m < j; m++) {
-							DWORD dwFlags, dwGroup;
-							LCID lcid;
-							WCHAR* pszName = NULL;
+							DWORD dwGroup = DWORD_MAX;
 
-							if (FAILED(pSS->Info(m, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-									|| !pszName) {
+							if (FAILED(pSS->Info(m, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
 								continue;
-							}
-
-							if (pszName) {
-								CoTaskMemFree(pszName);
 							}
 
 							if (dwGroup != 2) {
@@ -10516,17 +10416,10 @@ void CMainFrame::OnNavMixStreamSubtitleSelectSubMenu(UINT id, DWORD dwSelGroup)
 				}
 
 				for (DWORD m = 0, j = cStreams; m < j; m++) {
-					DWORD dwFlags, dwGroup;
-					LCID lcid;
-					WCHAR* pszName = NULL;
+					DWORD dwGroup = DWORD_MAX;
 
-					if (FAILED(pSS->Info(m, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-							|| !pszName) {
+					if (FAILED(pSS->Info(m, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
 						continue;
-					}
-
-					if (pszName) {
-						CoTaskMemFree(pszName);
 					}
 
 					if (dwGroup != 2) {
@@ -11398,6 +11291,10 @@ void CMainFrame::OnSubtitlePos(UINT nID)
 				break;
 			case ID_SUB_POS_RIGHT:
 				s.m_RenderersSettings.nShiftPos.x++;
+				break;
+			case ID_SUB_POS_RESTORE:
+				s.m_RenderersSettings.nShiftPos.x = 0;
+				s.m_RenderersSettings.nShiftPos.y = 0;
 				break;
 		}
 
@@ -13434,7 +13331,6 @@ void CMainFrame::SetupChapters()
 						str.Format(IDS_AG_CHAPTER, i + 1);
 						m_pCB->ChapAppend(rt, str);
 					}
-					vob.Close();
 				}
 			}
 		}
@@ -13755,12 +13651,9 @@ void CMainFrame::OpenCustomizeGraph()
 				DWORD cnt = 0;
 				pSS->Count(&cnt);
 				for (DWORD i = 0; i < cnt; i++) {
-					AM_MEDIA_TYPE* pmt = NULL;
-					DWORD dwFlags = 0;
-					LCID lcid = 0;
-					DWORD dwGroup = 0;
+					LCID lcid = DWORD_MAX;
 					WCHAR* pszName = NULL;
-					if (SUCCEEDED(pSS->Info((long)i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					if (SUCCEEDED(pSS->Info((long)i, NULL, NULL, &lcid, NULL, &pszName, NULL, NULL))) {
 						CStringW name(pszName), sound(ResStr(IDS_AG_SOUND)), subtitle(L"Subtitle");
 
 						if (idAudio != (LCID)-1 && (idAudio&0x3ff) == (lcid&0x3ff) // sublang seems to be zeroed out in ogm...
@@ -13779,10 +13672,7 @@ void CMainFrame::OpenCustomizeGraph()
 								idSub = (LCID)-1;
 							}
 						}
-
-						if (pmt) {
-							DeleteMediaType(pmt);
-						}
+						
 						if (pszName) {
 							CoTaskMemFree(pszName);
 						}
@@ -14178,27 +14068,26 @@ void CMainFrame::OpenSetupAudioStream()
 
 		CComQIPtr<IAMStreamSelect> pSS = m_pMainSourceFilter;
 		if (pSS) {
-			CComQIPtr<ITrackInfo> pInfo = pSS;
+			//CComQIPtr<ITrackInfo> pInfo = pSS;
 			DWORD cStreamsS = 0;
 			if (SUCCEEDED(pSS->Count(&cStreamsS)) && cStreamsS > 0) {
 				for (int i = 0; i < (int)cStreamsS; i++) {
 					//iSel = 0;
-					AM_MEDIA_TYPE* pmt	= NULL;
-					DWORD dwFlags		= 0;
-					LCID lcid			= 0;
-					DWORD dwGroup		= 0;
-					WCHAR* pszName		= NULL;
-					if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					DWORD dwFlags	= DWORD_MAX;
+					DWORD dwGroup	= DWORD_MAX;
+					WCHAR* pszName	= NULL;
+					if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, &dwGroup, &pszName, NULL, NULL))) {
 						continue;
 					}
 
 					if (dwGroup == 1) {
-						if (dwFlags&(AMSTREAMSELECTINFO_ENABLED|AMSTREAMSELECTINFO_EXCLUSIVE)) {
+						if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 							iSel = MixAS.GetCount();
 							//iSel = 1;
 						}
 
 						as.forced = as.def = false;
+						/*
 						if (pInfo) {
 							TrackElement TrackInfo;
 							TrackInfo.Size = sizeof(TrackInfo);
@@ -14207,6 +14096,7 @@ void CMainFrame::OpenSetupAudioStream()
 								as.forced	= !!TrackInfo.FlagForced;
 							}
 						}
+						*/
 
 						as.iFilter	= 1;
 						as.iIndex	= i;
@@ -14216,9 +14106,6 @@ void CMainFrame::OpenSetupAudioStream()
 						MixAS.Add(as);
 					}
 
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
 					if (pszName) {
 						CoTaskMemFree(pszName);
 					}
@@ -14229,6 +14116,7 @@ void CMainFrame::OpenSetupAudioStream()
 		CComQIPtr<IAMStreamSelect> pSSa = FindSwitcherFilter();
 		if (pSSa) {
 
+			/*
 			UINT maxAudioTrack = 0;
 			CComQIPtr<ITrackInfo> pInfo = FindFilter(__uuidof(CMatroskaSourceFilter), m_pGB);
 			if (!pInfo) {
@@ -14243,22 +14131,21 @@ void CMainFrame::OpenSetupAudioStream()
 					}
 				}
 			}
+			*/
 
 			DWORD cStreamsA = 0;
 			int i = MixAS.GetCount() > 0 ? 1 : 0;
 			if (SUCCEEDED(pSSa->Count(&cStreamsA)) && cStreamsA > 0) {
 				for (i; i < (int)cStreamsA; i++) {
 					//iSel = 0;
-					AM_MEDIA_TYPE* pmt	= NULL;
-					DWORD dwFlags		= 0;
-					LCID lcid			= 0;
-					DWORD dwGroup		= 0;
-					WCHAR* pszName		= NULL;
-					if (FAILED(pSSa->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+					DWORD dwFlags	= DWORD_MAX;
+					WCHAR* pszName	= NULL;
+					if (FAILED(pSSa->Info(i, NULL, &dwFlags, NULL, NULL, &pszName, NULL, NULL))) {
 						continue;
 					}
 
 					as.forced = as.def = false;
+					/*
 					UINT l = i + 1;
 					if (pInfo && l <= maxAudioTrack) {
 						TrackElement TrackInfo;
@@ -14268,8 +14155,9 @@ void CMainFrame::OpenSetupAudioStream()
 							as.forced	= !!TrackInfo.FlagForced;
 						}
 					}
+					*/
 
-					if (dwFlags&(AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
+					if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
 						//iSel = 1;
 						iSel = MixAS.GetCount();
 						for (size_t i = 0; i < MixAS.GetCount(); i++) {
@@ -14286,10 +14174,6 @@ void CMainFrame::OpenSetupAudioStream()
 					as.Name		= CString(pszName);
 					as.ExtAudio	= extAudioList.Find(as.Name) != NULL;
 					MixAS.Add(as);
-
-					if (pmt) {
-						DeleteMediaType(pmt);
-					}
 
 					if (pszName) {
 						CoTaskMemFree(pszName);
@@ -14320,16 +14204,19 @@ void CMainFrame::OpenSetupAudioStream()
 			bool bLangMatch	= false;
 			size_t bLangIdx	= 0;
 
-			CStringW alo = s.strAudiosLanguageOrder;
-			if (alo.IsEmpty()) {
-				alo = _T("forced default");
-			} else {
-				alo.Replace(_T("[fc]"), _T("forced"));
-				alo.Replace(_T("[def]"), _T("default"));
+			CString alo = s.strAudiosLanguageOrder;
+			alo.Replace(L"[fc]", L"forced");
+			alo.Replace(L"[def]", L"default");
+			if (alo.Find(L"forced") == -1) {
+				alo.Append(L" forced");
 			}
+			if (alo.Find(L"default") == -1) {
+				alo.Append(L" default");
+			}
+			alo.Trim();
 
 			int tPos = 0;
-			CStringW lang = alo.Tokenize(_T(",; "), tPos);
+			CString lang = alo.Tokenize(L",; ", tPos);
 
 			if (s.fPrioritizeExternalAudio && extAudioList.GetCount() > 0 && pSSa) {
 				while (tPos != -1 && !bLangMatch) {
@@ -14350,7 +14237,7 @@ void CMainFrame::OpenSetupAudioStream()
 						while (pos) {
 							CString pattern = sl.GetNext(pos);
 
-							if ((MixAS[iIndex].forced && pattern == _T("forced")) || (MixAS[iIndex].def && pattern == _T("default"))) {
+							if ((MixAS[iIndex].forced && pattern == L"forced") || (MixAS[iIndex].def && pattern == L"default")) {
 								nLangMatch++;
 								continue;
 							}
@@ -14444,22 +14331,151 @@ void CMainFrame::OpenSetupAudioStream()
 	*/
 }
 
-void CMainFrame::SubFlags(CString strname, bool* forced, bool* def)
+void CMainFrame::SubFlags(CString strname, bool& forced, bool& def)
 {
 	strname.Remove(' ');
-	if (strname.Right(16).MakeLower() == _T("[default,forced]")) {
-		*def		= true;
-		*forced	= true;
-	} else if (strname.Right(9).MakeLower() == _T("[default]")) {
-		*def		= true;
-		*forced	= false;
-	} else if (strname.Right(8).MakeLower() == _T("[forced]")) {
-		*def		= false;
-		*forced	= true;
+	if (strname.Right(16).MakeLower() == L"[default,forced]") {
+		def		= true;
+		forced	= true;
+	} else if (strname.Right(9).MakeLower() == L"[default]") {
+		def		= true;
+		forced	= false;
+	} else if (strname.Right(8).MakeLower() == L"[forced]") {
+		def		= false;
+		forced	= true;
 	} else {
-		*def		= false;
-		*forced	= false;
+		def		= false;
+		forced	= false;
 	}
+}
+
+size_t CMainFrame::GetSubSelIdx()
+{
+	if (b_UseVSFilter) {
+		size_t SelectedLanguage = 0;
+		/*
+		CComQIPtr<IDirectVobSub> pDVS = GetVSFilter();
+		if (pDVS) {
+			int nLangs;
+			if (SUCCEEDED(pDVS->get_LanguageCount(&nLangs)) && nLangs) {
+				pDVS->get_SelectedLanguage(&SelectedLanguage);
+			}
+		}
+		*/
+		return SelectedLanguage;
+	}
+
+	AppSettings& s	= AfxGetAppSettings();
+	CString slo		= s.strSubtitlesLanguageOrder;
+	slo.Replace(L"[fc]", L"forced");
+	slo.Replace(L"[def]", L"default");
+	if (slo.Find(L"forced") == -1) {
+		slo.Append(L" forced");
+	}
+	if (slo.Find(L"default") == -1) {
+		slo.Append(L" default");
+	}
+	slo.Trim();
+
+	bool bLangMatch	= false;
+	bool extsubpri	= s.fPrioritizeExternalSubtitles;
+	size_t cnt		= subarray.GetCount();
+
+	if (extsubpri && cnt > 1) { // try external sub ...
+		size_t bLangIdx	= 0;
+		int tPos = 0;
+		CString lang = slo.Tokenize(_T(",; "), tPos);
+		while (tPos != -1 && !bLangMatch) {
+			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
+				if (!subarray[iIndex].Extsub) {
+					continue;
+				}
+				CString name(subarray[iIndex].lang);
+				name.MakeLower();
+				lang.MakeLower();
+
+				CAtlList<CString> sl;
+				Explode(lang, sl, '|');
+				POSITION pos = sl.GetHeadPosition();
+
+				int nLangMatch = 0;
+				while (pos) {
+					CString pattern = sl.GetNext(pos);
+
+					if ((subarray[iIndex].forced && pattern == L"forced") || (subarray[iIndex].def && pattern == L"default")) {
+						nLangMatch++;
+						continue;
+					}
+
+					if (name.Find(pattern) >= 0) {
+						nLangMatch++;
+					}
+ 				}
+
+				if (nLangMatch == sl.GetCount()) {
+					bLangIdx	= iIndex;
+					bLangMatch	= true;
+					break;
+ 				}
+ 			}
+			lang = slo.Tokenize(_T(",; "), tPos);
+ 		}
+
+		if (bLangMatch) {
+			return bLangIdx;
+ 		} else {
+			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
+				if (subarray[iIndex].Extsub) {
+					return iIndex;
+				}
+			}
+		}
+	}
+
+	if (cnt > 1) { // try all sub ...
+		size_t bLangIdx = 0;
+		int tPos = 0;
+		CString lang = slo.Tokenize(_T(",; "), tPos);
+		while (tPos != -1 && !bLangMatch) {
+			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
+
+				CString name(subarray[iIndex].lang);
+				name.MakeLower();
+				lang.MakeLower();
+
+				CAtlList<CString> sl;
+				Explode(lang, sl, '|');
+				POSITION pos = sl.GetHeadPosition();
+
+				int nLangMatch = 0;
+				while (pos) {
+					CString pattern = sl.GetNext(pos);
+
+					if ((subarray[iIndex].forced && pattern == L"forced") || (subarray[iIndex].def && pattern == L"default")) {
+						nLangMatch++;
+						continue;
+					}
+
+					if (name.Find(pattern) >= 0) {
+						nLangMatch++;
+					}
+				}
+
+				if (nLangMatch == sl.GetCount()) {
+					bLangIdx	= iIndex;
+					bLangMatch	= true;
+					break;
+				}
+ 			}
+			lang = slo.Tokenize(_T(",; "), tPos);
+ 		}
+
+		if (bLangMatch) {
+			return bLangIdx;
+		}
+ 	}
+
+	return 0;
 }
 
 void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
@@ -14522,16 +14538,16 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 				}
 
 				for (DWORD i = 0, j = cStreams; i < j; i++) {
-					DWORD dwFlags, dwGroup;
-					LCID lcid;
-					WCHAR* pName = NULL;
+					DWORD dwFlags	= DWORD_MAX;
+					DWORD dwGroup	= DWORD_MAX;
+					LCID lcid		= DWORD_MAX;
+					WCHAR* pName	= NULL;
 
-					if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pName, NULL, NULL))	|| !pName) {
+					if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pName, NULL, NULL)) || !pName) {
 						continue;
 					}
 
 					if (dwGroup == 2) {
-
 						subIndex++;
 
 						CString lang;
@@ -14539,7 +14555,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 							lang = pName;
 						} else {
 							int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, lang.GetBuffer(64), 64);
-							lang.ReleaseBufferSetLength(max(len-1, 0));
+							lang.ReleaseBufferSetLength(max(len - 1, 0));
 						}
 
 						UINT flags = MF_BYCOMMAND | MF_STRING | MF_ENABLED;
@@ -14553,17 +14569,17 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 						substream.iIndex	= i;
 
 						bool Forced, Def;
-						SubFlags(lang, &Forced, &Def);
+						SubFlags(lang, Forced, Def);
 
 						substream.lang		= CString(pName);
 						substream.forced	= Forced;
 						substream.def		= Def;
 
 						subarray.Add(substream);
-
-						if (pName) {
-							CoTaskMemFree(pName);
-						}
+					}
+					
+					if (pName) {
+						CoTaskMemFree(pName);
 					}
 				}
 			}
@@ -14592,7 +14608,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 						lang = CString(pName);
 					} else {
 						int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, lang.GetBuffer(64), 64);
-						lang.ReleaseBufferSetLength(max(len-1, 0));
+						lang.ReleaseBufferSetLength(max(len - 1, 0));
 					}
 
 					substream.Extsub	= false;
@@ -14601,7 +14617,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 					substream.iIndex	= tPos;
 
 					bool Forced, Def;
-					SubFlags(lang, &Forced, &Def);
+					SubFlags(lang, Forced, Def);
 
 					substream.lang		= CString(pName);
 					substream.forced	= Forced;
@@ -14655,7 +14671,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 					substream.iIndex	= tPos+ (extcnt<0 ? 0 : extcnt+1);
 
 					bool Forced, Def;
-					SubFlags(name, &Forced, &Def);
+					SubFlags(name, Forced, Def);
 
 					substream.lang		= name;
 					substream.forced	= 0;
@@ -14705,131 +14721,6 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 			}
 		}
 	}
-}
-
-size_t CMainFrame::GetSubSelIdx()
-{
-	if (b_UseVSFilter) {
-		size_t SelectedLanguage = 0;
-		/*
-		CComQIPtr<IDirectVobSub> pDVS = GetVSFilter();
-		if (pDVS) {
-			int nLangs;
-			if (SUCCEEDED(pDVS->get_LanguageCount(&nLangs)) && nLangs) {
-				pDVS->get_SelectedLanguage(&SelectedLanguage);
-			}
-		}
-		*/
-		return SelectedLanguage;
-	}
-
-	bool extsubpri	= AfxGetAppSettings().fPrioritizeExternalSubtitles;
-	size_t cnt		= subarray.GetCount();
-	CStringW slo	= AfxGetAppSettings().strSubtitlesLanguageOrder;
-	bool bLangMatch	= false;
-
-	if (slo.IsEmpty()) {
-		slo = _T("forced default");
-	} else {
-		slo.Replace(_T("[fc]"), _T("forced"));
-		slo.Replace(_T("[def]"), _T("default"));
-	}
-
-	if (extsubpri && cnt > 1) { // try external sub ...
-		size_t bLangIdx	= 0;
-		int tPos = 0;
-		CStringW lang = slo.Tokenize(_T(",; "), tPos);
-		while (tPos != -1 && !bLangMatch) {
-			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
-				if (!subarray[iIndex].Extsub) {
-					continue;
-				}
-				CString name(subarray[iIndex].lang);
-				name.MakeLower();
-				lang.MakeLower();
-
-				CAtlList<CString> sl;
-				Explode(lang, sl, '|');
-				POSITION pos = sl.GetHeadPosition();
-
-				int nLangMatch = 0;
-				while (pos) {
-					CString pattern = sl.GetNext(pos);
-
-					if ((subarray[iIndex].forced && pattern == _T("forced")) || (subarray[iIndex].def && pattern == _T("default"))) {
-						nLangMatch++;
-						continue;
-					}
-
-					if (name.Find(pattern) >= 0) {
-						nLangMatch++;
-					}
- 				}
-
-				if (nLangMatch == sl.GetCount()) {
-					bLangIdx	= iIndex;
-					bLangMatch	= true;
-					break;
- 				}
- 			}
-			lang = slo.Tokenize(_T(",; "), tPos);
- 		}
-
-		if (bLangMatch) {
-			return bLangIdx;
- 		} else {
-			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
-				if (subarray[iIndex].Extsub) {
-					return iIndex;
-				}
-			}
-		}
-	}
-
-	if (cnt > 1) { // try all sub ...
-		size_t bLangIdx = 0;
-		int tPos = 0;
-		CStringW lang = slo.Tokenize(_T(",; "), tPos);
-		while (tPos != -1 && !bLangMatch) {
-			for (size_t iIndex = 0; iIndex < cnt; iIndex++) {
-
-				CString name(subarray[iIndex].lang);
-				name.MakeLower();
-				lang.MakeLower();
-
-				CAtlList<CString> sl;
-				Explode(lang, sl, '|');
-				POSITION pos = sl.GetHeadPosition();
-
-				int nLangMatch = 0;
-				while (pos) {
-					CString pattern = sl.GetNext(pos);
-
-					if ((subarray[iIndex].forced && pattern == _T("forced")) || (subarray[iIndex].def && pattern == _T("default"))) {
-						nLangMatch++;
-						continue;
-					}
-
-					if (name.Find(pattern) >= 0) {
-						nLangMatch++;
-					}
-				}
-
-				if (nLangMatch == sl.GetCount()) {
-					bLangIdx	= iIndex;
-					bLangMatch	= true;
-					break;
-				}
- 			}
-			lang = slo.Tokenize(_T(",; "), tPos);
- 		}
-
-		if (bLangMatch) {
-			return bLangIdx;
-		}
- 	}
-
-	return 0;
 }
 
 void __stdcall MadVRExclusiveModeCallback(LPVOID context, int event)
@@ -15358,12 +15249,12 @@ static int compare(const void* arg1, const void* arg2)
 
 int CMainFrame::SearchInDir(bool DirForward)
 {
-	CAtlList<CString> Play_sl;
 	// Use CStringElementTraitsI so that the search is case insensitive
 	CAtlList<CString, CStringElementTraitsI<CString>> sl;
 	CAtlArray<fileName> f_array;
 
-	CMediaFormats& mf = AfxGetAppSettings().m_Formats;
+	AppSettings& s = AfxGetAppSettings();
+	CMediaFormats& mf = s.m_Formats;
 
 	CString dir		= AddSlash(GetFolderOnly(m_LastOpenFile));
 	CString mask	= dir + L"*.*";
@@ -15388,7 +15279,7 @@ int CMainFrame::SearchInDir(bool DirForward)
 	}
 
 	if (f_array.GetCount() == 1) {
-		return true;
+		return 1;
 	}
 
 	qsort(f_array.GetData(), f_array.GetCount(), sizeof(fileName), compare);
@@ -15398,22 +15289,32 @@ int CMainFrame::SearchInDir(bool DirForward)
 
 	POSITION Pos = sl.Find(m_LastOpenFile);
 	if (Pos == NULL) {
-		return false;
+		return 0;
 	}
 
 	if (DirForward) {
 		if (Pos == sl.GetTailPosition()) {
-			return false;
+			if (s.fNextInDirAfterPlaybackLooped) {
+				Pos = sl.GetHeadPosition();
+			} else {
+				return 0;
+			}
+		} else {
+			sl.GetNext(Pos);
 		}
-		sl.GetNext(Pos);
-
 	} else {
 		if (Pos == sl.GetHeadPosition()) {
-			return false;
+			if (s.fNextInDirAfterPlaybackLooped) {
+				Pos = sl.GetTailPosition();
+			} else {
+				return 0;
+			}
+		} else {
+			sl.GetPrev(Pos);
 		}
-		sl.GetPrev(Pos);
 	}
 
+	CAtlList<CString> Play_sl;
 	Play_sl.AddHead(sl.GetAt(Pos));
 	m_wndPlaylistBar.Open(Play_sl, false);
 	OpenCurPlaylistItem();
@@ -15614,11 +15515,10 @@ void CMainFrame::SetupFiltersSubMenu()
 			CComQIPtr<IAMStreamSelect> pSS = pBF;
 			if (pSS) {
 				DWORD nStreams = 0;
-				DWORD flags = (DWORD)-1;
-				DWORD group = (DWORD)-1;
-				DWORD prevgroup = (DWORD)-1;
-				LCID lcid;
-				WCHAR* wname = NULL;
+				DWORD flags		= (DWORD)-1;
+				DWORD group		= (DWORD)-1;
+				DWORD prevgroup	= (DWORD)-1;
+				WCHAR* wname	= NULL;
 				CComPtr<IUnknown> pObj, pUnk;
 
 				pSS->Count(&nStreams);
@@ -15632,9 +15532,9 @@ void CMainFrame::SetupFiltersSubMenu()
 				for (DWORD i = 0; i < nStreams; i++, pObj = NULL, pUnk = NULL) {
 					m_ssarray.Add(pSS);
 
-					flags = group = 0;
+					flags = group = DWORD_MAX;
 					wname = NULL;
-					pSS->Info(i, NULL, &flags, &lcid, &group, &wname, &pObj, &pUnk);
+					pSS->Info(i, NULL, &flags, NULL, &group, &wname, &pObj, &pUnk);
 
 					if (group != prevgroup && idl > idlstart) {
 						subMenu.AppendMenu(MF_SEPARATOR | MF_ENABLED);
@@ -15953,8 +15853,9 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 						UINT baseid = id;
 
 						for (int i = 0, j = cStreams; i < j; i++) {
-							DWORD dwFlags, dwGroup;
-							LCID lcid;
+							DWORD dwFlags	= DWORD_MAX;
+							DWORD dwGroup	= DWORD_MAX;
+							LCID lcid		= DWORD_MAX;
 							WCHAR* pszName = NULL;
 
 							if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
@@ -16050,9 +15951,10 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 				}
 
 				for (DWORD i = 0, j = cStreams; i < j; i++) {
-					DWORD dwFlags, dwGroup;
-					LCID lcid;
-					WCHAR* pszName = NULL;
+					DWORD dwFlags	= DWORD_MAX;
+					DWORD dwGroup	= DWORD_MAX;
+					LCID lcid		= DWORD_MAX;
+					WCHAR* pszName	= NULL;
 
 					if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
 							|| !pszName) {
@@ -16407,9 +16309,10 @@ void CMainFrame::SetupNavStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSelGr
 	DWORD dwPrevGroup = (DWORD)-1;
 
 	for (int i = 0, j = cStreams; i < j; i++) {
-		DWORD dwFlags, dwGroup;
-		LCID lcid;
-		WCHAR* pszName = NULL;
+		DWORD dwFlags	= DWORD_MAX;
+		DWORD dwGroup	= DWORD_MAX;
+		LCID lcid		= DWORD_MAX;
+		WCHAR* pszName	= NULL;
 
 		if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
 				|| !pszName) {
@@ -16479,17 +16382,10 @@ void CMainFrame::OnNavStreamSelectSubMenu(UINT id, DWORD dwSelGroup)
 	}
 
 	for (int i = 0, j = cStreams; i < j; i++) {
-		DWORD dwFlags, dwGroup;
-		LCID lcid;
-		WCHAR* pszName = NULL;
+		DWORD dwGroup = DWORD_MAX;
 
-		if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-				|| !pszName) {
+		if (FAILED(pSS->Info(i, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
 			continue;
-		}
-
-		if (pszName) {
-			CoTaskMemFree(pszName);
 		}
 
 		if (dwGroup != dwSelGroup) {
@@ -16519,9 +16415,9 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 		DWORD cStreamsA = 0;
 		if (SUCCEEDED(pSSA->Count(&cStreamsA)) && cStreamsA > 1) {
 			for (DWORD n = 1; n < cStreamsA; n++) {
-				DWORD flags = 0;
-				if (SUCCEEDED(pSSA->Info(n, NULL, &flags, NULL, NULL, NULL, NULL, NULL))) {
-					if (flags&AMSTREAMSELECTINFO_EXCLUSIVE/* ||flags&AMSTREAMSELECTINFO_ENABLED*/) {
+				DWORD dwFlags = DWORD_MAX;
+				if (SUCCEEDED(pSSA->Info(n, NULL, &dwFlags, NULL, NULL, NULL, NULL, NULL))) {
+					if (dwFlags & AMSTREAMSELECTINFO_EXCLUSIVE/* ||flags&AMSTREAMSELECTINFO_ENABLED*/) {
 						bSetCheck = false;
 						break;
 					}
@@ -16541,8 +16437,9 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 				DWORD dwPrevGroup = (DWORD)-1;
 
 				for (int i = 0, j = cStreams; i < j; i++) {
-					DWORD dwFlags, dwGroup;
-					LCID lcid;
+					DWORD dwFlags	= DWORD_MAX;
+					DWORD dwGroup	= DWORD_MAX;
+					LCID lcid		= DWORD_MAX;
 					WCHAR* pszName = NULL;
 
 					if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
@@ -16610,13 +16507,14 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 				sp = true;
 			}
 			for (i; i < cStreamsA; i++) {
-				WCHAR* pName = NULL;
-				DWORD dwFlags;
+				WCHAR* pName	= NULL;
+				DWORD dwFlags	= DWORD_MAX;
 				if (FAILED(pSSA->Info(i, NULL, &dwFlags, NULL, NULL, &pName, NULL, NULL))) {
 					break;
 				}
 
 				CString name(pName);
+				CoTaskMemFree(pName);
 
 				UINT flags = MF_BYCOMMAND | MF_STRING | MF_ENABLED;
 				if (dwFlags) {
@@ -16646,8 +16544,6 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 
 				name.Replace(_T("&"), _T("&&"));
 				pSub->AppendMenu(flags, id++, name);
-
-				CoTaskMemFree(pName);
 			}
 			sep = false;
 		}
@@ -16758,17 +16654,11 @@ void CMainFrame::OnNavMixStreamSelectSubMenu(UINT id, DWORD dwSelGroup)
 			DWORD cStreams = 0;
 			if (!FAILED(pSS->Count(&cStreams))) {
 				for (int m = 0, j = cStreams; m < j; m++) {
-					DWORD dwFlags, dwGroup;
-					LCID lcid;
-					WCHAR* pszName = NULL;
+					DWORD dwFlags = DWORD_MAX;
+					DWORD dwGroup = DWORD_MAX;
 
-					if (FAILED(pSS->Info(m, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-							|| !pszName) {
+					if (FAILED(pSS->Info(m, NULL, &dwFlags, NULL, &dwGroup, NULL, NULL, NULL))) {
 						continue;
-					}
-
-					if (pszName) {
-						CoTaskMemFree(pszName);
 					}
 
 					if (dwGroup != dwSelGroup) {
@@ -16783,9 +16673,9 @@ void CMainFrame::OnNavMixStreamSelectSubMenu(UINT id, DWORD dwSelGroup)
 							DWORD cStreamsA = 0;
 							if (SUCCEEDED(pSSA->Count(&cStreamsA)) && cStreamsA > 1) {
 								for (DWORD n = 1; n < cStreamsA; n++) {
-									DWORD flags = 0;
+									DWORD flags = DWORD_MAX;
 									if (SUCCEEDED(pSSA->Info(n, NULL, &flags, NULL, NULL, NULL, NULL, NULL))) {
-										if (flags&AMSTREAMSELECTINFO_EXCLUSIVE/* ||flags&AMSTREAMSELECTINFO_ENABLED*/) {
+										if (flags & AMSTREAMSELECTINFO_EXCLUSIVE/* ||flags&AMSTREAMSELECTINFO_ENABLED*/) {
 											bExternalTrack = true;
 											break;
 										}
@@ -19044,12 +18934,9 @@ void CMainFrame::SendAudioTracksToApi()
 		if (pSS && SUCCEEDED(pSS->Count(&cStreams))) {
 			int currentStream = -1;
 			for (int i = 0; i < (int)cStreams; i++) {
-				AM_MEDIA_TYPE* pmt = NULL;
-				DWORD dwFlags = 0;
-				LCID lcid = 0;
-				DWORD dwGroup = 0;
-				WCHAR* pszName = NULL;
-				if (FAILED(pSS->Info(i, &pmt, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))) {
+				DWORD dwFlags	= DWORD_MAX;
+				WCHAR* pszName	= NULL;
+				if (FAILED(pSS->Info(i, NULL, &dwFlags, NULL, NULL, &pszName, NULL, NULL))) {
 					return;
 				}
 				if (dwFlags == AMSTREAMSELECTINFO_EXCLUSIVE) {
@@ -19061,9 +18948,7 @@ void CMainFrame::SendAudioTracksToApi()
 				}
 				name.Replace(L"|", L"\\|");
 				strAudios.AppendFormat(L"%s", name);
-				if (pmt) {
-					DeleteMediaType(pmt);
-				}
+
 				if (pszName) {
 					CoTaskMemFree(pszName);
 				}
@@ -20336,6 +20221,10 @@ DWORD CMainFrame::NotifyRenderThread()
 					ReloadSubtitle();
 				}
 			}
+		} else {
+			DbgLog((LOG_TRACE, 3, L"CMainFrame::NotifyRenderThread() : %s", GetLastErrorMsg(L"WaitForMultipleObjects")));
+			ASSERT(FALSE);
+			break;
 		}
 	}
 
@@ -20349,17 +20238,9 @@ int CMainFrame::GetStreamCount(DWORD dwSelGroup)
 		DWORD cStreams;
 		if (!FAILED(pSS->Count(&cStreams))) {
 			for (int i = 0, j = cStreams; i < j; i++) {
-				DWORD dwFlags, dwGroup;
-				LCID lcid;
-				WCHAR* pszName = NULL;
-
-				if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
-						|| !pszName) {
+				DWORD dwGroup = DWORD_MAX;
+				if (FAILED(pSS->Info(i, NULL, NULL, NULL, &dwGroup, NULL, NULL, NULL))) {
 					continue;
-				}
-
-				if (pszName) {
-					CoTaskMemFree(pszName);
 				}
 
 				if (dwGroup != dwSelGroup) {

@@ -357,17 +357,17 @@ void CLBAFile::Close()
 
 int CLBAFile::GetLengthLBA() const
 {
-	return (int)(CFile::GetLength()/2048);
+	return (int)(CFile::GetLength() / 2048);
 }
 
 int CLBAFile::GetPositionLBA() const
 {
-	return (int)(CFile::GetPosition()/2048);
+	return (int)(CFile::GetPosition() / 2048);
 }
 
 int CLBAFile::Seek(int lba)
 {
-	return (int)(CFile::Seek(2048i64*lba, CFile::begin)/2048);
+	return (int)(CFile::Seek(2048i64 * lba, CFile::begin) / 2048);
 }
 
 bool CLBAFile::Read(BYTE* buff)
@@ -390,6 +390,7 @@ CVobFile::CVobFile()
 
 CVobFile::~CVobFile()
 {
+	Close();
 }
 
 bool CVobFile::IsDVD() const
@@ -399,7 +400,7 @@ bool CVobFile::IsDVD() const
 
 bool CVobFile::HasDiscKey(BYTE* key) const
 {
-	if(key) {
+	if (key) {
 		memcpy(key, m_DiscKey, 5);
 	}
 	return m_fHasDiscKey;
@@ -407,7 +408,7 @@ bool CVobFile::HasDiscKey(BYTE* key) const
 
 bool CVobFile::HasTitleKey(BYTE* key) const
 {
-	if(key) {
+	if (key) {
 		memcpy(key, m_TitleKey, 5);
 	}
 	return m_fHasTitleKey;
@@ -502,7 +503,7 @@ static const AV_Rational IFO_Aspect[4] = {
 	{16, 9}
 };
 
-bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULONG_MAX*/)
+bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ALL_PGCs*/)
 {
 	if(!m_ifoFile.Open(fn, CFile::modeRead|CFile::typeBinary|CFile::shareDenyNone)) {
 		return false;
@@ -592,7 +593,7 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 	}
 
 	//for (int nProgramChains = 0; nProgramChains < NumberOfProgramChains; nProgramChains++) {
-	for (ULONG nProgramChains = (nProgNum != ULONG_MAX ? nProgNum - 1 : 0); nProgramChains < (nProgNum != ULONG_MAX ? nProgNum : NumberOfProgramChains); nProgramChains++) {
+	for (ULONG nProgramChains = (nProgNum != ALL_PGCs ? nProgNum - 1 : 0); nProgramChains < (nProgNum != ALL_PGCs ? nProgNum : NumberOfProgramChains); nProgramChains++) {
 		m_ifoFile.Seek(pcgITPosition + 4 + 8 * (nProgramChains + 1), CFile::begin);
 		DWORD chainOffset = ReadDword();
 		m_ifoFile.Seek(pcgITPosition + chainOffset + 2, CFile::begin);
@@ -629,10 +630,12 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 		}
 	}
 
+	int offset = -1;
+
 	m_rtDuration	= 0;
 	m_pChapters[0]	= 0;
 	m_ChaptersCount	= 1;
-	for (ULONG nProgramChains = (nProgNum != ULONG_MAX ? nProgNum - 1 : 0); nProgramChains < (nProgNum != ULONG_MAX ? nProgNum : NumberOfProgramChains); nProgramChains++) {
+	for (ULONG nProgramChains = (nProgNum != ALL_PGCs ? nProgNum - 1 : 0); nProgramChains < (nProgNum != ALL_PGCs ? nProgNum : NumberOfProgramChains); nProgramChains++) {
 		m_ifoFile.Seek(pcgITPosition + 4 + 8 * (nProgramChains + 1), CFile::begin);
 		DWORD chainOffset = ReadDword();
 		m_ifoFile.Seek(pcgITPosition + chainOffset + 2, CFile::begin);
@@ -657,6 +660,8 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 			REFERENCE_TIME rtTotalTime = 0;
 			for (int currentCell = entryCell; currentCell <= exitCell; currentCell++) {
 				int cellStart = cellTableOffset + ((currentCell - 1) * 0x18);
+
+				// cell playback time
 				m_ifoFile.Seek(pcgITPosition + chainOffset + cellStart, CFile::begin);
 				BYTE bytes[4];
 				ReadBuffer(bytes, 4);
@@ -666,6 +671,16 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 					ReadBuffer(bytes, 4);
 					rtTotalTime += FormatTime(bytes);
 				}
+
+				if (offset == -1) {
+					// first VOBU start sector
+					m_ifoFile.Seek(pcgITPosition + chainOffset + cellStart + 8, CFile::begin);
+					DWORD firstVOBUStartSector = ReadDword();
+					offset = (int)firstVOBUStartSector;
+					// last VOBU end sector
+					//m_ifoFile.Seek(pcgITPosition + chainOffset + cellStart + 20, CFile::begin);
+					//DWORD lastVOBUEndSector = ReadDword();
+				}
 			}
 			m_rtDuration += rtTotalTime;
 			m_pChapters[m_ChaptersCount++] = m_rtDuration;
@@ -673,7 +688,6 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 	}
 	m_ifoFile.Close();
 
-	int offset = -1;
 	vobs.RemoveAll();
 
 	fn = fn.Left(fn.ReverseFind('.')+1);
@@ -701,7 +715,7 @@ bool CVobFile::Open(CString fn, CAtlList<CString>& vobs, ULONG nProgNum /*= ULON
 		}
 
 		if (i == 0) {
-			offset = (int)(status.m_size / 0x800);
+			offset += (int)(status.m_size / 0x800);
 		}
 	}
 

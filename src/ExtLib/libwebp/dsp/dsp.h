@@ -23,6 +23,14 @@ extern "C" {
 //------------------------------------------------------------------------------
 // CPU detection
 
+#if defined(__GNUC__)
+# define LOCAL_GCC_VERSION ((__GNUC__ << 8) | __GNUC_MINOR__)
+# define LOCAL_GCC_PREREQ(maj, min) \
+    (LOCAL_GCC_VERSION >= (((maj) << 8) | (min)))
+#else
+# define LOCAL_GCC_PREREQ(maj, min) 0
+#endif
+
 #if defined(_MSC_VER) && _MSC_VER > 1310 && \
     (defined(_M_X64) || defined(_M_IX86))
 #define WEBP_MSC_SSE2  // Visual C++ SSE2 targets
@@ -32,12 +40,15 @@ extern "C" {
 #define WEBP_USE_SSE2
 #endif
 
+#if defined(__AVX2__)
+#define WEBP_USE_AVX2
+#endif
+
 #if defined(__ANDROID__) && defined(__ARM_ARCH_7A__)
 #define WEBP_ANDROID_NEON  // Android targets that might support NEON
 #endif
 
-#if (defined(__ARM_NEON__) && !defined(__aarch64__)) || \
-    defined(WEBP_ANDROID_NEON)
+#if defined(__ARM_NEON__) || defined(WEBP_ANDROID_NEON) || defined(__aarch64__)
 #define WEBP_USE_NEON
 #endif
 
@@ -48,6 +59,8 @@ extern "C" {
 typedef enum {
   kSSE2,
   kSSE3,
+  kAVX,
+  kAVX2,
   kNEON,
   kMIPS32
 } CPUFeature;
@@ -187,13 +200,23 @@ void WebPInitUpsamplersNEON(void);
 #endif    // FANCY_UPSAMPLING
 
 // Point-sampling methods.
-typedef void (*WebPSampleLinePairFunc)(
-    const uint8_t* top_y, const uint8_t* bottom_y,
-    const uint8_t* u, const uint8_t* v,
-    uint8_t* top_dst, uint8_t* bottom_dst, int len);
+typedef void (*WebPSamplePlaneFunc)(const uint8_t* y, int y_stride,
+                                    const uint8_t* u, const uint8_t* v,
+                                    int uv_stride,
+                                    uint8_t* dst, int dst_stride,
+                                    int width, int height);
+
+typedef void (*WebPSamplerRowFunc)(const uint8_t* y,
+                                   const uint8_t* u, const uint8_t* v,
+                                   uint8_t* dst, int len);
+// Generic function to apply 'WebPSamplerRowFunc' to the whole plane:
+void WebPSamplerProcessPlane(const uint8_t* y, int y_stride,
+                             const uint8_t* u, const uint8_t* v, int uv_stride,
+                             uint8_t* dst, int dst_stride,
+                             int width, int height, WebPSamplerRowFunc func);
 
 // Sampling functions to convert YUV to RGB(A) modes
-extern WebPSampleLinePairFunc WebPSamplers[/* MODE_LAST */];
+extern WebPSamplePlaneFunc WebPSamplers[/* MODE_LAST */];
 
 // Initializes MIPS version of the samplers.
 void WebPInitSamplersMIPS32(void);

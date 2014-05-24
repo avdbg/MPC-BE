@@ -178,6 +178,7 @@ static const enum AVPixelFormat h264_hwaccel_pixfmt_list_jpeg_420[] = {
 #endif
 #if CONFIG_H264_VDA_HWACCEL
     AV_PIX_FMT_VDA_VLD,
+    AV_PIX_FMT_VDA,
 #endif
 #if CONFIG_H264_VDPAU_HWACCEL
     AV_PIX_FMT_VDPAU,
@@ -269,8 +270,8 @@ static int alloc_picture(H264Context *h, H264Picture *pic)
     if (h->avctx->hwaccel) {
         const AVHWAccel *hwaccel = h->avctx->hwaccel;
         av_assert0(!pic->hwaccel_picture_private);
-        if (hwaccel->priv_data_size) {
-            pic->hwaccel_priv_buf = av_buffer_allocz(hwaccel->priv_data_size);
+        if (hwaccel->frame_priv_data_size) {
+            pic->hwaccel_priv_buf = av_buffer_allocz(hwaccel->frame_priv_data_size);
             if (!pic->hwaccel_priv_buf)
                 return AVERROR(ENOMEM);
             pic->hwaccel_picture_private = pic->hwaccel_priv_buf->data;
@@ -748,6 +749,7 @@ static int h264_frame_start(H264Context *h)
     pic->mmco_reset  = 0;
     pic->recovered   = 0;
     pic->invalid_gap = 0;
+    pic->sei_recovery_frame_cnt = h->sei_recovery_frame_cnt;
 
     if ((ret = alloc_picture(h, pic)) < 0)
         return ret;
@@ -782,9 +784,6 @@ static int h264_frame_start(H264Context *h)
         h->block_offset[48 + 16 + i] =
         h->block_offset[48 + 32 + i] = (4 * ((scan8[i] - scan8[0]) & 7) << pixel_shift) + 8 * h->uvlinesize * ((scan8[i] - scan8[0]) >> 3);
     }
-
-    // s->decode = (h->flags & CODEC_FLAG_PSNR) || !s->encoding ||
-    //             h->cur_pic.reference /* || h->contains_intra */ || 1;
 
     /* We mark the current picture as non-reference after allocating it, so
      * that if we break out due to an error it can be released automatically
@@ -1171,8 +1170,6 @@ static int h264_slice_header_init(H264Context *h, int reinit)
                   h->sps.num_units_in_tick, den, 1 << 30);
     }
 
-    h->avctx->hwaccel = ff_find_hwaccel(h->avctx);
-
     if (reinit)
         ff_h264_free_tables(h, 0);
     h->first_field           = 0;
@@ -1428,10 +1425,7 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
     }
 
     if (h->context_initialized &&
-        (h->width  != h->avctx->coded_width   ||
-         h->height != h->avctx->coded_height  ||
-         must_reinit ||
-         needs_reinit)) {
+        (must_reinit || needs_reinit)) {
         if (h != h0) {
             av_log(h->avctx, AV_LOG_ERROR,
                    "changing width %d -> %d / height %d -> %d on "
@@ -2422,10 +2416,10 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
                 return 0;
             }
             if (h->cabac.bytestream > h->cabac.bytestream_end + 2 )
-                av_log(h->avctx, AV_LOG_DEBUG, "bytestream overread %td\n", h->cabac.bytestream_end - h->cabac.bytestream);
+                av_log(h->avctx, AV_LOG_DEBUG, "bytestream overread %"PTRDIFF_SPECIFIER"\n", h->cabac.bytestream_end - h->cabac.bytestream);
             if (ret < 0 || h->cabac.bytestream > h->cabac.bytestream_end + 4) {
                 av_log(h->avctx, AV_LOG_ERROR,
-                       "error while decoding MB %d %d, bytestream %td\n",
+                       "error while decoding MB %d %d, bytestream %"PTRDIFF_SPECIFIER"\n",
                        h->mb_x, h->mb_y,
                        h->cabac.bytestream_end - h->cabac.bytestream);
                 er_add_slice(h, h->resync_mb_x, h->resync_mb_y, h->mb_x,

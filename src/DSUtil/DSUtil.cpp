@@ -2860,49 +2860,49 @@ void SetThreadName(DWORD dwThreadID, LPCSTR szThreadName)
 	}
 }
 
-void CorrectComboListWidth(CComboBox& m_pComboBox)
+void CorrectComboListWidth(CComboBox& pComboBox)
 {
-	// Find the longest string in the combo box.
-	if (m_pComboBox.GetCount() <=0 )
+	if (pComboBox.GetCount() <= 0)
 		return;
 
 	CString    str;
 	CSize      sz;
-	int        dx = 0;
 	TEXTMETRIC tm;
-	CDC*       pDC = m_pComboBox.GetDC();
-	CFont*     pFont = m_pComboBox.GetFont();
+	int        dx		= 0;
+	CDC*       pDC		= pComboBox.GetDC();
+	CFont*     pFont	= pComboBox.GetFont();
 
 	// Select the listbox font, save the old font
 	CFont* pOldFont = pDC->SelectObject(pFont);
 	// Get the text metrics for avg char width
 	pDC->GetTextMetrics(&tm);
 
-	for (int i = 0; i < m_pComboBox.GetCount(); i++)
-	{
-		m_pComboBox.GetLBText(i, str);
+	// Find the longest string in the combo box.
+	for (int i = 0; i < pComboBox.GetCount(); i++) {
+		pComboBox.GetLBText(i, str);
 		sz = pDC->GetTextExtent(str);
 
 		// Add the avg width to prevent clipping
 		sz.cx += tm.tmAveCharWidth;
 
-		if (sz.cx > dx)
+		if (sz.cx > dx) {
 			dx = sz.cx;
+		}
 	}
 	// Select the old font back into the DC
 	pDC->SelectObject(pOldFont);
-	m_pComboBox.ReleaseDC(pDC);
+	pComboBox.ReleaseDC(pDC);
 
 	// Get the scrollbar width if it exists
-	int min_visible = m_pComboBox.GetMinVisible();
-	int scroll_width = (m_pComboBox.GetCount() > min_visible) ?
+	int min_visible = pComboBox.GetMinVisible();
+	int scroll_width = (pComboBox.GetCount() > min_visible) ?
 					   ::GetSystemMetrics(SM_CXVSCROLL) : 0;
 
 	// Adjust the width for the vertical scroll bar and the left and right border.
 	dx += scroll_width + 2*::GetSystemMetrics(SM_CXEDGE);
 
 	// Set the width of the list box so that every item is completely visible.
-	m_pComboBox.SetDroppedWidth(dx);
+	pComboBox.SetDroppedWidth(dx);
 }
 
 unsigned int lav_xiphlacing(unsigned char *s, unsigned int v)
@@ -3021,12 +3021,11 @@ HRESULT CreateMPEG2VIfromAVC(CMediaType* mt, BITMAPINFOHEADER* pbmi, REFERENCE_T
 	pm2vi->hdr.dwPictAspectRatioY	= aspect.cy;
 	pm2vi->hdr.AvgTimePerFrame		= AvgTimePerFrame;
 	pm2vi->hdr.rcSource				= pm2vi->hdr.rcTarget = rc;
-
-	pm2vi->cbSequenceHeader = 0;
+	pm2vi->cbSequenceHeader			= 0;
 
 	HRESULT hr = S_OK;
 
-	if (extra[0] == 1) {
+	if (extralen > 5 && extra && extra[0] == 1) {
 		pm2vi->dwProfile	= extra[1];
 		pm2vi->dwLevel		= extra[3];
 		pm2vi->dwFlags		= (extra[4] & 3) + 1;
@@ -3177,14 +3176,17 @@ void CreateVorbisMediaType(CMediaType& mt, CAtlArray<CMediaType>& mts, DWORD Cha
 
 CStringA VobSubDefHeader(int w, int h, CStringA palette)
 {
-	CStringA def_palette = "000000,e0e0e0,808080,202020,3333fa,1111bb,fa3333,bb1111,33fa33,11bb11,fafa33,bbbb11,fa33fa,bb11bb,33fafa,11bbbb";
-
 	CStringA hdr;
 	hdr.Format(
 		"# VobSub index file, v7 (do not modify this line!)\n"
-		"size: %dx%d\n"
-		"palette: %s\n",
-		w, h, palette.GetLength() > 0 ? palette : def_palette);
+		"size: %dx%d\n",
+		w, h);
+
+	if (palette.IsEmpty()) {
+		hdr.Append("custom colors: ON, tridx: 1000, colors: 00000, e0e0e0, 808080, 202020\n");
+	} else {
+		hdr.AppendFormat("palette: %s\n", palette);
+	}
 
 	return hdr;
 }
@@ -3212,4 +3214,62 @@ void CorrectWaveFormatEx(CMediaType *pmt)
 		// fix for DC-Bass Source Mod 1.5.2.0 bug
 		((WAVEFORMATEXTENSIBLE*)wfe)->dwChannelMask = GetDefChannelMask(wfe->nChannels);
 	}
+}
+
+// code from ffmpeg
+static LONG av_gcd(LONG a, LONG b){
+    if(b) return av_gcd(b, a%b);
+    else  return a;
+}
+static inline int av_reduce(LONG& num, LONG& den, INT64 _max)
+{
+    CSize a0 = { 0, 1 }, a1 = { 1, 0 };
+    int sign = (num < 0) ^ (den < 0);
+    LONG gcd = av_gcd(abs(num), abs(den));
+
+    if (gcd) {
+        num = abs(num) / gcd;
+        den = abs(den) / gcd;
+    }
+    if (num <= _max && den <= _max) {
+        a1 = CSize(num, den);
+        den = 0;
+    }
+
+    while (den) {
+        LONG x         = num / den;
+        LONG next_den  = num - den * x;
+        LONG a2n       = x * a1.cx + a0.cx;
+        LONG a2d       = x * a1.cy + a0.cy;
+
+        if (a2n > _max || a2d > _max) {
+            if (a1.cx) x =        (_max - a0.cx) / a1.cx;
+            if (a1.cy) x = min(x, (_max - a0.cy) / a1.cy);
+
+            if (den * (2 * x * a1.cy + a0.cy) > num * a1.cy)
+                a1 = CSize(x * a1.cx + a0.cx, x * a1.cy + a0.cy);
+            break;
+        }
+
+        a0  = a1;
+        a1  = CSize(a2n, a2d);
+        num = den;
+        den = next_den;
+    }
+
+    num = sign ? -a1.cx : a1.cx;
+    den = a1.cy;
+
+    return den == 0;
+}
+//
+
+void ReduceDim(LONG& num, LONG& den)
+{
+	av_reduce(num, den, 255);
+}
+
+void ReduceDim(SIZE &dim)
+{
+	av_reduce(dim.cx, dim.cy, 255);
 }

@@ -151,6 +151,11 @@ protected:
 
 	DWORD									m_fSYNC;
 
+	DWORD									m_dwFrameCount;
+	BYTE									m_nWrongFramesOrdering;
+
+	CMediaType								m_InputMT;
+
 	// === Private functions
 	void				Cleanup();
 	void				ffmpegCleanup();

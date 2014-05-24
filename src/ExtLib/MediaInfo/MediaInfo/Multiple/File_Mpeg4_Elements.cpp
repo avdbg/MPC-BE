@@ -1450,7 +1450,7 @@ void File_Mpeg4::jp2c()
             Merge(MI, MI.StreamKind, 0, 0);
 
             Fill("MPEG-4");
-            if (Config->File_Names.size()>1)
+            if (Config->File_Names.size()>1 && File_Size!=(int64u)-1)
             {
                 int64u OverHead=Config->File_Sizes[0]-Element_Size;
                 Fill(Stream_Video, 0, Video_StreamSize, File_Size-Config->File_Names.size()*OverHead, 10, true);
@@ -1694,13 +1694,16 @@ void File_Mpeg4::mdat_xxxx()
                         File_Offset_Next_IsValid=false;
                     }
                     mdat_pos mdat_Pos_New;
-                    mdat_Pos_Max=mdat_Pos.data()+mdat_Pos.size();
-                    for (mdat_Pos_Type* mdat_Pos_Item=mdat_Pos.data(); mdat_Pos_Item<mdat_Pos_Max; ++mdat_Pos_Item)
-                        if (mdat_Pos_Item->StreamID!=(int32u)Element_Code)
-                            mdat_Pos_New.push_back(*mdat_Pos_Item);
+                    mdat_Pos_Max=mdat_Pos.empty()?NULL:(&mdat_Pos[0]+mdat_Pos.size());
+                    if (!mdat_Pos.empty())
+                    {
+                        for (mdat_Pos_Type* mdat_Pos_Item=&mdat_Pos[0]; mdat_Pos_Item<mdat_Pos_Max; ++mdat_Pos_Item)
+                            if (mdat_Pos_Item->StreamID!=(int32u)Element_Code)
+                                mdat_Pos_New.push_back(*mdat_Pos_Item);
+                    }
                     mdat_Pos=mdat_Pos_New;
                     std::sort(mdat_Pos.begin(), mdat_Pos.end(), &mdat_pos_sort);
-                    mdat_Pos_Temp=mdat_Pos.data();
+                    mdat_Pos_Temp=mdat_Pos.empty()?NULL:&mdat_Pos[0];
                     mdat_Pos_Max=mdat_Pos_Temp+mdat_Pos.size();
                     if (File_Offset_Next_IsValid)
                         for (; mdat_Pos_Temp<mdat_Pos_Max; ++mdat_Pos_Temp)
@@ -1758,7 +1761,7 @@ void File_Mpeg4::mdat_StreamJump()
                 if (StreamOffset_Jump_Temp!=StreamOffset_Jump.end())
                 {
                     ToJump=StreamOffset_Jump_Temp->second;
-                    mdat_Pos_Temp=mdat_Pos.data();
+                    mdat_Pos_Temp=mdat_Pos.empty()?NULL:&mdat_Pos[0];
                     while (mdat_Pos_Temp<mdat_Pos_Max && mdat_Pos_Temp->Offset!=ToJump)
                         mdat_Pos_Temp++;
                 }
@@ -4533,6 +4536,22 @@ void File_Mpeg4::moov_trak_mdia_minf_stbl_stsd_xxxxVideo()
                     Streams[moov_trak_tkhd_TrackID].Parsers.push_back(Parser);
                 }
             #endif
+            #if defined(MEDIAINFO_HEVC_YES)
+                if (MediaInfoLib::Config.CodecID_Get(Stream_Video, InfoCodecID_Format_Mpeg4, Ztring().From_CC4((int32u)Element_Code), InfoCodecID_Format)==__T("HEVC"))
+                {
+                    File_Hevc* Parser=new File_Hevc;
+                    Parser->FrameIsAlwaysComplete=true;
+                    #if MEDIAINFO_DEMUX
+                        if (Config->Demux_Avc_Transcode_Iso14496_15_to_Iso14496_10_Get())
+                        {
+                            Streams[moov_trak_tkhd_TrackID].Demux_Level=4; //Intermediate
+                            Parser->Demux_Level=2; //Container
+                            Parser->Demux_UnpacketizeContainer=true;
+                        }
+                    #endif //MEDIAINFO_DEMUX
+                    Streams[moov_trak_tkhd_TrackID].Parsers.push_back(Parser);
+                }
+            #endif
             #if defined(MEDIAINFO_MPEGV_YES)
                 if (MediaInfoLib::Config.CodecID_Get(Stream_Video, InfoCodecID_Format_Mpeg4, Ztring().From_CC4((int32u)Element_Code), InfoCodecID_Format)==__T("MPEG Video") && Element_Code!=0x6D78336E && Element_Code!=0x6D783370 && Element_Code!=0x6D78356E && Element_Code!=0x6D783570) //mx3n, mx3p, mx5n, mx5p
                 {
@@ -5453,38 +5472,56 @@ void File_Mpeg4::moov_trak_mdia_minf_stbl_stsd_xxxx_hvcC()
     Element_Name("HEVCDecoderConfigurationRecord");
 
     //Parsing
-    int8u Version;
-    Get_B1 (Version,                                            "Version");
-    if (moov_trak_mdia_minf_stbl_stsd_Pos>1)
-    {
-        Skip_XX(Element_Size-Element_Offset,                    "Data not analyzed");
-        return; //Handling only the first description
-    }
-    else if (Version==1)
-    {
-        #ifdef MEDIAINFO_HEVC_YES
-            for (size_t Pos=0; Pos<Streams[moov_trak_tkhd_TrackID].Parsers.size(); Pos++) //Removing any previous parser (in case of multiple streams in one track, or dummy parser for demux)
-                delete Streams[moov_trak_tkhd_TrackID].Parsers[Pos];
-            Streams[moov_trak_tkhd_TrackID].Parsers.clear();
+    #ifdef MEDIAINFO_HEVC_YES
+        for (size_t Pos=0; Pos<Streams[moov_trak_tkhd_TrackID].Parsers.size(); Pos++) //Removing any previous parser (in case of multiple streams in one track, or dummy parser for demux)
+            delete Streams[moov_trak_tkhd_TrackID].Parsers[Pos];
+        Streams[moov_trak_tkhd_TrackID].Parsers.clear();
 
-            File_Hevc* Parser=new File_Hevc;
-            Parser->FrameIsAlwaysComplete=true;
-            Open_Buffer_Init(Parser);
-            Parser->MustParse_VPS_SPS_PPS=true;
-            Parser->MustSynchronize=false;
-            Streams[moov_trak_tkhd_TrackID].Parsers.push_back(Parser);
-            mdat_MustParse=true; //Data is in MDAT
+        File_Hevc* Parser=new File_Hevc;
+        Parser->FrameIsAlwaysComplete=true;
+        #if MEDIAINFO_DEMUX
+            Element_Code=moov_trak_tkhd_TrackID;
+            if (Config->Demux_Avc_Transcode_Iso14496_15_to_Iso14496_10_Get())
+            {
+                Streams[moov_trak_tkhd_TrackID].Demux_Level=4; //Intermediate
+                Parser->Demux_Level=2; //Container
+                Parser->Demux_UnpacketizeContainer=true;
+            }
+        #endif //MEDIAINFO_DEMUX
+        Open_Buffer_Init(Parser);
+        Parser->MustParse_VPS_SPS_PPS=true;
+        Parser->MustSynchronize=false;
+        Streams[moov_trak_tkhd_TrackID].Parsers.push_back(Parser);
+        mdat_MustParse=true; //Data is in MDAT
 
-            //Parsing
-            Open_Buffer_Continue(Parser);
+        //Demux
+        #if MEDIAINFO_DEMUX
+            if (!Config->Demux_Avc_Transcode_Iso14496_15_to_Iso14496_10_Get())
+                switch (Config->Demux_InitData_Get())
+                {
+                    case 0 :    //In demux event
+                                Demux_Level=2; //Container
+                                Demux(Buffer+Buffer_Offset, (size_t)Element_Size, ContentType_Header);
+                                break;
+                    case 1 :    //In field
+                                {
+                                std::string Data_Raw((const char*)(Buffer+Buffer_Offset), (size_t)Element_Size);
+                                std::string Data_Base64(Base64::encode(Data_Raw));
+                                Fill(Stream_Video, StreamPos_Last, "Demux_InitBytes", Data_Base64);
+                                (*Stream_More)[Stream_Video][StreamPos_Last](Ztring().From_Local("Demux_InitBytes"), Info_Options)=__T("N NT");
+                                }
+                                break;
+                    default :   ;
+                }
+        #endif //MEDIAINFO_DEMUX
 
-            Parser->SizedBlocks=true;  //Now this is SizeBlocks
-        #else
-            Skip_XX(Element_Size,                               "HEVC Data");
-        #endif
-    }
-    else
-        Skip_XX(Element_Size,                                   "Data");
+        //Parsing
+        Open_Buffer_Continue(Parser);
+
+        Parser->SizedBlocks=true;  //Now this is SizeBlocks
+    #else
+        Skip_XX(Element_Size,                               "HEVC Data");
+    #endif
 }
 
 //---------------------------------------------------------------------------

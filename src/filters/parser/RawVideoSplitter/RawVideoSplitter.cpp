@@ -105,7 +105,6 @@ CRawVideoSplitterFilter::CRawVideoSplitterFilter(LPUNKNOWN pUnk, HRESULT* phr)
 	, m_RAWType(RAW_NONE)
 	, m_startpos(0)
 	, m_framesize(0)
-	, m_rtStart(0)
 	, m_AvgTimePerFrame(0)
 {
 }
@@ -196,8 +195,8 @@ HRESULT CRawVideoSplitterFilter::CreateOutputs(IAsyncReader* pAsyncReader)
 		int    height		= 0;
 		int    fpsnum		= 24;
 		int    fpsden		= 1;
-		int    sar_x		= 1;
-		int    sar_y		= 1;
+		LONG   sar_x		= 1;
+		LONG   sar_y		= 1;
 		FOURCC fourcc		= FCC('I420'); // 4:2:0 - I420 by default
 		FOURCC fourcc_2		= 0;
 		WORD   bpp			= 12;
@@ -482,21 +481,17 @@ void CRawVideoSplitterFilter::DemuxSeek(REFERENCE_TIME rt)
 	if (m_RAWType == RAW_Y4M) {
 		if (rt <= 0) {
 			m_pFile->Seek(m_startpos);
-			m_rtStart = 0;
 		} else {
 			__int64 framenum = rt / m_AvgTimePerFrame;
 			m_pFile->Seek(m_startpos + framenum * (sizeof(FRAME_) + m_framesize));
-			m_rtStart = framenum * m_AvgTimePerFrame;
 		}
 		return;
 	}
 
 	if (rt <= 0 || m_rtDuration <= 0) {
 		m_pFile->Seek(0);
-		m_rtStart = 0;
 	} else {
 		m_pFile->Seek((__int64)((double)rt / m_rtDuration * m_pFile->GetLength()));
-		m_rtStart = rt;
 	}
 }
 
