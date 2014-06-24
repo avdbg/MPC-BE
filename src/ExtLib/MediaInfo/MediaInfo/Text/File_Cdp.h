@@ -17,6 +17,9 @@
 
 //---------------------------------------------------------------------------
 #include "MediaInfo/File__Analyze.h"
+#if defined(MEDIAINFO_EIA608_YES)
+    #include "MediaInfo/Text/File_Eia608.h"
+#endif
 #if defined(MEDIAINFO_EIA708_YES)
     #include "MediaInfo/Text/File_Eia708.h"
 #endif
@@ -83,11 +86,11 @@ private :
     std::vector<stream*> Streams;
     size_t               Streams_Count;
 
-    //EIA-708 descriptors
-    #if defined(MEDIAINFO_EIA708_YES)
-        File_Eia708::servicedescriptors ServiceDescriptors;
-        bool ccsvcinfo_section_IsPresent;
-    #endif
+    //Temp
+    int8u cdp_frame_rate;
+
+    //Helpers
+    void  CreateStream(int8u Parser_Pos);
 
     //Tests
     int8u cdp_length_Min;

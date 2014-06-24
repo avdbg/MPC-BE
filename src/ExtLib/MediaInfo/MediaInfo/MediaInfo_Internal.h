@@ -113,10 +113,11 @@ private :
     friend class File_DcpCpl;//Theses classes need access to internal structure for optimization. There is recursivity with theses formats
     friend class File_DcpPkl;//Theses classes need access to internal structure for optimization. There is recursivity with theses formats
     friend class File__ReferenceFilesHelper; //Theses classes need access to internal structure for optimization. There is recursivity with theses formats
+    friend class Reader_File; //For Info member
 
     //Parsing handles
     File__Analyze*  Info;
-    Internet__Base* Internet;
+    //Internet__Base* Internet;
     #if !defined(MEDIAINFO_READER_NO)
         Reader__Base*   Reader;
     #endif //defined(MEDIAINFO_READER_NO)

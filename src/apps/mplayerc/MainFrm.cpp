@@ -172,6 +172,30 @@ public:
 			SendMessage(WM_COMMAND, ID_PLAY_PLAY); \
 	} \
 
+static CString FormatStreamName(CString name, LCID lcid, int id)
+{
+	CString str;
+
+	CString lcname = CString(name).MakeLower();
+	if (lcname.Find(L" off") >= 0) {
+		str = ResStr(IDS_AG_DISABLED);
+	} else if (lcid == 0) {
+		str.Format(ResStr(IDS_AG_UNKNOWN), id);
+	} else {
+		int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, str.GetBuffer(64), 64);
+		str.ReleaseBufferSetLength(max(len - 1, 0));
+	}
+
+	CString lcstr = CString(str).MakeLower();
+	if (str.IsEmpty() || lcname.Find(lcstr) >= 0) {
+		str = name;
+	} else if (!name.IsEmpty()) {
+		str = CString(name) + L" (" + str + L")";
+	}
+
+	return str;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // CMainFrame
 
@@ -789,7 +813,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		return -1;      // fail to create
 	}
 
-	m_pFullscreenWnd	= DNew CFullscreenWnd(this);
+	m_pFullscreenWnd = DNew CFullscreenWnd(this);
 
 	m_bars.AddTail(&m_wndSeekBar);
 	m_bars.AddTail(&m_wndToolBar);
@@ -10366,7 +10390,7 @@ void CMainFrame::OnNavMixStreamSubtitleSelectSubMenu(UINT id, DWORD dwSelGroup)
 								pDVS->put_SelectedLanguage(i);
 								return;
 							} else {
-								pDVS->put_SelectedLanguage(i);
+								pDVS->put_SelectedLanguage(nLangs - 1);
 								id -= (nLangs - 1);
 							}
 						}
@@ -12746,6 +12770,7 @@ static UINT YoutubeThreadProc(LPVOID pParam)
 
 UINT CMainFrame::YoutubeThreadProc()
 {
+	AppSettings& sApp = AfxGetAppSettings();
 	HINTERNET f, s = InternetOpen(L"MPC-BE Youtube Downloader", 0, NULL, NULL, 0);
 	if (s) {
 #ifdef _DEBUG
@@ -12753,39 +12778,62 @@ UINT CMainFrame::YoutubeThreadProc()
 #endif
 		f = InternetOpenUrl(s, m_YoutubeFile, NULL, 0, INTERNET_FLAG_TRANSFER_BINARY | INTERNET_FLAG_EXISTING_CONNECT | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_RELOAD, 0);
 		if (f) {
-
-			DWORD cb = sizeof(DWORD);
-			if (!HttpQueryInfo(f, HTTP_QUERY_CONTENT_LENGTH|HTTP_QUERY_FLAG_NUMBER, &m_YoutubeTotal, &cb, 0)) {
-				m_YoutubeTotal = 0;
+			TCHAR QuerySizeText[100] = { 0 };
+			DWORD dw = _countof(QuerySizeText) * sizeof(TCHAR);
+			if (HttpQueryInfo(f, HTTP_QUERY_CONTENT_LENGTH, QuerySizeText, &dw, 0)) {
+				QWORD val = 0;
+				if (1 == swscanf_s(QuerySizeText, L"%I64d", &val)) {
+					m_YoutubeTotal = val;
+				}
 			}
 
 			if (GetTemporaryFilePath(GetFileExt(GetAltFileName()).MakeLower(), m_YoutubeFile)) {
 				HANDLE hFile;
-				hFile = CreateFile(m_YoutubeFile, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ, 0 ,CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, NULL);
+				hFile = CreateFile(m_YoutubeFile, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0 ,CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, NULL);
 				if (hFile != INVALID_HANDLE_VALUE) {
-					AfxGetAppSettings().slTMPFilesList.AddTail(m_YoutubeFile);
+					sApp.slTMPFilesList.AddTail(m_YoutubeFile);
 
 					HANDLE hMapping = INVALID_HANDLE_VALUE;
 					if (m_YoutubeTotal > 0) {
-						hMapping = CreateFileMapping(hFile, 0, PAGE_READWRITE, 0, m_YoutubeTotal, NULL);
+						ULARGE_INTEGER usize;
+						usize.QuadPart = m_YoutubeTotal;
+						hMapping = CreateFileMapping(hFile, 0, PAGE_READWRITE, usize.HighPart, usize.LowPart, NULL);
 						if (hMapping != INVALID_HANDLE_VALUE) {
 							CloseHandle(hMapping);
 						}
+					}
+
+					QWORD dwWaitSize = MEGABYTE;
+					switch (sApp.iYoutubeMemoryType) {
+						case 0:
+							if (m_YoutubeTotal && sApp.iYoutubePercentMemory && sApp.iYoutubePercentMemory <= 100) {
+								dwWaitSize = m_YoutubeTotal * ((float)sApp.iYoutubePercentMemory / 100);
+							}
+							break;
+						case 1:
+							if (sApp.iYoutubeMbMemory) {
+								dwWaitSize = m_YoutubeTotal ? min(sApp.iYoutubeMbMemory * MEGABYTE, m_YoutubeTotal) : sApp.iYoutubeMbMemory;
+							}
+							break;
 					}
 
 					DWORD dwBytesWritten	= 0;
 					DWORD dwBytesRead		= 0;
 					DWORD dataSize			= 0;
 					BYTE buf[64 * KILOBYTE];
-					while (InternetReadFile(f, (LPVOID)buf, sizeof(buf), &dwBytesRead) && dwBytesRead && m_fYoutubeThreadWork != TH_CLOSE) {
+					while (InternetReadFile(f, (LPVOID)buf, sizeof(buf), &dwBytesRead) && dwBytesRead && m_fYoutubeThreadWork != TH_ERROR && m_fYoutubeThreadWork != TH_CLOSE) {
 						if (FALSE == WriteFile(hFile, (LPCVOID)buf, dwBytesRead, &dwBytesWritten, NULL) || dwBytesRead != dwBytesWritten) {
 							break;
 						}
 
 						m_YoutubeCurrent += dwBytesRead;
-						if (m_YoutubeCurrent > min(MEGABYTE, m_YoutubeTotal ? m_YoutubeTotal/2 : MEGABYTE)) {
+						if (m_YoutubeCurrent >= dwWaitSize) {
 							m_fYoutubeThreadWork = TH_WORK;
 						}
+					}
+
+					if (m_fYoutubeThreadWork == TH_START) {
+						m_fYoutubeThreadWork = TH_WORK;
 					}
 #ifdef _DEBUG
 					if (m_YoutubeCurrent) {
@@ -12795,14 +12843,24 @@ UINT CMainFrame::YoutubeThreadProc()
 					}
 #endif
 					CloseHandle(hFile);
+				} else {
+					m_fYoutubeThreadWork = TH_ERROR;
 				}
+			} else {
+				m_fYoutubeThreadWork = TH_ERROR;
 			}
 			InternetCloseHandle(f);
+		} else {
+			m_fYoutubeThreadWork = TH_ERROR;
 		}
 		InternetCloseHandle(s);
+	} else {
+		m_fYoutubeThreadWork = TH_ERROR;
 	}
 
-	m_fYoutubeThreadWork = TH_CLOSE;
+	if (m_fYoutubeThreadWork != TH_ERROR) {
+		m_fYoutubeThreadWork = TH_CLOSE;
+	}
 
 	return (UINT)m_fYoutubeThreadWork;
 }
@@ -12905,11 +12963,15 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 							m_fYoutubeThreadWork = TH_START;
 							m_YoutubeFile = tmpName;
 							m_YoutubeThread = AfxBeginThread(::YoutubeThreadProc, static_cast<LPVOID>(this), THREAD_PRIORITY_ABOVE_NORMAL);
-							while (m_fYoutubeThreadWork == TH_START) {
+							while (m_fYoutubeThreadWork == TH_START && !m_fOpeningAborted) {
 								Sleep(50);
 							}
+							if (m_fOpeningAborted) {
+								m_fYoutubeThreadWork = TH_ERROR;
+								hr = E_ABORT;
+							}
 
-							if (m_fYoutubeThreadWork == TH_WORK && ::PathFileExists(m_YoutubeFile)) {
+							if (m_fYoutubeThreadWork != TH_ERROR && ::PathFileExists(m_YoutubeFile)) {
 								tmpName = m_YoutubeFile;
 							} else {
 								tmpName.Empty();
@@ -12919,16 +12981,18 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 					}
 				}
 
-				TCHAR path[MAX_PATH]	= {0};
-				BOOL bIsDirSet			= FALSE;
-				if (!::PathIsURL(tmpName) && GetCurrentDirectory(sizeof(path), path)) {
-					bIsDirSet = SetCurrentDirectory(GetFolderOnly(tmpName));
-				}
+				if (SUCCEEDED(hr)) {
+					TCHAR path[MAX_PATH]	= {0};
+					BOOL bIsDirSet			= FALSE;
+					if (!::PathIsURL(tmpName) && GetCurrentDirectory(sizeof(path), path)) {
+						bIsDirSet = SetCurrentDirectory(GetFolderOnly(tmpName));
+					}
 
-				hr = m_pGB->RenderFile(tmpName, NULL);
+					hr = m_pGB->RenderFile(tmpName, NULL);
 
-				if (bIsDirSet) {
-					SetCurrentDirectory(path);
+					if (bIsDirSet) {
+						SetCurrentDirectory(path);
+					}
 				}
 			}
 		}
@@ -12940,7 +13004,7 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 		if (FAILED(hr)) {
 
 			if (fFirst) {
-				if (s.fReportFailedPins) {
+				if (s.fReportFailedPins && !(m_pFullscreenWnd && m_pFullscreenWnd->IsWindow())) {
 					CComQIPtr<IGraphBuilderDeadEnd> pGBDE = m_pGB;
 					if (pGBDE && pGBDE->GetCount()) {
 						CMediaTypesDlg(pGBDE, GetModalParent()).DoModal();
@@ -13052,7 +13116,10 @@ CString CMainFrame::OpenFile(OpenFileData* pOFD)
 			pMRU->ReadList();
 			pMRU->Add(fn);
 			pMRU->WriteList();
-			SHAddToRecentDocs(SHARD_PATH, fn);
+			if (fn.Mid(1, 2) == L":\\" || fn.Left(2) == L"\\\\") { // stupid path detector
+				// there should not be a URL, otherwise explorer dirtied HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts
+				SHAddToRecentDocs(SHARD_PATH, fn);
+			}
 		}
 
 		if (fFirst) {
@@ -14351,20 +14418,6 @@ void CMainFrame::SubFlags(CString strname, bool& forced, bool& def)
 
 size_t CMainFrame::GetSubSelIdx()
 {
-	if (b_UseVSFilter) {
-		size_t SelectedLanguage = 0;
-		/*
-		CComQIPtr<IDirectVobSub> pDVS = GetVSFilter();
-		if (pDVS) {
-			int nLangs;
-			if (SUCCEEDED(pDVS->get_LanguageCount(&nLangs)) && nLangs) {
-				pDVS->get_SelectedLanguage(&SelectedLanguage);
-			}
-		}
-		*/
-		return SelectedLanguage;
-	}
-
 	AppSettings& s	= AfxGetAppSettings();
 	CString slo		= s.strSubtitlesLanguageOrder;
 	slo.Replace(L"[fc]", L"forced");
@@ -14480,40 +14533,102 @@ size_t CMainFrame::GetSubSelIdx()
 
 void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 {
-	b_UseVSFilter = false;
-
+	AppSettings& s = AfxGetAppSettings();
 	CComQIPtr<IDirectVobSub> pDVS = GetVSFilter();
+	b_UseVSFilter = (pDVS != NULL);
+
 	if (pDVS) {
-		b_UseVSFilter = true;
 		int nLangs;
 		if (SUCCEEDED(pDVS->get_LanguageCount(&nLangs)) && nLangs) {
-			// TODO ...
-			/*
-			SubStreams substream;
 			subarray.RemoveAll();
 
-			for (int i=0; i<nLangs; i++) {
-				WCHAR *pName;
-				pDVS->get_LanguageName(i, &pName);
-				CString streamName(pName);
+			int subcount = GetStreamCount(2);
+			CComQIPtr<IAMStreamSelect> pSS	= m_pMainSourceFilter;
+			if (subcount) {
+				for (int i = 0; i < nLangs - 1; i++) {
+					WCHAR *pName;
+					if (SUCCEEDED(pDVS->get_LanguageName(i, &pName)) && pName) {
+						SubStreams substream;
+						substream.iFilter	= 1;
+						substream.iNum		= i;
+						substream.iIndex	= i;
+						substream.Extsub	= true;
+						substream.lang		= pName;
+						subarray.Add(substream);
 
-				substream.Extsub	= false;
-				substream.iFilter	= 1;
-				substream.iNum		= i;
-				substream.iIndex	= i;
-				substream.forced	= false;
-				substream.def		= false;
+						CoTaskMemFree(pName);
+					}
+				}
 
-				subarray.Add(substream);
+				DWORD cStreams;
+				pSS->Count(&cStreams);
+				for (int i = 0, j = cStreams; i < j; i++) {
+					DWORD dwFlags	= DWORD_MAX;
+					DWORD dwGroup	= DWORD_MAX;
+					LCID lcid		= DWORD_MAX;
+					WCHAR* pszName = NULL;
+
+					if (FAILED(pSS->Info(i, NULL, &dwFlags, &lcid, &dwGroup, &pszName, NULL, NULL))
+							|| !pszName) {
+						continue;
+					}
+
+					CString name(pszName);
+
+					if (pszName) {
+						CoTaskMemFree(pszName);
+					}
+
+					if (dwGroup != 2) {
+						continue;
+					}
+
+					CString str = FormatStreamName(name, lcid, i);
+
+					SubStreams substream;
+					substream.iFilter	= 2;
+					substream.iNum++;
+					substream.iIndex++;
+					substream.lang		= str;
+					if (dwFlags & (AMSTREAMSELECTINFO_ENABLED | AMSTREAMSELECTINFO_EXCLUSIVE)) {
+						substream.iSel = subarray.GetCount();
+					}
+					subarray.Add(substream);
+
+
+				}
+			} else {
+				for (int i = 0; i < nLangs; i++) {
+					WCHAR *pName;
+					if (SUCCEEDED(pDVS->get_LanguageName(i, &pName)) && pName) {
+						SubStreams substream;
+						substream.iFilter	= 1;
+						substream.iNum		= i;
+						substream.iIndex	= i;
+						substream.lang		= pName;
+
+						if (CComQIPtr<IDirectVobSub3> pDVS3 = pDVS) {
+							int nType = 0;
+							pDVS3->get_LanguageType(i, &nType);
+							substream.Extsub = !!nType;
+						}
+
+						subarray.Add(substream);
+
+						CoTaskMemFree(pName);
+					}
+				}
 			}
-			*/
+
+			if (s.fUseInternalSelectTrackLogic) {
+				OnNavMixStreamSubtitleSelectSubMenu(GetSubSelIdx(), 2);
+			} else if (subcount && !s.fPrioritizeExternalSubtitles) {
+				pDVS->put_SelectedLanguage(nLangs - 1);
+			}
 		}
 	}
 
 	if (!b_UseVSFilter && m_pCAP && (!m_fAudioOnly || m_fRealMediaGraph)) {
-
-		AppSettings& s = AfxGetAppSettings();
-
 		SubStreams substream;
 		subarray.RemoveAll();
 		int checkedsplsub	= 0;
@@ -14571,7 +14686,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 						bool Forced, Def;
 						SubFlags(lang, Forced, Def);
 
-						substream.lang		= CString(pName);
+						substream.lang		= pName;
 						substream.forced	= Forced;
 						substream.def		= Def;
 
@@ -14619,7 +14734,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 					bool Forced, Def;
 					SubFlags(lang, Forced, Def);
 
-					substream.lang		= CString(pName);
+					substream.lang		= pName;
 					substream.forced	= Forced;
 					substream.def		= Def;
 
@@ -14663,7 +14778,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 				WCHAR* pName = NULL;
 				LCID lcid;
 				if (SUCCEEDED(pSubStream->GetStreamInfo(i, &pName, &lcid))) {
-					CString name = CString(pName);
+					CString name(pName);
 
 					substream.Extsub	= true;
 					substream.iFilter	= 2;
@@ -14697,6 +14812,7 @@ void CMainFrame::OpenSetupSubStream(OpenMediaData* pOMD)
 				for (size_t i = 0; i < cnt; i++) {
 					if (subarray[i].Extsub)	{
 						checkedsplsub = i;
+						break;
 					}
 				}
 			}
@@ -15864,7 +15980,6 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 							}
 
 							CString name(pszName);
-							CString lcname = CString(name).MakeLower();
 
 							if (pszName) {
 								CoTaskMemFree(pszName);
@@ -15874,24 +15989,7 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 								continue;
 							}
 
-							CString str;
-
-							if (lcname.Find(_T(" off")) >= 0) {
-								str = ResStr(IDS_AG_DISABLED);
-							} else if (lcid == 0) {
-								str.Format(ResStr(IDS_AG_UNKNOWN), id - baseid);
-							} else {
-								int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, str.GetBuffer(64), 64);
-								str.ReleaseBufferSetLength(max(len-1, 0));
-							}
-
-							CString lcstr = CString(str).MakeLower();
-
-							if (str.IsEmpty() || lcname.Find(lcstr) >= 0) {
-								str = name;
-							} else if (!name.IsEmpty()) {
-								str = name + L" (" + str + L")";
-							}
+							CString str = FormatStreamName(name, lcid, id - baseid);
 
 							UINT flags = MF_BYCOMMAND | MF_STRING | (!fHideSubtitles ? MF_ENABLED : MF_DISABLED);
 							if (dwFlags && iSelectedLanguage == (nLangs - 1)) {
@@ -15962,7 +16060,6 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 					}
 
 					CString name(pszName);
-					CString lcname = CString(name).MakeLower();
 
 					if (pszName) {
 						CoTaskMemFree(pszName);
@@ -15972,24 +16069,7 @@ void CMainFrame::SetupNavMixStreamSubtitleSelectSubMenu(CMenu* pSub, UINT id, DW
 						continue;
 					}
 
-					CString str;
-
-					if (lcname.Find(_T(" off")) >= 0) {
-						str = ResStr(IDS_AG_DISABLED);
-					} else if (lcid == 0) {
-						str.Format(ResStr(IDS_AG_UNKNOWN), id - baseid);
-					} else {
-						int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, str.GetBuffer(64), 64);
-						str.ReleaseBufferSetLength(max(len-1, 0));
-					}
-
-					CString lcstr = CString(str).MakeLower();
-
-					if (str.IsEmpty() || lcname.Find(lcstr) >= 0) {
-						str = name;
-					} else if (!name.IsEmpty()) {
-						str = CString(name) + _T(" (") + str + _T(")");
-					}
+					CString str = FormatStreamName(name, lcid, id - baseid);
 
 					UINT flags = MF_BYCOMMAND | MF_STRING | MF_ENABLED;
 					if (dwFlags) {
@@ -16320,7 +16400,6 @@ void CMainFrame::SetupNavStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSelGr
 		}
 
 		CString name(pszName);
-		CString lcname = CString(name).MakeLower();
 
 		if (pszName) {
 			CoTaskMemFree(pszName);
@@ -16335,26 +16414,7 @@ void CMainFrame::SetupNavStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSelGr
 		}
 		dwPrevGroup = dwGroup;
 
-		CString str;
-
-		if (lcname.Find(_T(" off")) >= 0) {
-			str = ResStr(IDS_AG_DISABLED);
-		} else {
-			if (lcid == 0) {
-				str.Format(ResStr(IDS_AG_UNKNOWN), id - baseid);
-			} else {
-				int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, str.GetBuffer(64), 64);
-				str.ReleaseBufferSetLength(max(len-1, 0));
-			}
-
-			CString lcstr = CString(str).MakeLower();
-
-			if (str.IsEmpty() || lcname.Find(lcstr) >= 0) {
-				str = name;
-			} else if (!name.IsEmpty()) {
-				str = CString(name) + _T(" (") + str + _T(")");
-			}
-		}
+		CString str = FormatStreamName(name, lcid, id - baseid);
 
 		UINT flags = MF_BYCOMMAND | MF_STRING | MF_ENABLED;
 		if (dwFlags) {
@@ -16448,7 +16508,6 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 					}
 
 					CString name(pszName);
-					CString lcname = CString(name).MakeLower();
 
 					if (pszName) {
 						CoTaskMemFree(pszName);
@@ -16463,24 +16522,7 @@ void CMainFrame::SetupNavMixStreamSelectSubMenu(CMenu* pSub, UINT id, DWORD dwSe
 					}
 
 					dwPrevGroup = dwGroup;
-					CString str;
-
-					if (lcname.Find(_T(" off")) >= 0) {
-						str = ResStr(IDS_AG_DISABLED);
-					} else if (lcid == 0) {
-						str.Format(ResStr(IDS_AG_UNKNOWN), id - baseid);
-					} else {
-						int len = GetLocaleInfo(lcid, LOCALE_SENGLANGUAGE, str.GetBuffer(64), 64);
-						str.ReleaseBufferSetLength(max(len-1, 0));
-					}
-
-					CString lcstr = CString(str).MakeLower();
-
-					if (str.IsEmpty() || lcname.Find(lcstr) >= 0) {
-						str = name;
-					} else if (!name.IsEmpty()) {
-						str = CString(name) + _T(" (") + str + _T(")");
-					}
+					CString str = FormatStreamName(name, lcid, id - baseid);
 
 					UINT flags = MF_BYCOMMAND | MF_STRING | MF_ENABLED;
 					if (dwFlags) {
@@ -18661,6 +18703,8 @@ afx_msg void CMainFrame::OnLanguage(UINT nID)
 	// Re-create Win 7 TaskBar preview button for change button hint
 	CreateThumbnailToolbar();
 	UpdateThumbarButton();
+
+	AfxGetAppSettings().SaveSettings();
 }
 
 void CMainFrame::ProcessAPICommand(COPYDATASTRUCT* pCDS)
@@ -20158,6 +20202,13 @@ CString CMainFrame::GetStrForTitle()
 					}
 				}
 				EndEnumFilters;
+			}
+
+			if (m_iMediaLoadState == MLS_LOADED) {
+				CPlaylistItem pli;
+				if (m_wndPlaylistBar.GetCur(pli)) {
+					return pli.GetLabel();
+				}
 			}
 		}
 		return m_strFn;

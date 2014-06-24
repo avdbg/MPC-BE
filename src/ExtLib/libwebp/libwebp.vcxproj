@@ -108,10 +108,11 @@
   <ItemGroup>
     <ClInclude Include="dec\alphai.h" />
     <ClInclude Include="dsp\dsp.h" />
+    <ClInclude Include="dsp\yuv_tables_sse2.h" />
     <ClInclude Include="enc\cost.h" />
     <ClInclude Include="enc\vp8enci.h" />
-    <ClInclude Include="utils\alpha_processing.h" />
     <ClInclude Include="utils\bit_reader.h" />
+    <ClInclude Include="utils\bit_reader_inl.h" />
     <ClInclude Include="utils\bit_writer.h" />
     <ClInclude Include="utils\quant_levels_dec.h" />
     <ClInclude Include="utils\random.h" />
@@ -156,17 +157,20 @@
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)%(Filename)_dec.obj</ObjectFileName>
     </ClCompile>
     <ClCompile Include="dec\webp.c" />
+    <ClCompile Include="dsp\alpha_processing.c" />
     <ClCompile Include="dsp\cpu.c" />
     <ClCompile Include="dsp\dec.c" />
     <ClCompile Include="dsp\dec_clip_tables.c" />
     <ClCompile Include="dsp\dec_sse2.c" />
     <ClCompile Include="dsp\enc.c" />
+    <ClCompile Include="dsp\enc_avx2.c" />
     <ClCompile Include="dsp\enc_sse2.c" />
     <ClCompile Include="dsp\lossless.c" />
     <ClCompile Include="dsp\lossless_sse2.c" />
     <ClCompile Include="dsp\upsampling.c" />
     <ClCompile Include="dsp\upsampling_sse2.c" />
     <ClCompile Include="dsp\yuv.c" />
+    <ClCompile Include="dsp\yuv_sse2.c" />
     <ClCompile Include="enc\alpha.c" />
     <ClCompile Include="enc\analysis.c" />
     <ClCompile Include="enc\backward_references.c" />
@@ -183,7 +187,6 @@
     <ClCompile Include="enc\tree.c" />
     <ClCompile Include="enc\vp8l.c" />
     <ClCompile Include="enc\webpenc.c" />
-    <ClCompile Include="utils\alpha_processing.c" />
     <ClCompile Include="utils\bit_reader.c" />
     <ClCompile Include="utils\bit_writer.c" />
     <ClCompile Include="utils\color_cache.c" />

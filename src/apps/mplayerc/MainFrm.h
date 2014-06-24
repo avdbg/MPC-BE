@@ -1194,13 +1194,15 @@ private:
 	enum TH_STATE {
 		TH_START,
 		TH_WORK,
-		TH_CLOSE
+		TH_CLOSE,
+		TH_ERROR
 	};
-	TH_STATE	m_fYoutubeThreadWork;
-	CString		m_YoutubeFile;
-	CWinThread*	m_YoutubeThread;
-	DWORD		m_YoutubeCurrent;
-	DWORD		m_YoutubeTotal;
+	volatile TH_STATE	m_fYoutubeThreadWork;
+	volatile QWORD		m_YoutubeCurrent;
+	volatile QWORD		m_YoutubeTotal;
+	CString				m_YoutubeFile;
+	CWinThread*			m_YoutubeThread;
+
 	HRESULT		QueryProgressYoutube(LONGLONG *pllTotal, LONGLONG *pllCurrent) {
 		if (m_YoutubeTotal > 0 && m_YoutubeCurrent < m_YoutubeTotal) {
 			if (pllTotal) {

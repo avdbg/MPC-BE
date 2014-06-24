@@ -48,6 +48,8 @@ namespace MediaInfoLib
 #if MEDIAINFO_READTHREAD
 void Reader_File_Thread::Entry()
 {
+    ReadSize_Max=Base->Buffer_Max>>3;
+
     for (;;)
     {
         Base->CS.Enter();
@@ -75,8 +77,8 @@ void Reader_File_Thread::Entry()
 
         if (ToRead)
         {
-            if (ToRead>4*1024*1024)
-                ToRead=4*1024*1024;
+            if (ToRead>ReadSize_Max)
+                ToRead=ReadSize_Max;
             size_t BytesRead=Base->F.Read(Base->Buffer+Buffer_ToReadOffset, ToRead);
             if (!BytesRead)
                 break;
@@ -109,6 +111,10 @@ void Reader_File_Thread::Entry()
             break;
         Yield();
     }
+
+    #ifdef WINDOWS
+        SetEvent(Base->Condition_WaitingForMoreData); //Sending the last event in case the main threading is waiting for more data
+    #endif //WINDOWS
 }
 #endif //MEDIAINFO_READTHREAD
 
@@ -290,8 +296,13 @@ size_t Reader_File::Format_Test_PerParser(MediaInfo_Internal* MI, const String &
 //---------------------------------------------------------------------------
 size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
 {
+    if (MI == NULL)
+        return 0;
+    
     bool StopAfterFilled=MI->Config.File_StopAfterFilled_Get();
     bool ShouldContinue=true;
+    if (MI->Info)
+        Status=MI->Info->Status;
 
     //Previous data
     if (MI->Config.File_Buffer_Repeat)
@@ -453,7 +464,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                     {
                         delete[] MI->Config.File_Buffer; MI->Config.File_Buffer=NULL;
                         MI->Config.File_Buffer_Size_Max=0;
-                        Buffer_Max=64*1024*1024;
+                        Buffer_Max=MI->Config.File_Buffer_Read_Size_Get();
                         Buffer=new int8u[Buffer_Max];
                         Buffer_Begin=0;
                         Buffer_End=0;
@@ -477,7 +488,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                 break; //Problem while config
             if (
                 #if MEDIAINFO_READTHREAD
-                    ThreadInstance==NULL && 
+                    ThreadInstance==NULL &&
                 #endif //MEDIAINFO_READTHREAD
                 MI->Config.File_Buffer_Size_ToRead>MI->Config.File_Buffer_Size_Max)
             {
@@ -492,7 +503,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
             //Testing multiple file per stream
             if (
                 #if MEDIAINFO_READTHREAD
-                    ThreadInstance==NULL && 
+                    ThreadInstance==NULL &&
                 #endif //MEDIAINFO_READTHREAD
                 F.Position_Get()>=F.Size_Get())
             {
@@ -529,14 +540,6 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                         if (MI->Config.File_Buffer_Size)
                             break;
 
-                        CS.Leave();
-                        #ifdef WINDOWS
-                            WaitForSingleObject(Condition_WaitingForMoreData, INFINITE);
-                        #else //WINDOWS
-                            Sleep(0);
-                        #endif //WINDOWS
-                        CS.Enter();
-                
                         if (ThreadInstance->IsExited())
                         {
                             if (IsLooping)
@@ -550,6 +553,14 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
                             MI->Config.File_Buffer_Size=Buffer_End-Buffer_Begin;
                             break;
                         }
+
+                        CS.Leave();
+                        #ifdef WINDOWS
+                            WaitForSingleObject(Condition_WaitingForMoreData, INFINITE);
+                        #else //WINDOWS
+                            Sleep(0);
+                        #endif //WINDOWS
+                        CS.Enter();
                     }
                     MI->Config.File_Buffer=Buffer+Buffer_Begin;
                     CS.Leave();
@@ -645,7 +656,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
 
             //Parser
             Status=MI->Open_Buffer_Continue(MI->Config.File_Buffer, MI->Config.File_Buffer_Size);
-            
+
             #if MEDIAINFO_READTHREAD
                 if (ThreadInstance && !MI->Config.File_Buffer_Repeat)
                 {
@@ -718,7 +729,7 @@ size_t Reader_File::Format_Test_PerParser_Continue (MediaInfo_Internal* MI)
         std::cout<<"Total: "<<std::dec<<Reader_File_BytesRead_Total<<" bytes in "<<Reader_File_Count<<" blocks"<<std::endl;
     #endif //MEDIAINFO_DEBUG
 
-    if (MI==NULL || !MI->Config.File_KeepInfo_Get())
+    if (!MI->Config.File_KeepInfo_Get())
     {
         //File
         F.Close();

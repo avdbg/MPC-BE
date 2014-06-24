@@ -1,5 +1,4 @@
 @ECHO OFF
-REM $Id$
 REM
 REM (C) 2009-2013 see Authors.txt
 REM
@@ -53,8 +52,6 @@ FOR %%A IN (%ARG%) DO (
 	IF /I "%%A" == "rebuild" SET "BUILDTYPE=rebuild"
 	IF /I "%%A" == "64" SET "BIT=64BIT=yes"
 	IF /I "%%A" == "Debug" SET "DEBUG=DEBUG=yes"
-	IF /I "%%A" == "VS2010" SET "VS=VS2010=yes"
-	IF /I "%%A" == "VS2012" SET "VS=VS2012=yes"
 )
 
 IF /I "%BUILDTYPE%" == "rebuild" (
@@ -82,8 +79,40 @@ IF "%BUILDTYPE%" == "clean" (
 
 make.exe -f ffmpeg.mak %BUILDTYPE% -j%JOBS% %BIT% %DEBUG% %VS%
 
+SET "VCVARSTYPE=x86"
+IF /I "%BIT%" == "64BIT=yes" (
+  SET "ARCHBUILDS=x64"
+  IF "%PROCESSOR_ARCHITECTURE%" == "AMD64" (SET "VCVARSTYPE=amd64") ELSE (SET "VCVARSTYPE=x86_amd64")
+) ELSE (
+  SET "ARCHBUILDS=Win32"
+)
+
+IF /I "%DEBUG%" == "Debug=yes" (
+  SET "CONFIGBUILDS=Debug"
+) ELSE (
+  SET "CONFIGBUILDS=Release"
+)
+
+SET "TARGETFOLDER=%CONFIGBUILDS%_%ARCHBUILDS%"
+SET "VSCOMNTOOLS=%VS120COMNTOOLS%"
+SET "BINDIR=..\..\..\bin13"
+SET "VSNAME=Visual Studio 2013"
+
+IF "%BUILDTYPE%" NEQ "clean" (
+  IF NOT DEFINED VSCOMNTOOLS (
+    ECHO ERROR: "%VSNAME% environment variable(s) is missing - possible it's not installed on your PC"
+    ENDLOCAL
+    EXIT /B
+  )
+
+  CALL "%VSCOMNTOOLS%..\..\VC\vcvarsall.bat" %VCVARSTYPE%
+  lib /NOLOGO /ignore:4006,4221 /OUT:%BINDIR%\lib\%TARGETFOLDER%\ffmpeg.lib %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libavcodec.a %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libavfilter.a %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libavresample.a %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libavutil.a %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libswresample.a %BINDIR%\obj\%TARGETFOLDER%\ffmpeg\libswscale.a
+)
+
 REM Visual Studio creates a "obj" sub-folder. Since there is no way to disable it - just delete it.
-rd "%~dp0obj" /S /Q
+IF EXIST "%~dp0obj" (
+  rd "%~dp0obj" /S /Q
+)
 
 ENDLOCAL
 EXIT /B
@@ -91,7 +120,7 @@ EXIT /B
 :SHOWHELP
 TITLE "%~nx0 %1"
 ECHO. & ECHO.
-ECHO Usage:   %~nx0 [32^|64] [Clean^|Build^|Rebuild] [Debug] [VS2010^|VS2012]
+ECHO Usage:   %~nx0 [32^|64] [Clean^|Build^|Rebuild] [Debug]
 ECHO.
 ECHO Notes:   The arguments are not case sensitive.
 ECHO. & ECHO.

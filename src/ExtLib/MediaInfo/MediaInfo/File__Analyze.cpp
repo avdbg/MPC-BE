@@ -32,6 +32,12 @@ using namespace tinyxml2;
 #if MEDIAINFO_EVENTS
     #include "MediaInfo/MediaInfo_Events_Internal.h"
 #endif //MEDIAINFO_EVENTS
+#ifdef MEDIAINFO_SSE2_YES
+    #include "ZenLib/MemoryUtils.h"
+#else //MEDIAINFO_SSE2_YES
+    #define memcpy_Unaligned_Unaligned std::memcpy
+    #define memcpy_Unaligned_Unaligned_Once1024 std::memcpy
+#endif //MEDIAINFO_SSE2_YES
 //---------------------------------------------------------------------------
 
 namespace MediaInfoLib
@@ -89,6 +95,9 @@ File__Analyze::File__Analyze ()
     OriginalBuffer=NULL;
     OriginalBuffer_Size=0;
     OriginalBuffer_Capacity=0;
+    #if defined(MEDIAINFO_EIA608_YES) || defined(MEDIAINFO_EIA708_YES)
+        ServiceDescriptors=NULL;
+    #endif
 
     //Out
     Frame_Count=0;
@@ -400,14 +409,14 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
             if (Buffer_Temp_Size_Max_ToAdd<Buffer_Temp_Size_Max) Buffer_Temp_Size_Max_ToAdd=Buffer_Temp_Size_Max;
             Buffer_Temp_Size_Max+=Buffer_Temp_Size_Max_ToAdd;
             Buffer_Temp=new int8u[Buffer_Temp_Size_Max];
-            std::memcpy(Buffer_Temp, Old, Buffer_Temp_Size);
+            memcpy_Unaligned_Unaligned(Buffer_Temp, Old, Buffer_Temp_Size);
             delete[] Old; //Old=NULL;
         }
 
         //Copying buffer
         if (ToAdd_Size>0)
         {
-            std::memcpy(Buffer_Temp+Buffer_Size, ToAdd, ToAdd_Size);
+            memcpy_Unaligned_Unaligned(Buffer_Temp+Buffer_Size, ToAdd, ToAdd_Size);
             Buffer_Temp_Size+=ToAdd_Size;
         }
 
@@ -585,7 +594,7 @@ void File__Analyze::Open_Buffer_Continue (const int8u* ToAdd, size_t ToAdd_Size)
                     Buffer_Temp=new int8u[Buffer_Temp_Size_Max];
                 }
                 Buffer_Temp_Size=ToAdd_Size-Buffer_Offset;
-                std::memcpy(Buffer_Temp, ToAdd+Buffer_Offset, Buffer_Temp_Size);
+                memcpy_Unaligned_Unaligned(Buffer_Temp, ToAdd+Buffer_Offset, Buffer_Temp_Size);
             }
         }
         else if (Buffer_Offset) //Already a copy, just moving it
@@ -785,10 +794,10 @@ void File__Analyze::Open_Buffer_Continue (File__Analyze* Sub, const int8u* ToAdd
             int8u* Temp=Sub->OriginalBuffer;
             Sub->OriginalBuffer_Capacity=(size_t)(Sub->OriginalBuffer_Size+Element_Size-Element_Offset);
             Sub->OriginalBuffer=new int8u[Sub->OriginalBuffer_Capacity];
-            std::memcpy(Sub->OriginalBuffer, Temp, Sub->OriginalBuffer_Size);
+            memcpy_Unaligned_Unaligned(Sub->OriginalBuffer, Temp, Sub->OriginalBuffer_Size);
             delete[] Temp;
         }
-        std::memcpy(Sub->OriginalBuffer+Sub->OriginalBuffer_Size, Buffer+Buffer_Offset+(size_t)Element_Offset, (size_t)(Element_Size-Element_Offset));
+        memcpy_Unaligned_Unaligned(Sub->OriginalBuffer+Sub->OriginalBuffer_Size, Buffer+Buffer_Offset+(size_t)Element_Offset, (size_t)(Element_Size-Element_Offset));
         Sub->OriginalBuffer_Size+=(size_t)(Element_Size-Element_Offset);
     }
 
@@ -905,7 +914,7 @@ bool File__Analyze::Open_Buffer_Continue_Loop ()
                 Buffer_Temp_Size_Max=Buffer_Temp_Size_Max_ToAdd;
                 Buffer_Temp=new int8u[Buffer_Temp_Size_Max];
             }
-            std::memcpy(Buffer_Temp, Buffer+Buffer_Size-Buffer_Temp_Size, Buffer_Temp_Size);
+            memcpy_Unaligned_Unaligned(Buffer_Temp, Buffer+Buffer_Size-Buffer_Temp_Size, Buffer_Temp_Size);
         }
         else //Already a copy, just moving it
         {
@@ -1014,6 +1023,13 @@ void File__Analyze::Open_Buffer_Unsynch ()
         Ibi_Read_Buffer_Unsynched();
     }
     Buffer_Clear();
+
+    //Some default values
+    if (IsRawStream && File_GoTo==0)
+    {
+        FrameInfo.DTS=0;
+        Frame_Count_NotParsedIncluded=0;
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -1498,7 +1514,7 @@ bool File__Analyze::Synchro_Manage()
         {
             if (Status[IsFinished])
                 Finish(); //Finish
-            if (File_Offset_FirstSynched==(int64u)-1 && Buffer_TotalBytes+Buffer_Offset>=Buffer_TotalBytes_FirstSynched_Max)
+            if (!IsSub && File_Offset_FirstSynched==(int64u)-1 && Buffer_TotalBytes+Buffer_Offset>=Buffer_TotalBytes_FirstSynched_Max)
             {
                 Open_Buffer_Unsynch();
                 GoToFromEnd(0);
@@ -1576,7 +1592,7 @@ bool File__Analyze::Synchro_Manage_Test()
         {
             if (Status[IsFinished])
                 Finish(); //Finish
-            if (File_Offset_FirstSynched==(int64u)-1 && Buffer_TotalBytes+Buffer_Offset>=Buffer_TotalBytes_FirstSynched_Max)
+            if (!IsSub && File_Offset_FirstSynched==(int64u)-1 && Buffer_TotalBytes+Buffer_Offset>=Buffer_TotalBytes_FirstSynched_Max)
                 Reject();
             return false; //Wait for more data
         }
@@ -3220,7 +3236,7 @@ void File__Analyze::Event_Prepare(struct MediaInfo_Event_Generic* Event)
 {
     memset(Event, 0xFF, sizeof(struct MediaInfo_Event_Generic));
     Event->StreamIDs_Size=StreamIDs_Size;
-    memcpy(Event->StreamIDs, StreamIDs, sizeof(StreamIDs));
+    memcpy_Unaligned_Unaligned_Once1024(Event->StreamIDs, StreamIDs, 128);
     memcpy(Event->StreamIDs_Width, StreamIDs_Width, sizeof(StreamIDs_Width));
     memcpy(Event->ParserIDs, ParserIDs, sizeof(ParserIDs));
     Event->StreamOffset=File_Offset+Buffer_Offset+Element_Offset;
@@ -3360,7 +3376,7 @@ bool File__Analyze::Demux_UnpacketizeContainer_Test_OneFramePerFile ()
     {
         size_t* File_Buffer_Size_Hint_Pointer=Config->File_Buffer_Size_Hint_Pointer_Get();
         if (File_Buffer_Size_Hint_Pointer)
-            (*File_Buffer_Size_Hint_Pointer)=Config->File_Current_Size-Config->File_Current_Offset-Buffer_Size;
+            (*File_Buffer_Size_Hint_Pointer) = (size_t)(Config->File_Current_Size - Config->File_Current_Offset - Buffer_Size);
         return false;
     }
 

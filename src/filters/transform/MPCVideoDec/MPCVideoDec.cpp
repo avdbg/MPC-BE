@@ -875,8 +875,8 @@ CMPCVideoDecFilter::CMPCVideoDecFilter(LPUNKNOWN lpunk, HRESULT* phr)
 	, m_DXVADecoderGUID(GUID_NULL)
 	, m_nActiveCodecs(CODECS_ALL)
 	, m_rtAvrTimePerFrame(0)
+	, m_rtLastStart(0)
 	, m_rtLastStop(0)
-	, m_rtPrevStop(0)
 	, m_rtStartCache(INVALID_TIME)
 	, m_nWorkaroundBug(FF_BUG_AUTODETECT)
 	, m_nErrorConcealment(FF_EC_DEBLOCK | FF_EC_GUESS_MVS)
@@ -1079,9 +1079,11 @@ void CMPCVideoDecFilter::UpdateFrameTime(REFERENCE_TIME& rtStart, REFERENCE_TIME
 	bool m_PullDownFlag = pulldown_flag && AvgTimePerFrame == 333666;
 	REFERENCE_TIME m_rtFrameDuration = m_PullDownFlag ? AVRTIMEPERFRAME_PULLDOWN : (AvgTimePerFrame * (m_pFrame->repeat_pict ? 3 : 2)  / 2);
 
-	if ((rtStart == INVALID_TIME) || (m_PullDownFlag && m_rtPrevStop && (rtStart <= m_rtPrevStop))) {
+	if ((rtStart == INVALID_TIME) || (m_PullDownFlag && m_rtLastStop && (rtStart <= m_rtLastStop))) {
 		rtStart = m_rtLastStop;
 	}
+
+	m_rtLastStart	= rtStart;
 
 	rtStop			= rtStart + (m_rtFrameDuration / m_dRate);
 	m_rtLastStop	= rtStop;
@@ -1588,6 +1590,7 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 
 	if (m_nCodecId == AV_CODEC_ID_MPEG2VIDEO
 			|| m_nCodecId == AV_CODEC_ID_MPEG1VIDEO
+			|| m_nCodecId == AV_CODEC_ID_VP9
 			|| pmt->subtype == MEDIASUBTYPE_H264
 			|| pmt->subtype == MEDIASUBTYPE_h264
 			|| pmt->subtype == MEDIASUBTYPE_X264
@@ -1601,8 +1604,7 @@ HRESULT CMPCVideoDecFilter::InitDecoder(const CMediaType *pmt)
 		m_bUseDXVA = false;
 	}
 
-	int nThreadNumber = m_nThreadNumber ? m_nThreadNumber : m_pCpuId->GetProcessorNumber() * 3/2;
-	m_pAVCtx->thread_count = max(1, min((IsDXVASupported() || m_nCodecId == AV_CODEC_ID_MPEG4) ? 1 : nThreadNumber, MAX_AUTO_THREADS));
+	SetThreadCount();
 
 	m_pFrame = av_frame_alloc();
 	CheckPointer(m_pFrame, E_POINTER);
@@ -2123,7 +2125,7 @@ HRESULT CMPCVideoDecFilter::NewSegment(REFERENCE_TIME rtStart, REFERENCE_TIME rt
 
 	m_rtStart		= rtStart;
 	m_rtStartCache	= INVALID_TIME;
-	m_rtPrevStop	= 0;
+	m_rtLastStart	= 0;
 	m_rtLastStop	= 0;
 
 	if (m_nCodecId == AV_CODEC_ID_H264 && (m_nDecoderMode == MODE_SOFTWARE || (m_nFrameType != PICT_FRAME && m_nPCIVendor == PCIV_ATI))) {
@@ -2207,6 +2209,19 @@ void CMPCVideoDecFilter::SetTypeSpecificFlags(IMediaSample* pMS)
 	}
 }
 
+void CMPCVideoDecFilter::HandleKeyFrame(int& got_picture)
+{
+	if (m_bWaitKeyFrame) {
+		if (m_bWaitingForKeyFrame && got_picture) {
+			if (m_pFrame->key_frame) {
+				m_bWaitingForKeyFrame = FALSE;
+			} else {
+				got_picture = 0;
+			}
+		}
+	}
+}
+
 #define RM_SKIP_BITS(n)	(buffer<<=n)
 #define RM_SHOW_BITS(n)	((buffer)>>(32-(n)))
 static int rm_fix_timestamp(uint8_t *buf, int64_t timestamp, enum AVCodecID nCodecId, int64_t *kf_base, int *kf_pts)
@@ -2262,6 +2277,7 @@ static int64_t process_rv_timestamp(RMDemuxContext *rm, enum AVCodecID nCodecId,
 }
 
 #define PULLDOWN_FLAG (m_nCodecId == AV_CODEC_ID_VC1 && m_bIsEVO && m_rtAvrTimePerFrame == 333666)
+#define Continue av_frame_unref(m_pFrame); continue;
 HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int nSize, REFERENCE_TIME& rtStartIn, REFERENCE_TIME& rtStopIn)
 {
 	HRESULT			hr = S_OK;
@@ -2330,11 +2346,12 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 
 			// Update start time cache
 			// If more data was read then output, update the cache (incomplete frame)
-			// If output is bigger, a frame was completed, update the actual rtStart with the cached value, and then overwrite the cache
+			// If output is bigger or equal, a frame was completed, update the actual rtStart with the cached value, and then overwrite the cache
 			if (used_bytes > pOut_size) {
 				if (rtStartIn != INVALID_TIME) {
 					m_rtStartCache = rtStartIn;
 				}
+			/*
 			} else if (used_bytes == pOut_size || ((used_bytes + 9) == pOut_size)) {
 				// Why +9 above?
 				// Well, apparently there are some broken MKV muxers that like to mux the MPEG-2 PICTURE_START_CODE block (which is 9 bytes) in the package with the previous frame
@@ -2342,6 +2359,8 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 				// So instead of failing on those samples, lets just assume that 9 bytes are that case exactly.
 				m_rtStartCache = rtStartIn = INVALID_TIME;
 			} else if (pOut_size > used_bytes) {
+			*/
+			} else {
 				rtStart			= m_rtStartCache;
 				m_rtStartCache	= rtStartIn;
 				// The value was used once, don't use it for multiple frames, that ends up in weird timings
@@ -2374,8 +2393,8 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 				if (m_nDecoderMode != MODE_SOFTWARE) {
 					// use ffmpeg's parser for DXVA decoder - H.264 AnnexB & MPEG2 format
 					hr = m_pDXVADecoder->DecodeFrame(avpkt.data, avpkt.size, avpkt.pts, avpkt.pts + 1);
-					av_frame_unref(m_pFrame);
-					continue;
+
+					Continue;
 				}
 
 				int ret2 = avcodec_decode_video2(m_pAVCtx, m_pFrame, &got_picture, &avpkt);
@@ -2396,30 +2415,21 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 			return S_OK;
 		}
 
-		if (m_bWaitKeyFrame) {
-			if (m_bWaitingForKeyFrame && got_picture) {
-				if (m_pFrame->key_frame) {
-					m_bWaitingForKeyFrame = FALSE;
-				} else {
-					got_picture = 0;
-				}
-			}
-		}
+		HandleKeyFrame(got_picture);
 
 		if (!got_picture || !m_pFrame->data[0]) {
 			if (!avpkt.size) {
 				bFlush = FALSE; // End flushing, no more frames
 			}
 
-			av_frame_unref(m_pFrame);
-			continue;
+			Continue;
 		}
 
 		if ((m_nCodecId == AV_CODEC_ID_RV10 || m_nCodecId == AV_CODEC_ID_RV20) && m_pFrame->pict_type == AV_PICTURE_TYPE_B) {
-			rtStart = m_rtPrevStop;
+			rtStart = m_rtLastStop;
 		} else if ((m_nCodecId == AV_CODEC_ID_RV30 || m_nCodecId == AV_CODEC_ID_RV40) && avpkt.data) {
 			rtStart = m_pFrame->pkt_pts;
-			rtStart = (rtStart == INVALID_TIME) ? m_rtPrevStop : (10000i64 * process_rv_timestamp(&rm, m_nCodecId, avpkt.data, (rtStart + m_rtStart) / 10000i64) - m_rtStart);
+			rtStart = (rtStart == INVALID_TIME) ? m_rtLastStop : (10000i64 * process_rv_timestamp(&rm, m_nCodecId, avpkt.data, (rtStart + m_rtStart) / 10000i64) - m_rtStart);
 		} else if (!PULLDOWN_FLAG) {
 			rtStart = m_pFrame->pkt_pts;
 		}
@@ -2427,11 +2437,8 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 		ReorderBFrames(rtStart, rtStop);
 		UpdateFrameTime(rtStart, rtStop, PULLDOWN_FLAG);
 
-		m_rtPrevStop = rtStop;
-
 		if ((pIn && pIn->IsPreroll() == S_OK) || rtStart < 0) {
-			av_frame_unref(m_pFrame);
-			continue;
+			Continue;
 		}
 
 		/*
@@ -2446,8 +2453,7 @@ HRESULT CMPCVideoDecFilter::SoftwareDecode(IMediaSample* pIn, BYTE* pDataIn, int
 
 		UpdateAspectRatio();
 		if (FAILED(hr = GetDeliveryBuffer(m_pAVCtx->width, m_pAVCtx->height, &pOut, GetDuration())) || FAILED(hr = pOut->GetPointer(&pDataOut))) {
-			av_frame_unref(m_pFrame);
-			continue;
+			Continue;
 		}
 
 		pOut->SetTime(&rtStart, &rtStop);
@@ -2556,8 +2562,8 @@ HRESULT CMPCVideoDecFilter::ReopenVideo()
 		if (m_nCodecId == AV_CODEC_ID_H264) {
 			m_pAVCtx->flags2 &= ~CODEC_FLAG2_SHOW_ALL;
 		}
-		int nThreadNumber = m_nThreadNumber ? m_nThreadNumber : m_pCpuId->GetProcessorNumber() * 3/2;
-		m_pAVCtx->thread_count = max(1, min(m_nCodecId == AV_CODEC_ID_MPEG4 ? 1 : nThreadNumber, MAX_AUTO_THREADS));
+
+		SetThreadCount();
 		
 		if (avcodec_open2(m_pAVCtx, m_pAVCodec, NULL) < 0) {
 			return VFW_E_INVALIDMEDIATYPE;
@@ -2567,9 +2573,16 @@ HRESULT CMPCVideoDecFilter::ReopenVideo()
 	return S_OK;
 }
 
+void CMPCVideoDecFilter::SetThreadCount()
+{
+	if (m_pAVCtx) {
+		int nThreadNumber = m_nThreadNumber ? m_nThreadNumber : m_pCpuId->GetProcessorNumber() * 3/2;
+		m_pAVCtx->thread_count = max(1, min((IsDXVASupported() || m_nCodecId == AV_CODEC_ID_MPEG4) ? 1 : nThreadNumber, MAX_AUTO_THREADS));
+	}
+}
+
 HRESULT CMPCVideoDecFilter::Transform(IMediaSample* pIn)
 {
-	CAutoLock cAutoLock(&m_csReceive);
 	HRESULT			hr;
 	BYTE*			pDataIn;
 	int				nSize;
@@ -2673,9 +2686,8 @@ void CMPCVideoDecFilter::UpdateAspectRatio()
 
 void CMPCVideoDecFilter::ReorderBFrames(REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop)
 {
-	// Re-order B-frames if needed
-	if (m_dwFrameCount < 30 && m_nCodecId == AV_CODEC_ID_H264 && !m_bReorderBFrame) {
-		if ((rtStart + m_rtAvrTimePerFrame) < m_rtLastStop && rtStart != INVALID_TIME) {
+	if (m_dwFrameCount < 150 && m_nCodecId == AV_CODEC_ID_H264 && !m_bReorderBFrame) {
+		if (rtStart < m_rtLastStart && rtStart > 0) {
 			if (m_nWrongFramesOrdering == 5) {
 				m_bReorderBFrame = true;
 			} else {
@@ -2683,9 +2695,9 @@ void CMPCVideoDecFilter::ReorderBFrames(REFERENCE_TIME& rtStart, REFERENCE_TIME&
 			}
 		}
 	}
-
 	m_dwFrameCount++;
 
+	// Re-order B-frames if needed
 	if (m_pAVCtx->has_b_frames && m_bReorderBFrame) {
 		rtStart	= m_BFrames[m_nPosB].rtStart;
 		rtStop	= m_BFrames[m_nPosB].rtStop;

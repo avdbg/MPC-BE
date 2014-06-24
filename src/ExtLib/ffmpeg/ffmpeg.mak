@@ -15,16 +15,14 @@ else
 	MY_DIR_PREFIX = Release
 endif
 
-ifeq ($(VS2010),yes)
-	BIN_DIR  = ../../../bin
-endif
-
-ifeq ($(VS2012),yes)
-	BIN_DIR  = ../../../bin12
-endif
-
 OBJ_DIR		= $(BIN_DIR)/obj/$(MY_DIR_PREFIX)_$(MY_ARCH)/ffmpeg/
 TARGET_LIB_DIR = $(BIN_DIR)/lib/$(MY_DIR_PREFIX)_$(MY_ARCH)
+LIB_LIBAVCODEC = $(OBJ_DIR)libavcodec.a
+LIB_LIBAVFILTER = $(OBJ_DIR)libavfilter.a
+LIB_LIBAVRESAMPLE = $(OBJ_DIR)libavresample.a
+LIB_LIBAVUTIL = $(OBJ_DIR)libavutil.a
+LIB_LIBSWRESAMPLE = $(OBJ_DIR)libswresample.a
+LIB_LIBSWSCALE = $(OBJ_DIR)libswscale.a
 TARGET_LIB	 = $(TARGET_LIB_DIR)/ffmpeg.lib
 
 # Compiler and yasm flags
@@ -71,7 +69,7 @@ OBJ_DIRS = $(OBJ_DIR) \
 	$(TARGET_LIB_DIR)
 
 # Targets
-all: make_objdirs $(TARGET_LIB)
+all: make_objdirs $(LIB_LIBAVCODEC) $(LIB_LIBAVFILTER) $(LIB_LIBSWSCALE) $(LIB_LIBAVUTIL) $(LIB_LIBAVRESAMPLE) $(LIB_LIBSWRESAMPLE)
 
 make_objdirs: $(OBJ_DIRS)
 $(OBJ_DIRS):
@@ -82,8 +80,9 @@ clean:
 	rm -rf $(OBJ_DIR)
 
 # Objects
-SRCS_C = \
+SRCS_LC = \
 	config.c \
+	\
 	libavcodec/8bps.c \
 	libavcodec/aac_ac3_parser.c \
 	libavcodec/aac_parser.c \
@@ -126,6 +125,7 @@ SRCS_C = \
 	libavcodec/binkaudio.c \
 	libavcodec/binkdsp.c \
 	libavcodec/bitstream.c \
+	libavcodec/blockdsp.c \
 	libavcodec/cabac.c \
 	libavcodec/celp_filters.c \
 	libavcodec/celp_math.c \
@@ -217,6 +217,7 @@ SRCS_C = \
 	libavcodec/huffman.c \
 	libavcodec/huffyuv.c \
 	libavcodec/huffyuvdec.c \
+	libavcodec/huffyuvdsp.c \
 	libavcodec/imc.c \
 	libavcodec/imgconvert.c \
 	libavcodec/indeo3.c \
@@ -237,6 +238,7 @@ SRCS_C = \
 	libavcodec/latm_parser.c \
 	libavcodec/libopenjpegdec.c \
 	libavcodec/libspeexdec.c \
+	libavcodec/lossless_audiodsp.c \
 	libavcodec/lossless_videodsp.c \
 	libavcodec/lsp.c \
 	libavcodec/mathtables.c \
@@ -308,6 +310,7 @@ SRCS_C = \
 	libavcodec/pthread_frame.c \
 	libavcodec/pthread_slice.c \
 	libavcodec/qdm2.c \
+	libavcodec/qpeldsp.c \
 	libavcodec/qtrle.c \
 	libavcodec/proresdata.c \
 	libavcodec/proresdec2.c \
@@ -372,6 +375,7 @@ SRCS_C = \
 	libavcodec/vorbisdec.c \
 	libavcodec/vorbisdsp.c \
 	libavcodec/vp3.c \
+	libavcodec/vp3_parser.c \
 	libavcodec/vp3dsp.c \
 	libavcodec/vp5.c \
 	libavcodec/vp56.c \
@@ -381,8 +385,10 @@ SRCS_C = \
 	libavcodec/vp6.c \
 	libavcodec/vp6dsp.c \
 	libavcodec/vp8.c \
+	libavcodec/vp8_parser.c \
 	libavcodec/vp8dsp.c \
 	libavcodec/vp9.c \
+	libavcodec/vp9_parser.c \
 	libavcodec/vp9dsp.c \
 	libavcodec/wavpack.c \
 	libavcodec/wma.c \
@@ -395,7 +401,9 @@ SRCS_C = \
 	libavcodec/wmv2dec.c \
 	libavcodec/wmv2dsp.c \
 	libavcodec/xiph.c \
+	\
 	libavcodec/x86/ac3dsp_init.c \
+	libavcodec/x86/blockdsp_mmx.c \
 	libavcodec/x86/constants.c \
 	libavcodec/x86/dcadsp_init.c \
 	libavcodec/x86/dct_init.c \
@@ -403,7 +411,6 @@ SRCS_C = \
 	libavcodec/x86/diracdsp_mmx.c \
 	libavcodec/x86/dsputil_init.c \
 	libavcodec/x86/dsputil_mmx.c \
-	libavcodec/x86/dsputil_x86.c \
 	libavcodec/x86/fdct.c \
 	libavcodec/x86/fft_init.c \
 	libavcodec/x86/flacdsp_init.c \
@@ -415,9 +422,11 @@ SRCS_C = \
 	libavcodec/x86/hevcdsp_init.c \
 	libavcodec/x86/h264_qpel.c \
 	libavcodec/x86/hpeldsp_init.c \
-	libavcodec/x86/hpeldsp_mmx.c \
+	libavcodec/x86/huffyuvdsp_init.c \
+	libavcodec/x86/huffyuvdsp_mmx.c \
 	libavcodec/x86/idct_mmx_xvid.c \
 	libavcodec/x86/idct_sse2_xvid.c \
+	libavcodec/x86/lossless_audiodsp_init.c \
 	libavcodec/x86/lossless_videodsp_init.c \
 	libavcodec/x86/mlpdsp.c \
 	libavcodec/x86/motion_est.c \
@@ -425,6 +434,7 @@ SRCS_C = \
 	libavcodec/x86/mpegvideo.c \
 	libavcodec/x86/pngdsp_init.c \
 	libavcodec/x86/proresdsp_init.c \
+	libavcodec/x86/qpeldsp_init.c \
 	libavcodec/x86/rv34dsp_init.c \
 	libavcodec/x86/rv40dsp_init.c \
 	libavcodec/x86/sbrdsp_init.c \
@@ -439,7 +449,9 @@ SRCS_C = \
 	libavcodec/x86/vp3dsp_init.c \
 	libavcodec/x86/vp6dsp_init.c \
 	libavcodec/x86/vp8dsp_init.c \
-	libavcodec/x86/vp9dsp_init.c \
+	libavcodec/x86/vp9dsp_init.c
+
+SRCS_LF = \
 	libavfilter/af_atempo.c \
 	libavfilter/af_biquads.c \
 	libavfilter/allfilters.c \
@@ -452,7 +464,9 @@ SRCS_C = \
 	libavfilter/buffersrc.c \
 	libavfilter/formats.c \
 	libavfilter/pthread.c \
-	libavfilter/video.c \
+	libavfilter/video.c
+
+SRCS_LBR = \
 	libavresample/audio_convert.c \
 	libavresample/audio_data.c \
 	libavresample/audio_mix.c \
@@ -461,9 +475,12 @@ SRCS_C = \
 	libavresample/options.c \
 	libavresample/resample.c \
 	libavresample/utils.c \
+	\
 	libavresample/x86/audio_convert_init.c \
 	libavresample/x86/audio_mix_init.c \
-	libavresample/x86/dither_init.c \
+	libavresample/x86/dither_init.c
+
+SRCS_LU = \
 	libavutil/atomic.c \
 	libavutil/audio_fifo.c \
 	libavutil/avstring.c \
@@ -502,17 +519,26 @@ SRCS_C = \
 	libavutil/samplefmt.c \
 	libavutil/sha.c \
 	libavutil/stereo3d.c \
+	libavutil/threadmessage.c \
 	libavutil/timecode.c \
 	libavutil/utils.c \
+	\
 	libavutil/x86/cpu.c \
 	libavutil/x86/float_dsp_init.c \
-	libavutil/x86/lls_init.c \
+	libavutil/x86/lls_init.c
+
+SRCS_LR = \
 	libswresample/audioconvert.c \
 	libswresample/dither.c\
 	libswresample/rematrix.c \
 	libswresample/resample.c \
+	libswresample/resample_dsp.c \
 	libswresample/swresample.c \
-	libswresample/x86/swresample_x86.c \
+	\
+	libswresample/x86/resample_x86_dsp.c \
+	libswresample/x86/swresample_x86.c
+
+SRCS_LS = \
 	libswscale/input.c \
 	libswscale/options.c \
 	libswscale/output.c \
@@ -521,13 +547,15 @@ SRCS_C = \
 	libswscale/swscale_unscaled.c \
 	libswscale/utils.c \
 	libswscale/yuv2rgb.c \
+	\
 	libswscale/x86/rgb2rgb.c \
 	libswscale/x86/swscale.c \
 	libswscale/x86/yuv2rgb.c
 
 # Yasm objects
-SRCS_YASM = \
+SRCS_YASM_LC = \
 	libavcodec/x86/ac3dsp.asm \
+	libavcodec/x86/blockdsp.asm \
 	libavcodec/x86/dcadsp.asm \
 	libavcodec/x86/dct32.asm \
 	libavcodec/x86/deinterlace.asm \
@@ -552,14 +580,17 @@ SRCS_YASM = \
 	libavcodec/x86/h264_weight.asm \
 	libavcodec/x86/h264_weight_10bit.asm \
 	libavcodec/x86/hevc_deblock.asm \
+	libavcodec/x86/hevc_idct.asm \
 	libavcodec/x86/hevc_mc.asm \
 	libavcodec/x86/hpeldsp.asm \
+	libavcodec/x86/huffyuvdsp.asm \
 	libavcodec/x86/imdct36.asm \
+	libavcodec/x86/lossless_audiodsp.asm \
 	libavcodec/x86/lossless_videodsp.asm \
-	libavcodec/x86/mpeg4qpel.asm \
 	libavcodec/x86/pngdsp.asm \
 	libavcodec/x86/proresdsp.asm \
 	libavcodec/x86/qpel.asm \
+	libavcodec/x86/qpeldsp.asm \
 	libavcodec/x86/rv34dsp.asm \
 	libavcodec/x86/rv40dsp.asm \
 	libavcodec/x86/sbrdsp.asm \
@@ -575,24 +606,51 @@ SRCS_YASM = \
 	libavcodec/x86/vp9intrapred.asm \
 	libavcodec/x86/vp9itxfm.asm \
 	libavcodec/x86/vp9lpf.asm \
-	libavcodec/x86/vp9mc.asm \
+	libavcodec/x86/vp9mc.asm
+
+SRCS_YASM_LBR = \
 	libavresample/x86/audio_convert.asm \
 	libavresample/x86/audio_mix.asm \
 	libavresample/x86/dither.asm \
-	libavresample/x86/util.asm \
+	libavresample/x86/util.asm
+
+SRCS_YASM_LU = \
 	libavutil/x86/cpuid.asm \
 	libavutil/x86/emms.asm \
 	libavutil/x86/float_dsp.asm \
-	libavutil/x86/lls.asm \
+	libavutil/x86/lls.asm
+
+SRCS_YASM_LR = \
 	libswresample/x86/audio_convert.asm \
-	libswresample/x86/rematrix.asm \
+	libswresample/x86/rematrix.asm
+
+SRCS_YASM_LS = \
 	libswscale/x86/input.asm \
 	libswscale/x86/output.asm \
 	libswscale/x86/scale.asm
 
-OBJS = \
-	$(SRCS_C:%.c=$(OBJ_DIR)%.o) \
-	$(SRCS_YASM:%.asm=$(OBJ_DIR)%.o)
+OBJS_LC = \
+	$(SRCS_LC:%.c=$(OBJ_DIR)%.o) \
+	$(SRCS_YASM_LC:%.asm=$(OBJ_DIR)%.o)
+
+OBJS_LF = \
+	$(SRCS_LF:%.c=$(OBJ_DIR)%.o)
+
+OBJS_LBR = \
+	$(SRCS_LBR:%.c=$(OBJ_DIR)%.o) \
+	$(SRCS_YASM_LBR:%.asm=$(OBJ_DIR)%.o)
+
+OBJS_LU = \
+	$(SRCS_LU:%.c=$(OBJ_DIR)%.o) \
+	$(SRCS_YASM_LU:%.asm=$(OBJ_DIR)%.o)
+
+OBJS_LR = \
+	$(SRCS_LR:%.c=$(OBJ_DIR)%.o) \
+	$(SRCS_YASM_LR:%.asm=$(OBJ_DIR)%.o)
+
+OBJS_LS = \
+	$(SRCS_LS:%.c=$(OBJ_DIR)%.o) \
+	$(SRCS_YASM_LS:%.asm=$(OBJ_DIR)%.o)
 
 # Commands
 $(OBJ_DIR)%.o: %.c
@@ -603,10 +661,35 @@ $(OBJ_DIR)%.o: %.asm
 	@echo $<
 	@yasm $(YASMFLAGS) -I$(<D)/ -o $@ $<
 
-$(TARGET_LIB): $(OBJS)
+$(LIB_LIBAVCODEC): $(OBJS_LC)
 	@echo $@
-	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS)
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LC)
 
--include $(SRCS_C:%.c=$(OBJ_DIR)%.d)
+$(LIB_LIBAVFILTER): $(OBJS_LF)
+	@echo $@
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LF)
+
+$(LIB_LIBAVRESAMPLE): $(OBJS_LBR)
+	@echo $@
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LBR)
+
+$(LIB_LIBAVUTIL): $(OBJS_LU)
+	@echo $@
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LU)
+
+$(LIB_LIBSWSCALE): $(OBJS_LS)
+	@echo $@
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LS)
+
+$(LIB_LIBSWRESAMPLE): $(OBJS_LR)
+	@echo $@
+	@$(FFMPEG_PREFIX)ar rc $@ $(OBJS_LR)
+
+-include $(SRCS_LC:%.c=$(OBJ_DIR)%.d)
+-include $(SRCS_LF:%.c=$(OBJ_DIR)%.d)
+-include $(SRCS_LBR:%.c=$(OBJ_DIR)%.d)
+-include $(SRCS_LU:%.c=$(OBJ_DIR)%.d)
+-include $(SRCS_LR:%.c=$(OBJ_DIR)%.d)
+-include $(SRCS_LS:%.c=$(OBJ_DIR)%.d)
 
 .PHONY: clean make_objdirs $(OBJ_DIRS)

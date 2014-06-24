@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <d3dx9.h>
+#include <dx/d3dx9.h>
 #include <videoacc.h>	// DXVA1
 #include <dxva.h>
 #include <dxva2api.h>	// DXVA2
@@ -111,16 +111,16 @@ protected:
 	BYTE*									m_pFFBuffer2;
 	int										m_nFFBufferSize2;
 
-	REFERENCE_TIME							m_rtLastStop;			// rtStop for last delivered frame
+	REFERENCE_TIME							m_rtLastStart;			// rtStart for last delivered frame
+	REFERENCE_TIME							m_rtLastStop;			// rtStop  for last delivered frame
 	double									m_dRate;
-	REFERENCE_TIME							m_rtPrevStop;
 
 	bool									m_bUseDXVA;
 	bool									m_bUseFFmpeg;
 	CFormatConverter						m_FormatConverter;
 	CSize									m_pOutSize;				// Picture size on output pin
 
-	// === DXVA common variables
+	// === common variables
 	VIDEO_OUTPUT_FORMATS*					m_pVideoOutputFormat;
 	int										m_nVideoOutputCount;
 	CDXVADecoder*							m_pDXVADecoder;
@@ -169,6 +169,7 @@ protected:
 	HRESULT				ChangeOutputMediaFormat(int nType);
 
 	HRESULT				ReopenVideo();
+	void				SetThreadCount();
 	HRESULT				FindDecoderConfiguration();
 
 	HRESULT				InitDecoder(const CMediaType *pmt);
@@ -244,7 +245,7 @@ public:
 	STDMETHODIMP GetOutputMediaType(CMediaType* pmt);
 	STDMETHODIMP_(int) GetFrameType();
 
-	// === DXVA common functions
+	// === common functions
 	BOOL						IsSupportedDecoderConfig(const D3DFORMAT nD3DFormat, const DXVA2_ConfigPictureDecode& config, bool& bIsPrefered);
 	BOOL						IsSupportedDecoderMode(const GUID* mode);
 	int							GetPicEntryNumber();
@@ -267,6 +268,7 @@ public:
 	void						ReorderBFrames(REFERENCE_TIME& rtStart, REFERENCE_TIME& rtStop);
 	void						FlushDXVADecoder();
 	void						SetTypeSpecificFlags(IMediaSample* pMS);
+	void						HandleKeyFrame(int& got_picture);
 
 	// === DXVA1 functions
 	DDPIXELFORMAT*				GetPixelFormat() { return &m_DDPixelFormat; }

@@ -221,6 +221,46 @@ bool Ztring::Assign_FromFile (const Ztring &FileName)
 // Conversions
 //***************************************************************************
 
+Ztring& Ztring::From_Unicode (const wchar_t S)
+{
+    #ifdef _UNICODE
+        append(1, S);
+    #else
+        #ifdef ZENLIB_USEWX
+            size_type OK=wxConvCurrent->WC2MB(NULL, &S, 1);
+            if (OK!=0 && OK!=Error)
+                assign(wxConvCurrent->cWC2MB(S, 1));
+        #else //ZENLIB_USEWX
+            #if 0//def WINDOWS
+                int Size=WideCharToMultiByte(CP_UTF8, 0, &S, 1, NULL, 0, NULL, NULL);
+                if (Size!=0)
+                {
+                    char* AnsiString=new char[Size+1];
+                    WideCharToMultiByte(CP_UTF8, 0, &S, 1, AnsiString, Size, NULL, NULL);
+                    AnsiString[Size]='\0';
+                    assign (AnsiString);
+                    delete[] AnsiString;
+                }
+                else
+                    clear();
+            #else //WINDOWS
+                size_t Size=wcstombs(NULL, &S, 1);
+                if (Size!=0 && Size!=(size_t)-1)
+                {
+                    char* AnsiString=new char[Size+1];
+                    Size=wcstombs(AnsiString, &S, 1);
+                    AnsiString[Size]='\0';
+                    assign (AnsiString);
+                    delete[] AnsiString;
+                }
+                else
+                    clear();
+            #endif
+        #endif //ZENLIB_USEWX
+    #endif
+    return *this;
+}
+
 Ztring& Ztring::From_Unicode (const wchar_t* S)
 {
     if (S==NULL)
@@ -235,11 +275,6 @@ Ztring& Ztring::From_Unicode (const wchar_t* S)
                 assign(wxConvCurrent->cWC2MB(S));
         #else //ZENLIB_USEWX
             #ifdef WINDOWS
-                if (IsWin9X())
-                {
-                    clear();
-                    return *this; //Is not possible, UTF-8 is not supported by Win9X
-                }
                 int Size=WideCharToMultiByte(CP_UTF8, 0, S, -1, NULL, 0, NULL, NULL);
                 if (Size!=0)
                 {
@@ -1372,7 +1407,7 @@ Ztring& Ztring::Date_From_String (const char* Value, size_t Value_Size)
             ToReturn+=__T(" ");
             ToReturn+=Date.FormatISOTime();
         }
-        else if (ToReturn.size()<5)
+        else
             ToReturn+=DateS;
 
         assign (ToReturn.c_str());

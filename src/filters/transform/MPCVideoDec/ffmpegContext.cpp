@@ -40,11 +40,12 @@ extern "C" {
 }
 
 static const WORD PCID_NVIDIA_VP5 [] = {
-	// http://us.download.nvidia.com/XFree86/Linux-x86_64/337.12/README/supportedchips.html
+	// http://us.download.nvidia.com/XFree86/Linux-x86_64/337.25/README/supportedchips.html
 	// http://pci-ids.ucw.cz/read/PC/10de
 	// VP5, Nvidia VDPAU Feature Set D: GF119, GK104, GK106, GK107, GK110, GK208
 	0x0FC2, // GeForce GT 630 (GK107) (not officially supported or typo, 4k tested)
 	0x0FC6, // GeForce GTX 650
+	0x0FC8, // GeForce GT 740
 	0x0FCD, // GeForce GT 755M
 	0x0FD1, // GeForce GT 650M
 	0x0FD2, // GeForce GT 640M
@@ -71,6 +72,7 @@ static const WORD PCID_NVIDIA_VP5 [] = {
 	0x0FFD, // NVS 510
 	0x0FFE, // Quadro K2000
 	0x0FFF, // Quadro 410
+	0x1001, // GeForce GTX TITAN Z
 	0x1004, // GeForce GTX 780
 	0x1005, // GeForce GTX TITAN
 	0x1007, // GeForce GTX 780
@@ -201,12 +203,17 @@ static const WORD PCID_INTEL_4K [] = {
 	0x0156, // Intel HD Graphics 2500 Mobile
 	0x015A, // Intel HD Graphics P2500
 	0x0162, // Intel HD Graphics 4000        (fully tested)
-	0x0166, // Intel HD Graphics 4000 Mobile (not tested)
-	0x016A, // Intel HD Graphics P4000       (not tested)
-	// Haswell (not tested)
-	0x0412, // Intel HD Graphics HD4600
-	0x0416, // Intel HD Graphics HD4600 Mobile
+	0x0166, // Intel HD Graphics 4000 Mobile
+	0x016A, // Intel HD Graphics P4000
+	// Haswell
+	0x0402, // Intel HD Graphics
+	0x0406, // Intel HD Graphics Mobile
+	0x0412, // Intel HD Graphics 4600
+	0x0416, // Intel HD Graphics 4600 Mobile
 	0x041A, // Intel HD Graphics P4600/P4700
+	0x041E, // Intel HD Graphics 4400"
+	0x0A06, // Intel HD Graphics
+	0x0A0E, // Intel HD Graphics
 	0x0A16, // Intel HD Graphics Family
 	0x0A1E, // Intel HD Graphics Family
 	0x0A26, // Intel HD Graphics 5000
@@ -605,9 +612,15 @@ BOOL DXVACheckFramesize(enum AVCodecID nCodecId, int width, int height, DWORD nP
 			// tested H.264, VC-1 and MPEG-2 on VP4 (feature set C) (G210M, GT220)
 			return TRUE;
 		}
+// disabled because unstable
+//	} else if (nPCIVendor == PCIV_ATI) {
+//		if (width <= 2048 && height <= 2304 && width * height <= 2048 * 2048) {
+//			// tested H.264 on UVD 2.2 (HD5670, HD5770, HD5850)
+//			// it may also work if width = 2064, but unstable
+//			return TRUE;
+//		}
 	} else if (nPCIVendor == PCIV_Intel && nPCIDevice == PCID_Intel_HD4000) {
-		//if (width <= 4096 && height <= 4096 && width * height <= 56672 * 16 * 16) {
-		if (width <= 4096 && height <= 4096) { // driver v.9.17.10.2867
+		if (width <= 4096 && height <= 4096) { // driver >= v.9.17.10.2867
 			// complete test was performed
 			return TRUE;
 		}

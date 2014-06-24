@@ -449,9 +449,9 @@ static void clone_tables(H264Context *dst, H264Context *src, int i)
 #define IN_RANGE(a, b, size) (((a) >= (b)) && ((a) < ((b) + (size))))
 #undef REBASE_PICTURE
 #define REBASE_PICTURE(pic, new_ctx, old_ctx)             \
-    ((pic && pic >= old_ctx->DPB &&                       \
-      pic < old_ctx->DPB + H264_MAX_PICTURE_COUNT) ?          \
-     &new_ctx->DPB[pic - old_ctx->DPB] : NULL)
+    (((pic) && (pic) >= (old_ctx)->DPB &&                       \
+      (pic) < (old_ctx)->DPB + H264_MAX_PICTURE_COUNT) ?          \
+     &(new_ctx)->DPB[(pic) - (old_ctx)->DPB] : NULL)
 
 static void copy_picture_range(H264Picture **to, H264Picture **from, int count,
                                H264Context *new_base,
@@ -489,8 +489,8 @@ static int copy_parameter_set(void **to, void **from, int count, int size)
 }
 
 #define copy_fields(to, from, start_field, end_field)                   \
-    memcpy(&to->start_field, &from->start_field,                        \
-           (char *)&to->end_field - (char *)&to->start_field)
+    memcpy(&(to)->start_field, &(from)->start_field,                        \
+           (char *)&(to)->end_field - (char *)&(to)->start_field)
 
 static int h264_slice_header_init(H264Context *h, int reinit);
 
@@ -969,13 +969,13 @@ static void init_scan_tables(H264Context *h)
 {
     int i;
     for (i = 0; i < 16; i++) {
-#define TRANSPOSE(x) (x >> 2) | ((x << 2) & 0xF)
+#define TRANSPOSE(x) ((x) >> 2) | (((x) << 2) & 0xF)
         h->zigzag_scan[i] = TRANSPOSE(zigzag_scan[i]);
         h->field_scan[i]  = TRANSPOSE(field_scan[i]);
 #undef TRANSPOSE
     }
     for (i = 0; i < 64; i++) {
-#define TRANSPOSE(x) (x >> 3) | ((x & 7) << 3)
+#define TRANSPOSE(x) ((x) >> 3) | (((x) & 7) << 3)
         h->zigzag_scan8x8[i]       = TRANSPOSE(ff_zigzag_direct[i]);
         h->zigzag_scan8x8_cavlc[i] = TRANSPOSE(zigzag_scan8x8_cavlc[i]);
         h->field_scan8x8[i]        = TRANSPOSE(field_scan8x8[i]);
@@ -1157,8 +1157,7 @@ static int h264_slice_header_init(H264Context *h, int reinit)
                     h->avctx->thread_count : 1;
     int i, ret;
 
-    h->avctx->sample_aspect_ratio = h->sps.sar;
-    av_assert0(h->avctx->sample_aspect_ratio.den);
+    ff_set_sar(h->avctx, h->sps.sar);
     av_pix_fmt_get_chroma_sub_sample(h->avctx->pix_fmt,
                                      &h->chroma_x_shift, &h->chroma_y_shift);
 
@@ -1327,6 +1326,15 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
         av_log(h->avctx, AV_LOG_ERROR, "A non-intra slice in an IDR NAL unit.\n");
         return AVERROR_INVALIDDATA;
     }
+
+    if (
+        (h->avctx->skip_frame >= AVDISCARD_NONREF && !h->nal_ref_idc) ||
+        (h->avctx->skip_frame >= AVDISCARD_BIDIR  && h->slice_type_nos == AV_PICTURE_TYPE_B) ||
+        (h->avctx->skip_frame >= AVDISCARD_NONINTRA && h->slice_type_nos != AV_PICTURE_TYPE_I) ||
+        (h->avctx->skip_frame >= AVDISCARD_NONKEY && h->nal_unit_type != NAL_IDR_SLICE) ||
+         h->avctx->skip_frame >= AVDISCARD_ALL) {
+         return SLICE_SKIPED;
+     }
 
     // to make a few old functions happy, it's wrong though
     h->pict_type = h->slice_type;
@@ -1517,10 +1525,7 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
     } else {
         /* Shorten frame num gaps so we don't have to allocate reference
          * frames just to throw them away */
-        // ==> Start patch MPC
-        if (h->frame_num != h->prev_frame_num && h->prev_frame_num >= 0) {
-        // if (h->frame_num != h->prev_frame_num) {
-        // <== End patch MPC
+        if (h->frame_num != h->prev_frame_num) {
             int unwrap_prev_frame_num = h->prev_frame_num;
             int max_frame_num         = 1 << h->sps.log2_max_frame_num;
 
@@ -1593,10 +1598,7 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
             }
         }
 
-        // ==> Start patch MPC
-        while (h->frame_num != h->prev_frame_num && h->prev_frame_num >= 0 && !h0->first_field &&
-        // while (h->frame_num != h->prev_frame_num && !h0->first_field &&
-        // <== End patch MPC
+        while (h->frame_num != h->prev_frame_num && !h0->first_field &&
                h->frame_num != (h->prev_frame_num + 1) % (1 << h->sps.log2_max_frame_num)) {
             H264Picture *prev = h->short_ref_count ? h->short_ref[0] : NULL;
             av_log(h->avctx, AV_LOG_DEBUG, "Frame num gap %d %d\n",
@@ -1870,6 +1872,8 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
 
     if (h->avctx->skip_loop_filter >= AVDISCARD_ALL ||
         (h->avctx->skip_loop_filter >= AVDISCARD_NONKEY &&
+         h->nal_unit_type != NAL_IDR_SLICE) ||
+        (h->avctx->skip_loop_filter >= AVDISCARD_NONINTRA &&
          h->slice_type_nos != AV_PICTURE_TYPE_I) ||
         (h->avctx->skip_loop_filter >= AVDISCARD_BIDIR  &&
          h->slice_type_nos == AV_PICTURE_TYPE_B) ||
@@ -1886,13 +1890,16 @@ int ff_h264_decode_slice_header(H264Context *h, H264Context *h0)
             h0->max_contexts = 1;
             if (!h0->single_decode_warning) {
                 av_log(h->avctx, AV_LOG_INFO,
-                       "Cannot parallelize deblocking type 1, decoding such frames in sequential order\n");
+                       "Cannot parallelize slice decoding with deblocking filter type 1, decoding such frames in sequential order\n"
+                       "To parallelize slice decoding you need video encoded with disable_deblocking_filter_idc set to 2 (deblock only edges that do not cross slices).\n"
+                       "Setting the flags2 libavcodec option to +fast (-flags2 +fast) will disable deblocking across slices and enable parallel slice decoding "
+                       "but will generate non-standard-compliant output.\n");
                 h0->single_decode_warning = 1;
             }
             if (h != h0) {
                 av_log(h->avctx, AV_LOG_ERROR,
                        "Deblocking switched inside frame.\n");
-                return 1;
+                return SLICE_SINGLETHREAD;
             }
         }
     }
